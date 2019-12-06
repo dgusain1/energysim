@@ -25,8 +25,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 
-'''HI HI HI HI H I
+'''THis is going to be merged to master
 '''
+
 
 '''
     World is your cosimulation canvas. You initialise World with basic simulation 
