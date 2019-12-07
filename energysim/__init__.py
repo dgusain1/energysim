@@ -25,9 +25,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 
-'''THis is going to be merged to master
-'''
-
 
 '''
     World is your cosimulation canvas. You initialise World with basic simulation 
@@ -76,7 +73,6 @@ class World():
         self.powerflow_dict = {}
         self.powerflow_outputs = {}
         self.powerflow_inputs = {}
-#        self.script_dict = {}
         self.snapshots_dict = {}
         self.pf = ''
         self.interpolate_results = interpolate_results
@@ -84,15 +80,6 @@ class World():
         self.csv_dict = {}
         self.variable_dict = {}
 
-# TODO -    
-#    def add_script(self, script_name, script_loc, inputs = [], outputs=[], step_size):
-#        assert len(script_name.split('.')) > 2, "Script Name should be defined as a1.a2; check the add_script() again"
-#        script = py_adapter(script_name = script_name, script_loc = script_loc, inputs = inputs, outputs = outputs)
-#        self.script_dict[script_name] = script
-#        self.stepsize_dict[script_name] = step_size
-#        if self.logging:
-#            print(f"Added script {script_name} to world.")
-        
     def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, logger = 'DEBUG'):
         self.stepsize_dict[network_name] = step_size
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
@@ -265,25 +252,8 @@ class World():
             name = [name + '.' + item]
             columns_of_df.extend(name)
         return pd.DataFrame(columns = columns_of_df)
-        
-    def simulate(self):
-        check = self.perform_consistency_name_checks()
-        if not check:
-            print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
-            print('Exiting simulation.')
-            sys.exit()
-        
-#        t1 = current_time()
-        time = self.start_time
-        
-        #For FMUs
-#        for _fmu in self.fmu_dict.values():
-#            _fmu.setup()
-        
-        if self.logging:
-            print("Simulation started..")
-            print("Simulation status:\n")
-            
+    
+    def init(self):
         self.create_results_dataframe()
         
         assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
@@ -295,7 +265,6 @@ class World():
         
         #initialise FMUs and their result dataframes
         for name, _fmu in self.fmu_dict.items():
-#            print(name)
             fmu_df = self.create_df_for_fmu(name)            
             self.res_dict[name] = fmu_df
             try:
@@ -319,7 +288,6 @@ class World():
                     _fmu.init()
                 except:
                     print('Couldnt initialise %s. Simulation stopped.' %(_fmu.instanceName))
-#                    continue
                     sys.exit()
         
         #initialise power flow and create its dataframe as well
@@ -330,53 +298,45 @@ class World():
             network.init()
             print('Initialised powerflow network: %s'%(net_name))
         
-# TODO -       #initialise script and create its dataframe as well
-#        for script_name, script in self.script_dict.items():
-#            script_df = self.create_df_for_simulator(script_name, script)
-#            self.res_dict[script_name] = script_df
-#            self.set_csv_signals(0)
-#            script.init()
-#            print('Initialised script: %s'%(script_name))
-                
-        
         #determine when FMUs exchange information between themselves
         if self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items())>1:
-            final_tStep = self.get_lcm()
+            self.final_tStep = self.get_lcm()
         elif self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items()) == 1:
-            final_tStep = list(self.stepsize_dict.values())[0]
+            self.final_tStep = list(self.stepsize_dict.values())[0]
         else:
-            final_tStep = self.exchange
+            self.final_tStep = self.exchange
         
         
         if len(self.fmu_dict)+len(self.signal_dict)+len(self.powerflow_dict) > 1:
-            do_exchange = True
+            self.do_exchange = True
         else:
-            do_exchange = False
+            self.do_exchange = False
         
-        for time in tqdm(np.linspace(0, self.stop_time, int(self.stop_time/final_tStep)+1)):
+    def simulate(self, startTime=False, stopTime=False):
+        check = self.perform_consistency_name_checks()
+        if not check:
+            print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
+            print('Exiting simulation.')
+            sys.exit()
+        
+        time = self.start_time
+        
+        if self.logging:
+            print("Simulation started..")
+            print("Simulation status:\n")
+        
+        for time in tqdm(np.linspace(0, self.stop_time, int(self.stop_time/self.final_tStep)+1)):
                 
-# TODO -            for script_name, script in self.script_dict.items():                
-#                if round(time%self.stepsize_dict[script_name], 5) == 0:
-#                    self.set_csv_signals(time)
-#                    script.step()
-#                    temp_res = [time] + script.getOutput()
-#                    self.res_dict[script_name].loc[len(self.res_dict[script_name].index)] = temp_res
-            
-            
-            
             for _fmu in self.fmu_dict.keys():                
                 temp_time = time
-#                print(_fmu)
-                local_stop_time = min(temp_time + final_tStep, self.stop_time)
+                local_stop_time = min(temp_time + self.final_tStep, self.stop_time)
                 while temp_time < local_stop_time:
                     self.set_csv_signals(temp_time)
                     temp_res = [temp_time] + self.fmu_dict[_fmu].getOutput()
                     self.res_dict[_fmu].loc[len(self.res_dict[_fmu].index)] = temp_res
                     
                     if _fmu in self.variable_dict.keys():                        
-                        stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, final_tStep, time)
-#                        print(f'Working variable step size for {_fmu}, stepsize={stepsize}.')
-                        
+                        stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
                         try:
                             self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
                             temp_time += stepsize             #self.stepsize_dict[_fmu]
@@ -390,27 +350,20 @@ class World():
                         temp_time += self.stepsize_dict[_fmu]
                     
 
-            if do_exchange:
+            if self.do_exchange:
                 self.exchange_values(time)
                 
             for net_name, network in self.powerflow_dict.items():                
                 if round(time%self.stepsize_dict[net_name]) == 0:
-                    
-#                    if time> 5 and time<20:
-                        
                     self.set_csv_signals(time)
                     network.step()
                     
                     temp_res = [time] + network.getOutput()
                     self.res_dict[net_name].loc[len(self.res_dict[net_name].index)] = temp_res
             
-            if do_exchange:
+            if self.do_exchange:
                 self.exchange_values(time)
             
-#            time += final_tStep
-        
-#        t2 = current_time()
-#        print('Success! Simulation took %.3f seconds to complete. ' %(t2-t1))
         if self.clean_up:
             try:
                 for _fmu in self.fmu_dict.values():
@@ -440,13 +393,7 @@ class World():
         else:
             new_step_size = final_tStep-0.01
         return new_step_size
-        
-        
-#        if (current_time - (local_stop_time-final_tStep)) < step_size*10:
-#            return step_size
-#        else:
-#            return (local_stop_time-current_time)/2
-        
+     
     
     def process_results(self, results_dict):
         if self.interpolate_results:
@@ -497,8 +444,6 @@ class World():
                     input_ele_name = input_.split('.')[0]
                     is_powerflow = True if input_ele_name in self.powerflow_dict.keys() else False
                     is_fmu = True if input_ele_name in self.fmu_dict.keys() else False
-# TODO -                   is_script = True if input_ele_name in self.script_dict.keys() else False
-                    
                     if is_fmu:
                         input_fmu = self.fmu_dict[input_ele_name]
                         input_variable = input_.replace(input_ele_name,'')[1:]
@@ -517,15 +462,8 @@ class World():
                         csv_variable = output_.split('.')[1]
                         csv_dt = self.stepsize_dict[csv_name]
                         temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]
-#                        print(f'time: {t} csv_value:{temp_var}')
                         network.set_value([network_variable], [temp_var])
                     
-# TODO -                    if is_script:
-#                        script = self.script_dict[input_ele_name]
-#                        script_variable = input_.replace(input_ele_name,'')[1:]
-#                        
-                        
-                        
                 if type(input_).__name__ == 'tuple':
                     for input__ in input_:
                         input_ele_name = input__.split('.')[0]
@@ -562,21 +500,17 @@ class World():
         is_csv = True if ele_name in self.csv_dict.keys() else False
         
         if is_fmu:
-#            print('is fmu')
             output_fmu = self.fmu_dict[ele_name]
             output_variable =op_.replace(ele_name,'')[1:]
             temp_var = output_fmu.get_value([output_variable])[0]
         if is_pp_net:
-#            print('is pp')
             network = self.powerflow_dict[ele_name]
             output_variable =op_.replace(ele_name,'')[1:]
             temp_var = network.get_value([output_variable])[0]
         if is_signal:
-#            print('is sig')
             signal = self.signal_dict[ele_name]
             temp_var = signal.get_value(t)
         if is_csv:
-#            print('s csv')
             self.set_csv_signals(t)
             temp_var = 'its csv'
             
@@ -601,7 +535,6 @@ class World():
         
     def exchange_values(self, t):        
         for output_, input_ in self.connections_between_fmus.items():
-#            print((output_, input_))
             if type(output_).__name__ == 'str':
                 temp_var = self.get_output_exchange(output_, t)
             elif type(output_).__name__ == 'tuple':
@@ -611,9 +544,7 @@ class World():
                     temp_list.append(t_v)
                 temp_var = sum(temp_list)
             
-#            print(f"temp var at time {t} is {temp_var}")
             if not type(temp_var).__name__ == 'str':
-#                print('continuing here')
                 if type(input_).__name__ == 'str':
                     ele_name = input_.split('.')[0]
                     pp_net = True if ele_name in self.powerflow_dict.keys() else False
@@ -643,55 +574,6 @@ class World():
                             input_variable = item.replace(ele_name,'')[1:]
                             input_pp.set_value([input_variable], [temp_var])
                     
-#                    input_fmu = self.fmu_dict[item.split('.')[0]]
-#                    input_variable = item.replace(item.split('.')[0],'')[1:]
-##                        print('input %s is set value of %f at t=%f' %(item, temp_var, t))
-#                    input_fmu.set_value([input_variable], [temp_var])
-            
-#            
-#            
-#            
-#            
-#            
-#            if not signal and not pp_net and not csv:
-#            #check if multiple outputs converge to one input
-#                if type(output_).__name__ == 'str':
-#                    temp_var = self.get_output_exchange(output_)
-##                    print('output %s after modification is %f at t=%f' %(output_, temp_var, t))
-#                elif type(output_).__name__ == 'tuple':
-#                    temp_list = []
-#                    for item in output_:
-#                        t_v = self.get_output_exchange(item)
-#                        temp_list.append(t_v)
-#                    temp_var = sum(temp_list)
-#                
-#                if type(input_).__name__ == 'str':
-#                    input_fmu = self.fmu_dict[input_.split('.')[0]]
-#                    input_variable = input_.replace(input_.split('.')[0],'')[1:]
-#                    input_fmu.set_value([input_variable], [temp_var])
-#                    
-#                elif type(input_).__name__ == 'tuple':
-#                    for item in input_:
-#                        input_fmu = self.fmu_dict[item.split('.')[0]]
-#                        input_variable = item.replace(item.split('.')[0],'')[1:]
-##                        print('input %s is set value of %f at t=%f' %(item, temp_var, t))
-#                        input_fmu.set_value([input_variable], [temp_var])
-#                    
-#                    
-#            elif signal and not pp_net and not csv:
-#                self.set_external_signals(output_, input_, t)
-#            else:
-#                self.set_powerflow_data(output_, input_, t)
-            
-
-#    def set_powerflow_data(self, output_, input_, t):
-#        pf_temp_var = self.get_output_exchange(output_)
-#        input_fmu = self.fmu_dict[input_.split('.')[0]]
-#        input_variable = input_.replace(input_.split('.')[0],'')[1:]
-#        input_fmu.set_value([input_variable], [pf_temp_var.iloc[int(t/3600)]])
-        
-            
-   
     def create_results_dataframe(self):
         self.list_of_columns = ['time']
         for _fmu in self.fmu_dict.values():
