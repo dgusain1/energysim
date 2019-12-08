@@ -254,6 +254,10 @@ class World():
         return pd.DataFrame(columns = columns_of_df)
     
     def init(self):
+        if self.logging:
+            print("Simulation started..")
+            print("Simulation status:\n")
+            
         self.create_results_dataframe()
         
         assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
@@ -261,7 +265,6 @@ class World():
             assert (len(self.connections_between_fmus) > 0),"Connections between FMUs are not specified!"
         
         self.res_dict = {}
-        
         
         #initialise FMUs and their result dataframes
         for name, _fmu in self.fmu_dict.items():
@@ -312,20 +315,21 @@ class World():
         else:
             self.do_exchange = False
         
-    def simulate(self, startTime=False, stopTime=False):
+    def simulate(self, startTime=False, stopTime=False, step=False):
         check = self.perform_consistency_name_checks()
         if not check:
             print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
             print('Exiting simulation.')
             sys.exit()
         
-        time = self.start_time
+        if not startTime and not stopTime and not step:
+            startTime = self.start_time
+            stopTime = self.stop_time
+            step = self.final_tStep
         
-        if self.logging:
-            print("Simulation started..")
-            print("Simulation status:\n")
+        #time = startTime#self.start_time
         
-        for time in tqdm(np.linspace(0, self.stop_time, int(self.stop_time/self.final_tStep)+1)):
+        for time in tqdm(np.linspace(startTime, stopTime, int(stopTime/self.final_tStep)+1)):
                 
             for _fmu in self.fmu_dict.keys():                
                 temp_time = time
