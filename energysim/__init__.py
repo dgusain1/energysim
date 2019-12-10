@@ -388,6 +388,12 @@ class World():
         else:
             return self.res_dict
     
+    def set_value(self):
+        pass
+
+    def get_value(self):
+        pass
+    
     def get_new_time(self, stop, curr):        
         return (stop-curr)/2
         
