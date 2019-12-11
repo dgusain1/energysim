@@ -51,6 +51,9 @@ pypsa.pf.logger.setLevel(lg.CRITICAL)
     
     Afterwards, simulate function can be called to simulate the world. This returns a pandas dataframe
     with output values of all FMUs as specified during add_fmu phase.
+    
+    Adding ability to interact with World with each time step, opeining up the possibility to make the cosimulation object interact 
+    with optimization algorithms written in python.
     '''
 
 class World():
@@ -403,6 +406,7 @@ class World():
         else:
             new_step_size = final_tStep-0.01
         return new_step_size
+    
      
     
     def process_results(self, results_dict):
