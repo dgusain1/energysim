@@ -15,9 +15,9 @@ from fmpy.fmi2 import *
 import numpy as np
 
 class FmuMeAdapter():
-    
-#    instanceID = int(random()*1000)
-#    eps = 1.0e-13
+    '''
+    FMU Model Exchange adapter for energysim
+    '''
     
     def __init__(self, fmu_location, 
                  instanceName=None, 
@@ -82,7 +82,6 @@ class FmuMeAdapter():
                                  instanceName=self.instanceName)
             #instantiate FMU
             self.fmu.instantiate(functions=callbacks)
-#            self.fmu.setTime(self.start_time)
         else:
             self.fmu = FMU2Model(guid = self.modelDescription.guid,
                      unzipDirectory=self.unzipDir,
@@ -90,21 +89,12 @@ class FmuMeAdapter():
                      instanceName=self.instanceName)
             #instantiate FMU
             self.fmu.instantiate(callbacks=callbacks)
-#            self.fmu.setupExperiment(startTime=self.start_time)
 
-#        #self.set_inital_inputs({})
-#        self.input = Input(self.fmu, self.modelDescription, None)
-        
-#    def set_value(self,parameterName,Value):
-#        self.parameterVar = []
-#        for i in parameterName:
-#            self.parameterVar.append(self.vrs[i])
-#        self.fmu.setReal(list(self.parameterVar), list(Value))
-    
     def set_value(self,parameterName,Value):
-#        self.parameterVar = []
+        '''
+        Must specify parameters and values in list format
+        '''
         for i, j in zip(parameterName, Value):
-#            self.parameterVar.append(self.vrs[i])
             if self.vrs[i][1] == 'Real':
                 self.fmu.setReal([self.vrs[i][0]], [j])
             elif self.vrs[i][1] in ['Integer', 'Enumeration']:
@@ -120,15 +110,11 @@ class FmuMeAdapter():
             elif self.vrs[i][1] == 'String':
                 self.fmu.setString([self.vrs[i][0]], [j])
     
-#    def get_value(self,parameterName):
-#        self.parameterVar = []
-#        for i in parameterName:
-#            self.parameterVar.append(self.vrs[i])
-#        values_ = self.fmu.getReal(list(self.parameterVar))
-#        return values_
-    
+
     def get_value(self,parameterName):
-#        self.parameterVar = []
+        '''
+        Must specify parameter in a list format.
+        '''
         values_ = []
         for i in parameterName:
             if self.vrs[i][1] == 'Real':

@@ -8,12 +8,19 @@ Pandapower adapter for FMUWorld
 """
 
 
-import pandapower as pp, sys, logging
+import pandapower as pp, sys
 
 class pp_adapter():
     
     def __init__(self, network_name, net_loc, inputs = [], outputs = []):
-#        pypsa.pf.logger.setLevel(getattr(logging, logger_level))
+        '''
+        Initialises the pandapower network adapter for energysim cosimulaiton object. 
+        Specify the following:
+                network_name: unique name for your network
+                net_loc: location of the pandapower network file (specified as pickle file)
+                inputs: list of all inputs. Specified as object_name.variable
+                outputs: list of all output variables to record.
+        '''
         self.network_name = network_name
         self.net_loc = net_loc
         self.network = pp.from_pickle(net_loc)
@@ -32,9 +39,11 @@ class pp_adapter():
     
     def init(self):
         pp.runpp(self.network)
-#        self.network.pf(use_seed=True)
     
     def set_value(self, parameters, values):
+        '''
+        Must specify parameters and values in list format
+        '''
         for parameter, value in zip(parameters, values):
             ele_name, input_variable = parameter.split('.')
             assert input_variable in ['P', 'Q'], "Powerflow input variable not valid. Use P, Q to  define variables."
@@ -51,6 +60,9 @@ class pp_adapter():
             getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
     
     def get_value(self, parameters):
+        '''
+        Must specify parameter in a list format.
+        '''
         temp_parameter_list = [x.split('.') for x in parameters]
         temp_output = []
         for ele_name, output_variable in temp_parameter_list:
@@ -77,10 +89,6 @@ class pp_adapter():
         
     
     def getOutput(self):
-#        a1 = []
-#        for item in self.new_outputs:
-#            a1.append(self.get_value(item))
-#        return a1    
         return [getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele).idxmax(), residual] for ele, adder, residual in self.new_outputs]
         
     
@@ -90,8 +98,6 @@ class pp_adapter():
     def step(self):  
         a = pp.runpp(self.network)
         return a
-#        self.network.lpf()
-#        self.network.pf(use_seed=True)
     
     def process_powerflow_ipop(self, network, inputs, outputs):
             new_inputs = []
@@ -110,7 +116,6 @@ class pp_adapter():
                     print(f'Only Generator, load, and sgen P, Q inputs are supported for pandapower nets. Couldnt find {ele_name} in either loads or generators. Quitting simulation.')
                     sys.exit()
                 new_inputs.append((ele_name, adder, residual))
-#                print('done input analysing')
             
             for item in outputs:
                 ele_name, output_variable = item.split('.')
@@ -133,7 +138,6 @@ class pp_adapter():
                     print(f'Only Generator, load, storage, and bus P, Q, outputs are supported. Couldnt find {ele_name} in specified network. Quitting simulation.')
                     sys.exit()
                 new_outputs.append((ele_name, adder, residual))
-#                print('done output analysing')
                 
             return new_inputs, new_outputs   
     

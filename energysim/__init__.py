@@ -139,7 +139,7 @@ class World():
         else:
             autocorr = df.time.autocorr()
             if round(autocorr,4) != 1:
-                print('FMUWorld can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv.')
+                print('energysim can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv.')
             else:
                 dt = df.time[1] - df.time[0]
                 self.stepsize_dict[csv_name] = dt
@@ -257,10 +257,19 @@ class World():
         return pd.DataFrame(columns = columns_of_df)
     
     def init(self):
+        '''
+        Initialises energysim object
+        '''
         if self.logging:
             print("Simulation started..")
             print("Simulation status:\n")
-            
+        
+        #create simulator list
+        self.simulator_list = {}
+        self.simulator_list.update(self.fmu_dict )
+        self.simulator_list.update(self.powerflow_dict)
+        
+        
         self.create_results_dataframe()
         
         assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
@@ -318,25 +327,36 @@ class World():
         else:
             self.do_exchange = False
         
-    def simulate(self, startTime=False, stopTime=False, step=False):
+    def simulate(self, startTime=False, stopTime=False):
+        '''
+        Simulates the energysim object from startTime to stopTime with a step. If no input argument is specified, start, stop, and step times are derived from energysim iniitalization.
+        '''
         check = self.perform_consistency_name_checks()
         if not check:
             print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
             print('Exiting simulation.')
             sys.exit()
         
-        if not startTime and not stopTime and not step:
+        if not startTime and not stopTime:
+            flag = True
+            dis = False
             startTime = self.start_time
             stopTime = self.stop_time
-            step = self.final_tStep
+            self.init()
+        else:
+            flag = False
+            dis = None
+        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
+        total_steps = int((stopTime-startTime)/self.final_tStep)+1
         
-        #time = startTime#self.start_time
-        
-        for time in tqdm(np.linspace(startTime, stopTime, int(stopTime/self.final_tStep)+1)):
+        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
+            
+            if self.do_exchange:
+                self.exchange_values(time)
                 
             for _fmu in self.fmu_dict.keys():                
                 temp_time = time
-                local_stop_time = min(temp_time + self.final_tStep, self.stop_time)
+                local_stop_time = min(temp_time + self.final_tStep, stopTime)
                 while temp_time < local_stop_time:
                     self.set_csv_signals(temp_time)
                     temp_res = [temp_time] + self.fmu_dict[_fmu].getOutput()
@@ -355,10 +375,6 @@ class World():
                     else:
                         self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
                         temp_time += self.stepsize_dict[_fmu]
-                    
-
-            if self.do_exchange:
-                self.exchange_values(time)
                 
             for net_name, network in self.powerflow_dict.items():                
                 if round(time%self.stepsize_dict[net_name]) == 0:
@@ -367,10 +383,12 @@ class World():
                     
                     temp_res = [time] + network.getOutput()
                     self.res_dict[net_name].loc[len(self.res_dict[net_name].index)] = temp_res
+        
+        if flag:
+            self.clean_canvas()
+            return self.results()
             
-            if self.do_exchange:
-                self.exchange_values(time)
-            
+    def clean_canvas(self):            
         if self.clean_up:
             try:
                 for _fmu in self.fmu_dict.values():
@@ -380,22 +398,33 @@ class World():
             for _net in self.powerflow_dict.values():
                 _net.cleanUp()
         
-        if self.logging:
-            print("Processing results.")
-        if self.interpolate_results:
-            try:
-                self.process_results(self.res_dict)
-                return self.results_dataframe
-            except:
-                return self.res_dict
-        else:
-            return self.res_dict
-    
-    def set_value(self):
-        pass
+    def sync(self, time):
+        '''
+        Manual call for exchange of values between simulators.
+        '''
+        self.exchange_values(time)
+        
+    def set_value(self, parameters, value):
+        '''
+        Must specify parameters and values in list format
+        '''
+        for item, val in zip(parameters, value):
+            sim_name = item.split('.')[0]
+            variable = item.replace(sim_name,'')[1:]
+            self.simulator_list[sim_name].set_value([variable], [val])
 
-    def get_value(self):
-        pass
+
+    def get_value(self, parameter):
+        '''
+        Must specify parameter in a list format.
+        '''
+        outputs = []
+        for item in parameter:
+            sim_name = item.split('.')[0]
+            variable = item.replace(sim_name,'')[1:]
+            temp_value = self.simulator_list[sim_name].get_value([variable])
+            outputs.append(temp_value[0])
+        return outputs
     
     def get_new_time(self, stop, curr):        
         return (stop-curr)/2
@@ -407,6 +436,15 @@ class World():
             new_step_size = final_tStep-0.01
         return new_step_size
     
+    def results(self):
+        if self.interpolate_results:
+            try:
+                self.process_results(self.res_dict)
+                return self.results_dataframe
+            except:
+                return self.res_dict
+        else:
+            return self.res_dict
      
     
     def process_results(self, results_dict):

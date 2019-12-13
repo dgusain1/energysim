@@ -15,6 +15,9 @@ from random import random
 
 
 class FmuCsAdapter():
+    '''
+    FMU CoSimulation adapter for energysim
+    '''
     
     eps = 1.0e-13
     
@@ -54,7 +57,6 @@ class FmuCsAdapter():
             self.unzipDir = self.fmu_location
         else:
             self.unzipDir = extract(self.fmu_location)
-#        print(self.unzipDir)
         self.modelDescription = read_model_description(self.fmu_location, validate=True)
         self.is_fmi1 = self.modelDescription.fmiVersion == '1.0'
         
@@ -90,24 +92,22 @@ class FmuCsAdapter():
                      modelIdentifier=self.modelDescription.coSimulation.modelIdentifier,
                      instanceName=self.instanceName)
             self.fmu.instantiate(callbacks=callbacks)
-#            self.fmu.setupExperiment(startTime=self.start_time, tolerance=self.tolerance)
         
         self.input = Input(self.fmu, self.modelDescription, None)
         
         
 
     def set_value(self,parameterName,Value):
-#        self.parameterVar = []
+        '''
+        Must specify parameters and values in list format
+        '''
         for i, j in zip(parameterName, Value):
             
-#            self.parameterVar.append(self.vrs[i])
             if self.vrs[i][1] == 'Real':
                 self.fmu.setReal([self.vrs[i][0]], [j])
             elif self.vrs[i][1] in ['Integer', 'Enumeration']:
                 self.fmu.setInteger([self.vrs[i][0]], [j])
             elif self.vrs[i][1] == 'Boolean':
-#                print((i,j))
-#                sys.exit()
                 if isinstance(j, str):
                     if j.lower() not in ['true', 'false']:
                         raise Exception('The value "%s" for variable "%s" could not be converted to Boolean' %
@@ -115,13 +115,14 @@ class FmuCsAdapter():
                     else:
                         j = j.lower() == 'true'
                 self.fmu.setBoolean([self.vrs[i][0]], [bool(j)])
-#                print('done')
             elif self.vrs[i][1] == 'String':
                 self.fmu.setString([self.vrs[i][0]], [j])
     
 
     def get_value(self,parameterName):
-#        self.parameterVar = []
+        '''
+        Must specify parameter in a list format.
+        '''
         values_ = []
         for i in parameterName:
             if self.vrs[i][1] == 'Real':
@@ -134,9 +135,7 @@ class FmuCsAdapter():
                 temp = self.fmu.getString([self.vrs[i][0]])
             
             values_.append(temp[0])
-#        values_ = self.fmu.getReal(list(self.parameterVar))
         return values_
-#        self.fmu.setReal()
         
     def reset(self):
         self.fmu.reset()
@@ -177,9 +176,6 @@ class FmuCsAdapter():
         if step_size is None:
             self.fmu.doStep(currentCommunicationPoint = time, communicationStepSize = self.output_interval)
         else:
-#            state=self.fmu.getFMUstate()
-#            print(f'state={state}')
-#            print(f"fmuname = {self.fmu.instanceName}, time = {time}, stepsize = {step_size}.")
             self.fmu.doStep(currentCommunicationPoint = time, communicationStepSize = step_size)
 # TODO -           while a!=0:
 #                self.fmu.setFMUstate(state)
@@ -198,8 +194,6 @@ class FmuCsAdapter():
         #step ahead in time
         self.input.apply(time)
         return self.fmu.doStep(currentCommunicationPoint = time, communicationStepSize = self.output_interval)
-        
-    
     
     def cleanUp(self):
         self.fmu.terminate()
