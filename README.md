@@ -4,7 +4,7 @@
 
 **energysim** (previously, FMUWorld) is a python-based tool that was developed specifically to simplify energy system based cosimulations. Currently, it allows users to combine:
 
-  - Dynamic Models packaged as Functional Mockup Units (FMUs)
+  - Dynamic models packaged as Functional Mockup Units (FMUs)
   - Pandapower Networks packaged as pickle files
   - PyPSA models (BETA) packaged as Excel workbook
   - csv data files
@@ -22,6 +22,7 @@ It uses the following packages to work:
   - [Matplotlib](https://pypi.org/project/matplotlib/)
   - [Pandapower](https://pypi.org/project/pandapower/)
   - [PyPSA](https://pypi.org/project/pypsa/)
+  - [tqdm](https://pypi.org/project/tqdm/)
 
 ## Usage
 energysim simplifies cosimulation setup by conceptualising the setup in an intuitive manner. The whole system is defined within a `World()` canvas. Within `World()`, users can specify different simulators by using commands such as `add_fmu()`, `add_powerflow()`, `add_csv()`, `add_signal()`. Apart from this, users can also specify initialisation options using the `options()` command, connections between simulators using the `add_connections()` command. Finally, the system can be simulated using the `simulate()` command. This method provides a results dataframe which can then be used for analysis of the multi-energy system simulation. Apart from simple simulations, **energysim** alo incudes a method to perform sensitivity analysis on selected parameters within the cosimulation environment.
