@@ -97,9 +97,11 @@ class World():
             print("Added powerflow network '%s' to the world" %(network_name))
 
     
-    def add_fmu(self, fmu_name, fmu_loc, step_size, inputs = [], outputs=[], exist=False, solver_name = 'Cvode', variable=False):
+    def add_fmu(self, fmu_name, fmu_loc, step_size, inputs = [], outputs=[], exist=False, solver_name = 'Cvode', variable=False, **kwargs):
+        if 'validate' in kwargs.keys():
+            validate=kwargs['validate']
         self.stepsize_dict[fmu_name] = step_size
-        m_desc = read_model_description(fmu_loc)
+        m_desc = read_model_description(fmu_loc, validate=validate)
         fmi_type = 'CoSimulation' if m_desc.coSimulation is not None else 'ModelExchange'
         if fmi_type == 'CoSimulation':
             fmu_temp = FmuCsAdapter(fmu_loc,
