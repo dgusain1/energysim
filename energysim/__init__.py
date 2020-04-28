@@ -5,7 +5,7 @@ Created on Wed Oct 10 19:08:54 2018
 @author: digvijaygusain
 """
 
-__version__ = '1.1.1'
+__version__ = '0.0.3'
 __author__ = 'Digvijay Gusain'
 
 from .csAdapter import FmuCsAdapter
@@ -100,6 +100,8 @@ class World():
     def add_fmu(self, fmu_name, fmu_loc, step_size, inputs = [], outputs=[], exist=False, solver_name = 'Cvode', variable=False, **kwargs):
         if 'validate' in kwargs.keys():
             validate=kwargs['validate']
+        else:
+            validate=True
         self.stepsize_dict[fmu_name] = step_size
         m_desc = read_model_description(fmu_loc, validate=validate)
         fmi_type = 'CoSimulation' if m_desc.coSimulation is not None else 'ModelExchange'
@@ -109,7 +111,8 @@ class World():
                              step_size = step_size,
                              inputs = inputs,
                              outputs=outputs,
-                             exist=exist)
+                             exist=exist,
+                             validate=validate)
             self.fmu_dict[fmu_name] = fmu_temp
         elif fmi_type == 'ModelExchange':
             fmu_temp = FmuMeAdapter(fmu_loc,
@@ -117,7 +120,8 @@ class World():
                              step_size = step_size,
                              inputs = inputs,
                              outputs=outputs,
-                             solver_name = solver_name)
+                             solver_name = solver_name,
+                             validate=validate)
             self.fmu_dict[fmu_name] = fmu_temp
         
         self.all_outputs = [fmu_name + '.' + output for output in outputs]

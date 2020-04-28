@@ -30,7 +30,8 @@ class FmuCsAdapter():
                  inputs = [], 
                  outputs = [],
                  show_fmu_info = False,
-                 exist=False):
+                 exist=False,
+                 validate=True):
         assert (fmu_location is not None), "Must specify FMU location"
         self.fmu_location = fmu_location
         if instanceName is None:
@@ -46,6 +47,7 @@ class FmuCsAdapter():
         self.output_interval = step_size
         self.inputs = inputs
         self.outputs = outputs
+        self.validate=validate
         if show_fmu_info:
             dump(self.fmu_location)
         self.setup()
@@ -57,7 +59,7 @@ class FmuCsAdapter():
             self.unzipDir = self.fmu_location
         else:
             self.unzipDir = extract(self.fmu_location)
-        self.modelDescription = read_model_description(self.fmu_location, validate=True)
+        self.modelDescription = read_model_description(self.fmu_location, validate=self.validate)
         self.is_fmi1 = self.modelDescription.fmiVersion == '1.0'
         
         logger = printLogMessage

@@ -8,7 +8,7 @@ def readme():
 
 setup(
       name='energysim',
-      version='0.0.1',
+      version='0.0.3',
       description='Python package for cosimulation of FMU based multi-energy systems',
       long_description=readme(),
       long_description_content_type="text/markdown",
@@ -20,7 +20,7 @@ setup(
               'License :: OSI Approved :: MIT License',
               'Programming Language :: Python :: 3',
               'Programming Language :: Python :: 3.6'],
-      packages=['MVMO'],
+      packages=['energysim'],
       include_package_data=True,
-      install_requires=['numpy', 'pandas', 'tqdm', 'fmpy', 'pandapower', 'pypsa']     
+      install_requires=['numpy', 'pandas', 'tqdm', 'fmpy', 'pandapower', 'pypsa', 'networkx', 'matplotlib']     
       )

@@ -28,7 +28,8 @@ class FmuMeAdapter():
                  inputs = [], 
                  outputs = [],
                  solver_name = 'Cvode',
-                 show_fmu_info = False):
+                 show_fmu_info = False,
+                 validate=True):
 
         assert (fmu_location is not None), "Must specify FMU location"
         self.fmu_location = fmu_location
@@ -45,6 +46,7 @@ class FmuMeAdapter():
         self.inputs = inputs
         self.outputs = outputs
         self.solver_name = solver_name
+        self.validate=validate
         if show_fmu_info:
             dump(self.fmu_location)
 
@@ -55,7 +57,7 @@ class FmuMeAdapter():
     def setup(self):
         self.t_next = self.start_time
         self.unzipDir = extract(self.fmu_location)
-        self.modelDescription = read_model_description(self.fmu_location, validate=True)
+        self.modelDescription = read_model_description(self.fmu_location, validate=self.validate)
         self.is_fmi1 = self.modelDescription.fmiVersion == '1.0'
         logger = printLogMessage
         if self.is_fmi1:
