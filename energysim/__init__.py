@@ -5,7 +5,7 @@ Created on Wed Oct 10 19:08:54 2018
 @author: digvijaygusain
 """
 
-__version__ = '0.0.3'
+__version__ = '1.0.0'
 __author__ = 'Digvijay Gusain'
 
 from .csAdapter import FmuCsAdapter
@@ -25,10 +25,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 
-#this will be commited to new branch
-
 '''
-    World is your cosimulation canvas. You initialise World with basic simulation 
+
+    World is your cosimulation canvas. Initialise the World object with basic simulation 
     parameters such as:
         1. start_time (=0 by default) 
         2. stop_time (=100 by default)
@@ -37,24 +36,37 @@ pypsa.pf.logger.setLevel(lg.CRITICAL)
         5. clean_up (True by default) cleans up temporary files created during the simulation (can be very large in some cases, hence recommended to keep it True)
         6. interpolate_results (True by default) FMUs with larger time steps have their outputs interpolated to match the time step of the lowest time step of specified FMUs.
     
-    After specifying the world, you can add FMUs to the world by add_fmu(). This is done by specifying the following:
-        1. Valid fmu_name. It is extremely essential that you assign it relevant name. This helps to specify connections later.
-        2. Valid fmu_location. Use a raw string address of FMU file
-        3. outputs: specify the outputs that need to be observed. 
-        4. step_size (=1e-3 by default)
+    After specifying the world, you can add simulators to the world by add_simulator(). This is done by specifying the following:
+	1. sim_type: 'fmu' / 'powerflow' / 'csv' / 'signal'
+        2. sim_name: It is extremely essential that you assign the simulator a relevant name. This helps in specifying connections between different simulators later.
+        3. sim_location: Use a raw string address of simulator file.
+        4. outputs: specify the outputs that need to be recorded during simulation. 
+	5. inputs: specify the inputs of the simulator.
+        5. step_size (=1e-3 by default)
     
-    If required, signals can be added as well. This can be done via the add_signal command.
-    <explain add_signal>
-    The connections can be specified with a dictionary. It can be specified as:
+    When specifying signals, use signal = <signal>. The keyword is important.
+
+    The connections between simulators can be specified with a dictionary as follows:
         {'_fmu1.output_variable1':'_fmu2.input_variable1',
         '_fmu1.output_variable2':'_fmu2.input_variable2',
         '_fmu1.output_variable3':'_fmu2.input_variable3',}
     
-    Afterwards, simulate function can be called to simulate the world. This returns a pandas dataframe
-    with output values of all FMUs as specified during add_fmu phase.
+    Afterwards, simulate() function can be called to simulate the world. This returns a pandas dataframe
+    with output values of all simulators as specified during add_simulator phase.
     
-    Adding ability to interact with World with each time step, opeining up the possibility to make the cosimulation object interact 
-    with optimization algorithms written in python.
+    NEW: World object can now be accessed as a single simulation entity. This allows users to embed World cosimulation into control schemes defined in Python as python functions. 
+	after specifying World, instead of calling my_world.simulate(), users can make a python loop.
+	
+	def control(x):
+		<do fancy stuff>
+		return some_values
+	my_world.init()
+	for time in range(1,10):
+		my_world.step(time)
+		tmp = my_world.get_value(<variable1>)
+		y = control(tmp)
+		my_world.set_value(<variable2>, <y>)
+	results = my_world.results()
     '''
 
 class World():

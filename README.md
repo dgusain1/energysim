@@ -25,7 +25,7 @@ It uses the following packages to work:
   - [tqdm](https://pypi.org/project/tqdm/)
 
 ## Usage
-energysim simplifies cosimulation setup by conceptualising the setup in an intuitive manner. The whole system is defined within a `World()` canvas. Within `World()`, users can specify different simulators by using commands such as `add_fmu()`, `add_powerflow()`, `add_csv()`, `add_signal()`. Apart from this, users can also specify initialisation options using the `options()` command, connections between simulators using the `add_connections()` command. Finally, the system can be simulated using the `simulate()` command. This method provides a results dataframe which can then be used for analysis of the multi-energy system simulation. Apart from simple simulations, **energysim** alo incudes a method to perform sensitivity analysis on selected parameters within the cosimulation environment.
+energysim simplifies cosimulation setup by conceptualising the setup in an intuitive manner. The whole system is defined within a `World()` canvas. Within `World()`, users can specify different simulators by using the command `add_simulator()`. Apart from this, users can also specify initialisation options for the co-simulation using the `options()` command. Connections can be made between simulators using the `add_connections()` command. If only one simulator is defined, connections dict can be empty. Finally, the system can be simulated using the `simulate()` command. This method provides a **results** dataframe which can then be used for analysis of the results of multi-energy system simulation. **energysim** also includes a method to perform sensitivity analysis on selected parameters within the cosimulation environment.
 
 A brief example is shown below:
 
@@ -41,13 +41,15 @@ my_world = World(stop_time = 1000,
 simLoc1 = os.path.join(working_dir,chp+'.fmu') #fmu location
 simLoc2 = os.path.join(working_dir,elec+'.p') #pandapower network location
 
-#add fmu
-my_world.add_fmu(name = 'chp', 
-                loc = simLoc1, 
+#add fmu simulator
+my_world.add_simulator(sim_type='fmu',
+		sim_name = 'chp', 
+                sim_loc = simLoc1, 
                 step_size = 2, 
                 outputs = ['rampeQfuel.y.signal',
                             'Alternateur.Welec'])
-my_world.add_powerflow(name = 'elec', 
+my_world.add_simulator(sim_type='powerflow',
+		sim_name = 'elec', 
                 loc = simLoc2, 
                 step_size = 1e-3, 
                 inputs = ['gen1.P']
@@ -64,6 +66,28 @@ my_world.add_connections(connections)
 
 #simulate
 results = my_world.simulate()
+```
+
+**NEW**: `my_world` object can now be accessed as a single simulation entity. This allows users to embed `my_world` cosimulation into control schemes defined in Python as python functions. 
+after specifying World, instead of calling `my_world.simulate()`, users can make a python loop.
+
+```
+#configure my_world
+
+#define control
+def control(x):
+	<do fancy stuff>
+	return some_values
+#initialize my_world
+my_world.init()
+#create time loop
+for time in range(1,10):
+	my_world.step(time)
+	tmp = my_world.get_value(<variable1>)
+	y = control(tmp)
+	my_world.set_value(<variable2>, <y>)
+#get results
+results = my_world.results()
 ```
 
 More information is provided on the documentation page.
