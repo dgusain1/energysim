@@ -83,7 +83,45 @@ class World():
         self.G = True
         self.csv_dict = {}
         self.variable_dict = {}
-
+        
+    def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
+        if sim_type.lower() == 'fmu':
+            if 'solver_name' in kwargs.keys():
+                solver_name = kwargs['solver_name']
+            else:
+                solver_name = 'Cvode'
+            if 'variable' in kwargs.keys():
+                variable = kwargs['variable']
+            else:
+                variable=False
+            if 'validate' in kwargs.keys():
+                validate=kwargs['variable']
+            else:
+                validate=False
+            self.add_fmu(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size,
+                         solver_name = solver_name, variable=variable, validate=validate)
+            
+        elif sim_type.lower() == 'powerflow':
+            if 'pf' in kwargs.keys():
+                pf = kwargs['pf']
+            else:
+                pf='pf'
+            self.add_powerflow(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size, pf=pf)
+            
+        elif sim_type.lower() == 'signal':
+            if 'signal' in kwargs.keys():
+                signal = kwargs['signal']
+                self.add_signal(sim_name, signal)
+            else:
+                print(f"Signal needs to be specified to add signals. See documentation for defining signals.")
+                print(f"Simulator {sim_name} not added.")
+            
+        elif sim_type.lower() == 'csv':
+            self.add_csv(sim_name, sim_loc)
+        else:
+            print(f"Simulator type {sim_type} not recognized. Please use one of 'fmu', 'powerflow', 'signal', or 'csv' types.")
+            print(f"Simulator {sim_name} not added")
+        
     def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, logger = 'DEBUG'):
         self.stepsize_dict[network_name] = step_size
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
