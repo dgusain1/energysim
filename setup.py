@@ -8,8 +8,8 @@ def readme():
 
 setup(
       name='energysim',
-      version='0.0.3',
-      description='Python package for cosimulation of FMU based multi-energy systems',
+      version='1.0.0',
+      description='Python package for cosimulation of multi-energy systems',
       long_description=readme(),
       long_description_content_type="text/markdown",
       url='https://github.com/dgusain1/energysim',

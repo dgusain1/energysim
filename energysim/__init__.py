@@ -25,8 +25,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 
-'''
-
+__about__ = '''
     World is your cosimulation canvas. Initialise the World object with basic simulation 
     parameters such as:
         1. start_time (=0 by default) 
