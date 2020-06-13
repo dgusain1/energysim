@@ -35,11 +35,12 @@ class FmuCsAdapter():
         assert (fmu_location is not None), "Must specify FMU location"
         self.fmu_location = fmu_location
         if instanceName is None:
-            instanceID = int(random()*1000)
+            instanceID = int(random()*10000)
             self.instanceName = 'fmu'+str(instanceID)
             print(self.instanceName)
         else:
             self.instanceName = instanceName
+            print(self.instanceName)
         self.exist = exist
         self.tolerance = tolerance
         self.start_time = start_time
