@@ -425,7 +425,7 @@ class World():
                             temp_time += stepsize             #self.stepsize_dict[_fmu]
                         except:
                             print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
-                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
+                            self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
                             temp_time += self.stepsize_dict[_fmu]
                                                 
                     else:
