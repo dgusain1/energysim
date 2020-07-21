@@ -113,7 +113,7 @@ class FmuMeAdapter():
                 self.fmu.setString([self.vrs[i][0]], [j])
     
 
-    def get_value(self,parameterName):
+    def get_value(self,parameterName, time):
         '''
         Must specify parameter in a list format.
         '''

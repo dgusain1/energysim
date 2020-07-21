@@ -44,7 +44,7 @@ class pypsa_adapter():
             
             getattr(self.network, adder).at[ele_name, residual] = value
     
-    def get_value(self, parameters):
+    def get_value(self, parameters, time):
         temp_parameter_list = [x.split('.') for x in parameters]
         temp_output = []
         for ele_name, output_variable in temp_parameter_list:

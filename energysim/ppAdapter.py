@@ -59,7 +59,7 @@ class pp_adapter():
             
             getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
     
-    def get_value(self, parameters):
+    def get_value(self, parameters, time):
         '''
         Must specify parameter in a list format.
         '''

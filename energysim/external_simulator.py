@@ -24,7 +24,7 @@ class external_simulator():
         #remove the pass after specifying set_value
         pass
     
-    def get_value(self, parameters):
+    def get_value(self, parameters, time):
         #this should return a list of values from simulator as a list corresponding to parameters
         
         #remove the pass after specifying get_value. **Return reqd**

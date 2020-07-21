@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 import tempfile
+from functools import reduce
 
 '''
 
@@ -180,7 +181,7 @@ class World():
                 print(f"Please specify a unique name for simulator. {sim_name} already exists.")
     
     def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, **kwargs):
-        self.stepsize_dict[network_name] = step_size
+#        self.stepsize_dict[network_name] = step_size
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
         assert net_loc is not None, "No location specified for power flow model. Can't read without."
         try:
@@ -201,7 +202,7 @@ class World():
             validate=kwargs['validate']
         else:
             validate=True
-        self.stepsize_dict[fmu_name] = step_size
+#        self.stepsize_dict[fmu_name] = step_size
         m_desc = read_model_description(fmu_loc, validate=validate)
         fmi_type = 'CoSimulation' if m_desc.coSimulation is not None else 'ModelExchange'
         if fmi_type == 'CoSimulation':
@@ -255,7 +256,7 @@ class World():
                 outputs = list(df.columns)
                 outputs.remove('time')
                 dt = df.time[1] - df.time[0]
-                self.stepsize_dict[csv_name] = dt
+#                self.stepsize_dict[csv_name] = dt
                 self.csv_dict[csv_name] = df
                 if csv_name not in self.simulator_dict.keys():
                     self.simulator_dict[csv_name] = ['csv', df, dt, outputs]
@@ -321,32 +322,22 @@ class World():
         
     def get_lcm(self):
         max_order = int(max([len(str(i).split('.')[1]) for i in self.stepsize_dict.values()]))
-        new_list = 10**(max_order)*np.array(self.stepsize_dict.values())
-        
-        from functools import reduce    # need this line if you're using Python3.x
-    
-        def lcm(a, b):
-            if a > b:
-                greater = a
-            else:
-                greater = b
-        
+        new_list = 10**(max_order)*np.array(self.stepsize_dict.values())        
+            
+        def lcm1(a, b):
+            greater = a if a>b else b
             while True:
                 if greater % a == 0 and greater % b == 0:
                     lcm = greater
                     break
                 greater += 1
-        
             return lcm
         
         def get_lcm_for(your_list):
-            return reduce(lambda x, y: lcm(x, y), your_list)
+            return reduce(lambda x, y: lcm1(x, y), your_list)
         
         final_lcm = get_lcm_for(new_list)
-        self.big_time_step = final_lcm/10**max_order
-        
-        return self.big_time_step
-    
+        return final_lcm/10**max_order        
 
     def perform_consistency_name_checks(self):
         a1 = self.csv_dict.keys()
@@ -373,76 +364,76 @@ class World():
             columns_of_df.extend(name)
         return pd.DataFrame(columns = columns_of_df)
     
-    def init_1(self):
-        '''
-        Initialises simulator objects in World
-        '''
-        if self.logging:
-            print("Simulation started..")
-            print("Simulation status:\n")
-        
-        #create simulator list
-        self.simulator_list = {}
-        self.simulator_list.update(self.fmu_dict )
-        self.simulator_list.update(self.powerflow_dict)
-        
-        
-        self.create_results_dataframe()
-        
-        assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
-        if len(self.fmu_dict) + len(self.powerflow_dict) > 1:
-            assert (len(self.connections_between_fmus) > 0),"Connections between FMUs are not specified!"
-        
-        self.res_dict = {}
-        
-        #initialise FMUs and their result dataframes
-        for name, _fmu in self.fmu_dict.items():
-            fmu_df = self.create_df_for_fmu(name)            
-            self.res_dict[name] = fmu_df
-            try:
-                _fmu.setup()
-                #check if initial vakues need to be set before initilisation
-                if self.init_dict:
-                    self.set_parameters(self.init_dict)
-                    
-                self.set_csv_signals(0)
-                _fmu.init()
-                print('Initialised FMU: %s'%(_fmu.instanceName))
-            except:
-                try:
-                    print("Couldn't initialise %s. Trying again.." %(_fmu.instanceName))
-                    _fmu.setup()
-                    #check if initial vakues need to be set before initilisation
-                    if self.init_dict:
-                        self.set_parameters(self.init_dict)
-                        
-                    self.set_csv_signals(0)
-                    _fmu.init()
-                except:
-                    print('Couldnt initialise %s. Simulation stopped.' %(_fmu.instanceName))
-                    sys.exit()
-        
-        #initialise power flow and create its dataframe as well
-        for net_name, network in self.powerflow_dict.items():
-            net_df = self.create_df_for_pf(net_name, network)
-            self.res_dict[net_name] = net_df
-            self.set_csv_signals(0)
-            network.init()
-            print('Initialised powerflow network: %s'%(net_name))
-        
-        #determine when FMUs exchange information between themselves
-        if self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items())>1:
-            self.final_tStep = self.get_lcm()
-        elif self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items()) == 1:
-            self.final_tStep = list(self.stepsize_dict.values())[0]
-        else:
-            self.final_tStep = self.exchange
-        
-        
-        if len(self.fmu_dict)+len(self.signal_dict)+len(self.powerflow_dict) > 1:
-            self.do_exchange = True
-        else:
-            self.do_exchange = False
+#    def init_1(self):
+#        '''
+#        Initialises simulator objects in World
+#        '''
+#        if self.logging:
+#            print("Simulation started..")
+#            print("Simulation status:\n")
+#        
+#        #create simulator list
+#        self.simulator_list = {}
+#        self.simulator_list.update(self.fmu_dict )
+#        self.simulator_list.update(self.powerflow_dict)
+#        
+#        
+#        self.create_results_dataframe()
+#        
+#        assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
+#        if len(self.fmu_dict) + len(self.powerflow_dict) > 1:
+#            assert (len(self.connections_between_fmus) > 0),"Connections between FMUs are not specified!"
+#        
+#        self.res_dict = {}
+#        
+#        #initialise FMUs and their result dataframes
+#        for name, _fmu in self.fmu_dict.items():
+#            fmu_df = self.create_df_for_fmu(name)            
+#            self.res_dict[name] = fmu_df
+#            try:
+#                _fmu.setup()
+#                #check if initial vakues need to be set before initilisation
+#                if self.init_dict:
+#                    self.set_parameters(self.init_dict)
+#                    
+#                self.set_csv_signals(0)
+#                _fmu.init()
+#                print('Initialised FMU: %s'%(_fmu.instanceName))
+#            except:
+#                try:
+#                    print("Couldn't initialise %s. Trying again.." %(_fmu.instanceName))
+#                    _fmu.setup()
+#                    #check if initial vakues need to be set before initilisation
+#                    if self.init_dict:
+#                        self.set_parameters(self.init_dict)
+#                        
+#                    self.set_csv_signals(0)
+#                    _fmu.init()
+#                except:
+#                    print('Couldnt initialise %s. Simulation stopped.' %(_fmu.instanceName))
+#                    sys.exit()
+#        
+#        #initialise power flow and create its dataframe as well
+#        for net_name, network in self.powerflow_dict.items():
+#            net_df = self.create_df_for_pf(net_name, network)
+#            self.res_dict[net_name] = net_df
+#            self.set_csv_signals(0)
+#            network.init()
+#            print('Initialised powerflow network: %s'%(net_name))
+#        
+#        #determine when FMUs exchange information between themselves
+#        if self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items())>1:
+#            self.final_tStep = self.get_lcm()
+#        elif self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items()) == 1:
+#            self.final_tStep = list(self.stepsize_dict.values())[0]
+#        else:
+#            self.final_tStep = self.exchange
+#        
+#        
+#        if len(self.fmu_dict)+len(self.signal_dict)+len(self.powerflow_dict) > 1:
+#            self.do_exchange = True
+#        else:
+#            self.do_exchange = False
     
     def init(self):
         '''
@@ -452,7 +443,69 @@ class World():
             print("Simulation started..")
             print("Simulation status:\n")
         
+        #determine the final_tStep for World
+        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]
+        if self.exchange != 0:
+            self.macro_tstep = self.exchange
+        else:
+            self.macro_tstep = self.get_lcm()
+        
         self.res_dict = self.create_results_recorder()
+        
+        #set initial conditions
+        if self.init_dict:
+            self.set_parameters(self.init_dict)
+        
+        #initialize simulators
+        for simulator in self.simulator_dict.values():
+            simulator.init()        
+        
+        
+    
+    def simulate(self, startTime=False, stopTime=False):
+        if not startTime and not stopTime:
+            flag = True
+            dis = False
+            startTime = self.start_time
+            stopTime = self.stop_time
+            self.init()
+        else:
+            flag = False
+            dis = None
+        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
+        total_steps = int((stopTime-startTime)/self.final_tStep)+1
+        
+        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
+            #exchange values at t=0
+            self.exchange_variable_values(time)
+            for sim_items in self.simulator_dict.values():
+                sim_type = sim_items[0]
+                simulator = sim_items[1]
+                sim_ss = sim_items[2]
+                temp_time = time
+                local_stop_time = min(temp_time + self.macro_tstep, stopTime)
+                while temp_time < local_stop_time:
+                    if sim_type == 'fmu':
+                        if _fmu in self.variable_dict.keys():                        
+                            stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
+                            try:
+                                self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
+                                temp_time += stepsize             #self.stepsize_dict[_fmu]
+                            except:
+                                print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
+                                self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
+                                temp_time += self.stepsize_dict[_fmu]
+                                                    
+                        else:
+                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
+                            temp_time += self.stepsize_dict[_fmu]
+                    else:
+                        
+                        simulator.step(temp_time)
+                        temp_time += sim_ss
+            
+                    
+                
     
     def create_results_recorder(self):
         res_rec_dict = {}
@@ -463,9 +516,33 @@ class World():
                     res_rec_dict[sim_name].update({output: []})
                 
         return res_rec_dict
+
+    def exchange_variable_values(self, t):
+        #parse connections
+        for output_, input_ in self.simulator_connections.items():
+            #data collector
+            #check if it is tuple or single
+            if type(output_).__name__ == 'str':
+                ou_sim_name, ou_sim_var = output_.split('.')[0], output_.replace(output_.split('.')[0],'')[1:]                
+                tmp_var = self.simulator_dict[ou_sim_name].get_value(ou_sim_var, t)
+            elif type(output_).__name__ == 'tuple':
+                tmps = []
+                for item in output_:
+                    ou_sim_name, ou_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
+                    tmp = self.simulator_dict[ou_sim_name].get_value(ou_sim_var, t)
+                    tmps.append(tmp)
+                tmp_var = sum(tmps)
+            
+            if type(input_).__name__ == 'str':
+                in_sim_name, in_sim_var = input_.split('.')[0], input_.replace(input_.split('.')[0],'')[1:]
+                self.simulator_dict[in_sim_name].set_value(in_sim_var, tmp_var)
+            elif type(input_).__name__ == 'tuple':
+                for item in input_:
+                    in_sim_name, in_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
+                    self.simulator_dict[in_sim_name].set_value(in_sim_var, tmp_var)
     
-        
-    def simulate(self, startTime=False, stopTime=False):
+    
+    def simulate1(self, startTime=False, stopTime=False):
         '''
         Simulates the energysim object from startTime to stopTime with a step. If no input argument is specified, start, stop, and step times are derived from energysim iniitalization.
         '''
@@ -791,10 +868,11 @@ class World():
         for _sim in _sims:
             parameter_list_derived = list(parameter_dictionary[_sim])[0]
             parameter_values_to_set = list(parameter_dictionary[_sim])[1]
-            if _sim in self.fmu_dict.keys():
-                self.fmu_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
-            if _sim in self.powerflow_dict.keys():
-                self.powerflow_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
+            self.simulator_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
+#            if _sim in self.fmu_dict.keys():
+#                self.fmu_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
+#            if _sim in self.powerflow_dict.keys():
+#                self.powerflow_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
             
         
     def plot_results(self, xlab = 'Time(s)', ylab = '', y = [], scientific = False):
