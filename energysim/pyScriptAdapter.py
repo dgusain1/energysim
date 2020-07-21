@@ -21,7 +21,7 @@ class py_adapter():
         self.script_loc = script_loc
         self.inputs = inputs
         self.outputs = outputs
-        
+        self.init()
 
     def init(self):
         sys.path.append(self.script_loc)

@@ -5,8 +5,9 @@ Created on Wed Oct 10 19:08:54 2018
 @author: digvijaygusain
 """
 
-__version__ = '1.0.0'
+__version__ = '2.0'
 __author__ = 'Digvijay Gusain'
+__about__ = "This one implements a common simulator, adds an API to connect other simulators, and unifies message exchange."
 
 from .csAdapter import FmuCsAdapter
 from .meAdapter import FmuMeAdapter
@@ -24,6 +25,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
+import tempfile
 
 '''
 
@@ -85,7 +87,6 @@ class World():
         self.signals_dict_new = {}
         self.init_dict = {}
         self.clean_up = clean_up
-        self.all_outputs = []
         self.powerflow_dict = {}
         self.powerflow_outputs = {}
         self.powerflow_inputs = {}
@@ -95,7 +96,12 @@ class World():
         self.G = True
         self.csv_dict = {}
         self.variable_dict = {}
-        
+        self.simulator_dict = {}
+    
+    def gen_sim_ID():
+        tf = tempfile.NamedTemporaryFile()
+        return tf.name[5:]
+    
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
         if sim_type.lower() == 'fmu':
             if 'solver_name' in kwargs.keys():
@@ -130,24 +136,66 @@ class World():
             
         elif sim_type.lower() == 'csv':
             self.add_csv(sim_name, sim_loc)
+            
+        elif sim_type.lower() == 'external':
+            if 'api_loc' not in kwargs.keys():
+                print(f'No sim api provided. Energysim will not add simulator {sim_name}')
+            else:
+                self.add_external_simulator(sim_name, sim_loc, **kwargs)
+            
         else:
             print(f"Simulator type {sim_type} not recognized. Please use one of 'fmu', 'powerflow', 'signal', or 'csv' types.")
             print(f"Simulator {sim_name} not added")
-        
-    def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, logger = 'DEBUG'):
+    
+    def add_external_simulator(self, sim_name, sim_loc, **kwargs):
+        #fname is the py file
+        #sim_loc is the folder where fname.py is located
+        #sim_name is the name of the simulator in the energysim world.
+        if 'fname' not in kwargs.keys():
+            print(f'must specify the py file name. Energysim will not add {sim_name}')
+        else:
+            fname = kwargs['fname']
+            sys.path.append(sim_loc)            
+            exec('from ' + fname + 'import external_simulator')
+            if 'inputs' in kwargs.keys():
+                inputs = kwargs['inputs']
+            else:
+                inputs = []
+            if 'outputs' in kwargs.keys():
+                inputs = kwargs['outputs']
+            else:
+                outputs = []
+            if 'step_size' in kwargs.keys():
+                step_size = kwargs['step_size']
+            else:
+                step_size = 900
+            
+            #check that the sim_name is unique
+            if sim_name not in self.simulator_dict.keys():
+                simulator = external_simulator(sim_name=sim_name, sim_loc=sim_loc, inputs=inputs, outputs=outputs)            
+                self.simulator_dict[sim_name] = ['ext_sim', simulator, step_size, outputs]
+                if self.logging:
+                    print("Added external simulator '%s' to the world" %(sim_name))
+            else:
+                print(f"Please specify a unique name for simulator. {sim_name} already exists.")
+    
+    def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, **kwargs):
         self.stepsize_dict[network_name] = step_size
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
         assert net_loc is not None, "No location specified for power flow model. Can't read without."
         try:
-            network = pypsa_adapter(network_name, net_loc, inputs = inputs, outputs = outputs, logger_level = logger)
+            network = pypsa_adapter(network_name, net_loc, inputs = inputs, outputs = outputs, logger_level = kwargs['logger'] if 'logger' in kwargs.keys() else 'DEBUG')
         except:
             network = pp_adapter(network_name, net_loc, inputs = inputs, outputs = outputs)
         self.powerflow_dict[network_name] = network
         self.pf = pf
-        if self.logging:
-            print("Added powerflow network '%s' to the world" %(network_name))
-
-    
+        if network_name not in self.simulator_dict.keys():
+            self.simulator_dict[network_name] = ['pf', network, step_size, outputs, pf]
+            if self.logging:
+                print("Added powerflow network '%s' to the world" %(network_name))
+        else:
+            print(f"Please specify a unique name for simulator. {network_name} already exists.")
+            
     def add_fmu(self, fmu_name, fmu_loc, step_size, inputs = [], outputs=[], exist=False, solver_name = 'Cvode', variable=False, **kwargs):
         if 'validate' in kwargs.keys():
             validate=kwargs['validate']
@@ -175,18 +223,24 @@ class World():
                              validate=validate)
             self.fmu_dict[fmu_name] = fmu_temp
         
-        self.all_outputs = [fmu_name + '.' + output for output in outputs]
         self.variable_dict[fmu_name] = variable
-        if self.logging:
-            print("Added a FMU '%s' to the world" %(fmu_name))
-        
-        
+        if fmu_name not in self.simulator_dict.keys():
+            self.simulator_dict[fmu_name] = ['fmu', fmu_temp, step_size, outputs, variable]
+            if self.logging:
+                print("Added a FMU '%s' to the world" %(fmu_name))
+        else:
+            print(f"Please specify a unique name for simulator. {fmu_name} already exists.")        
     
     def add_signal(self, signal_name, signal):
         signal_obj = signal_adapter(signal_name, signal)
         self.signal_dict[signal_name] = signal_obj
-        if self.logging:
-            print("Added a signal '%s' to the world" %(signal_name))
+        if signal_name not in self.simulator_dict.keys():
+            self.simulator_dict[signal_name] = ['signal', signal_obj]
+            if self.logging:
+                print("Added a signal '%s' to the world" %(signal_name))
+        else:
+            print(f"Please specify a unique name for simulator. {signal_name} already exists.")
+
     
     def add_csv(self, csv_name, csv_location):
         df = pd.read_csv(csv_location)
@@ -198,23 +252,29 @@ class World():
             if round(autocorr,4) != 1:
                 print('energysim can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv.')
             else:
+                outputs = list(df.columns)
+                outputs.remove('time')
                 dt = df.time[1] - df.time[0]
                 self.stepsize_dict[csv_name] = dt
                 self.csv_dict[csv_name] = df
-                if self.logging:
-                    print(f"Added csv: {csv_name} to World")
-                
-        
-        
-    def add_connections(self,connections={}):
-        assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cannot add connections when no FMUs specified!"
-        if len(self.fmu_dict)+len(self.signal_dict)+len(self.powerflow_dict) == 1 and len(self.csv_dict) == 0:
-            self.connections_between_fmus = {}
-        else:
-            self.connections_between_fmus = connections
-        if self.logging:
-            print("Added %i connections to the world" %(len(self.connections_between_fmus)))
+                if csv_name not in self.simulator_dict.keys():
+                    self.simulator_dict[csv_name] = ['csv', df, dt, outputs]
+                    if self.logging:
+                        print(f"Added csv: {csv_name} to World")
+                else:
+                    print(f"Please specify a unique name for simulator. {csv_name} already exists.")
     
+    def add_connections(self,connections={}):
+        '''
+        Adds connections between simulators. Connections are specified as dictionary with keys as sending variables, and values as receiving variables
+        '''
+
+        assert len(self.simulator_dict) > 0, "Cannot make connections with no simulators defined."
+        self.simulator_connections = connections
+        if self.logging:
+            print("Added %i connections between simulators to the World" %(len(self.simulator_connections)))
+        
+        
     def get_fmu_name(self, name):
         if type(name).__name__ == 'str':
             return name.split('.')[0]
@@ -313,9 +373,9 @@ class World():
             columns_of_df.extend(name)
         return pd.DataFrame(columns = columns_of_df)
     
-    def init(self):
+    def init_1(self):
         '''
-        Initialises energysim object
+        Initialises simulator objects in World
         '''
         if self.logging:
             print("Simulation started..")
@@ -383,6 +443,27 @@ class World():
             self.do_exchange = True
         else:
             self.do_exchange = False
+    
+    def init(self):
+        '''
+        Initialises simulator objects in World
+        '''
+        if self.logging:
+            print("Simulation started..")
+            print("Simulation status:\n")
+        
+        self.res_dict = self.create_results_recorder()
+    
+    def create_results_recorder(self):
+        res_rec_dict = {}
+        for sim_name, values in self.simulator_dict.items():
+            res_rec_dict[sim_name] = {'time':[]}
+            if values[0] != 'signal' and len(values[3])>0:
+                for output in values[3]:
+                    res_rec_dict[sim_name].update({output: []})
+                
+        return res_rec_dict
+    
         
     def simulate(self, startTime=False, stopTime=False):
         '''
