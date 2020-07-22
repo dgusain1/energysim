@@ -20,15 +20,16 @@ import sys
 import numpy as np
 import pandas as pd
 import pypsa, logging as lg
-from time import time as current_time, sleep
+from time import time as current_time1, sleep
 import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
-import tempfile
+#import tempfile
 from functools import reduce
 
-'''
+class World():
+    '''
 
     World is your cosimulation canvas. Initialise the World object with basic simulation 
     parameters such as:
@@ -61,18 +62,17 @@ from functools import reduce
 	after specifying World, instead of calling my_world.simulate(), users can make a python loop.
 	
 	def control(x):
-		<do fancy stuff>
+		<do fancy stuff>\n
 		return some_values
-	my_world.init()
+	my_world.init() \n
 	for time in range(1,10):
-		my_world.step(time)
-		tmp = my_world.get_value(<variable1>)
-		y = control(tmp)
-		my_world.set_value(<variable2>, <y>)
+        my_world.sync(time) \n
+		my_world.step(time) \n
+		tmp = my_world.get_value(<variable1>)\n
+		y = control(tmp)\n
+		my_world.set_value(<variable2>, <y>)\n
 	results = my_world.results()
     '''
-
-class World():
     
     def __init__(self, start_time = 0, stop_time = 100, logging = False, exchange = 0, clean_up = True, interpolate_results = True):
         self.start_time = start_time
@@ -99,9 +99,9 @@ class World():
         self.variable_dict = {}
         self.simulator_dict = {}
     
-    def gen_sim_ID():
-        tf = tempfile.NamedTemporaryFile()
-        return tf.name[5:]
+#    def gen_sim_ID():
+#        tf = tempfile.NamedTemporaryFile()
+#        return tf.name[5:]
     
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
         if sim_type.lower() == 'fmu':
@@ -460,6 +460,15 @@ class World():
         for simulator in self.simulator_dict.values():
             simulator.init()        
         
+        #record results
+#        for sim_name, values in self.simulator_dict.items():
+#            simulator = values[1]
+#            outputs = values[3]
+#            sim_type = values[0]
+#            if sim_type != 'signal' and len(outputs)>0:
+#                tmp = [0] + list(simulator.get_value(outputs))
+#                self.res_dict[sim_name].append(tmp)
+                
         
 
     def simulate(self, startTime=False, stopTime=False):
@@ -478,43 +487,60 @@ class World():
         for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
             #exchange values at t=0
             self.exchange_variable_values(time)
-            for sim_items in self.simulator_dict.values():
+            for sim_name, sim_items in self.simulator_dict.items():
                 sim_type = sim_items[0]
                 simulator = sim_items[1]
                 sim_ss = sim_items[2]
+                outputs = sim_items[3]
                 temp_time = time
                 local_stop_time = min(temp_time + self.macro_tstep, stopTime)
                 while temp_time < local_stop_time:
                     if sim_type == 'fmu':
-                        if _fmu in self.variable_dict.keys():                        
-                            stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
+                        if sim_items[4]:                        
+                            stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
                             try:
-                                self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
+                                simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
                                 temp_time += stepsize             #self.stepsize_dict[_fmu]
                             except:
                                 print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
-                                self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
-                                temp_time += self.stepsize_dict[_fmu]
-                                                    
+                                simulator.step(min(temp_time, local_stop_time), sim_ss)
+                                temp_time += sim_ss                                                    
                         else:
-                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
-                            temp_time += self.stepsize_dict[_fmu]
-                    else:
-                        
+                            simulator.step(min(temp_time, local_stop_time))
+                            temp_time += sim_ss
+                    else:                        
                         simulator.step(temp_time)
                         temp_time += sim_ss
-            
                     
+                    if sim_type != 'signal' and len(outputs)>0:
+                        tmp = [temp_time] + list(simulator.get_value(outputs))
+                        self.res_dict[sim_name].append(tmp)
                 
-    
+            
+            #exchange values after each simulator has reached macro-time step
+            self.exchange_variable_values(time)
+            
+        if flag:
+            self.clean_canvas()
+            return self.results()        
+                
+    def results(self):
+        """
+        This is new one
+        """
+        processed_res = {}
+        for sim_name, results in self.res_dict.items():
+            output_names = self.simulator_dict[sim_name][3]
+            processed_res[sim_name] = pd.DataFrame(results, columns = output_names)
+        
+        return processed_res
+            
     def create_results_recorder(self):
         res_rec_dict = {}
         for sim_name, values in self.simulator_dict.items():
-            res_rec_dict[sim_name] = {'time':[]}
             if values[0] != 'signal' and len(values[3])>0:
-                for output in values[3]:
-                    res_rec_dict[sim_name].update({output: []})
-                
+                res_rec_dict[sim_name] = []
+                            
         return res_rec_dict
 
     def exchange_variable_values(self, t):
@@ -542,66 +568,66 @@ class World():
                     self.simulator_dict[in_sim_name].set_value(in_sim_var, tmp_var)
     
     
-    def simulate1(self, startTime=False, stopTime=False):
-        '''
-        Simulates the energysim object from startTime to stopTime with a step. If no input argument is specified, start, stop, and step times are derived from energysim iniitalization.
-        '''
-        check = self.perform_consistency_name_checks()
-        if not check:
-            print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
-            print('Exiting simulation.')
-            sys.exit()
-        
-        if not startTime and not stopTime:
-            flag = True
-            dis = False
-            startTime = self.start_time
-            stopTime = self.stop_time
-            self.init()
-        else:
-            flag = False
-            dis = None
-        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
-        total_steps = int((stopTime-startTime)/self.final_tStep)+1
-        
-        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
-            
-            if self.do_exchange:
-                self.exchange_values(time)
-                
-            for _fmu in self.fmu_dict.keys():                
-                temp_time = time
-                local_stop_time = min(temp_time + self.final_tStep, stopTime)
-                while temp_time < local_stop_time:
-                    self.set_csv_signals(temp_time)
-                    temp_res = [temp_time] + self.fmu_dict[_fmu].getOutput()
-                    self.res_dict[_fmu].loc[len(self.res_dict[_fmu].index)] = temp_res
-                    
-                    if _fmu in self.variable_dict.keys():                        
-                        stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
-                        try:
-                            self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
-                            temp_time += stepsize             #self.stepsize_dict[_fmu]
-                        except:
-                            print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
-                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
-                            temp_time += self.stepsize_dict[_fmu]
-                                                
-                    else:
-                        self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
-                        temp_time += self.stepsize_dict[_fmu]
-                
-            for net_name, network in self.powerflow_dict.items():                
-                if round(time%self.stepsize_dict[net_name]) == 0:
-                    self.set_csv_signals(time)
-                    network.step()
-                    
-                    temp_res = [time] + network.getOutput()
-                    self.res_dict[net_name].loc[len(self.res_dict[net_name].index)] = temp_res
-        
-        if flag:
-            self.clean_canvas()
-            return self.results()
+#    def simulate1(self, startTime=False, stopTime=False):
+#        '''
+#        Simulates the energysim object from startTime to stopTime with a step. If no input argument is specified, start, stop, and step times are derived from energysim iniitalization.
+#        '''
+#        check = self.perform_consistency_name_checks()
+#        if not check:
+#            print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
+#            print('Exiting simulation.')
+#            sys.exit()
+#        
+#        if not startTime and not stopTime:
+#            flag = True
+#            dis = False
+#            startTime = self.start_time
+#            stopTime = self.stop_time
+#            self.init()
+#        else:
+#            flag = False
+#            dis = None
+#        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
+#        total_steps = int((stopTime-startTime)/self.final_tStep)+1
+#        
+#        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
+#            
+#            if self.do_exchange:
+#                self.exchange_values(time)
+#                
+#            for _fmu in self.fmu_dict.keys():                
+#                temp_time = time
+#                local_stop_time = min(temp_time + self.final_tStep, stopTime)
+#                while temp_time < local_stop_time:
+#                    self.set_csv_signals(temp_time)
+#                    temp_res = [temp_time] + self.fmu_dict[_fmu].getOutput()
+#                    self.res_dict[_fmu].loc[len(self.res_dict[_fmu].index)] = temp_res
+#                    
+#                    if _fmu in self.variable_dict.keys():                        
+#                        stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
+#                        try:
+#                            self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
+#                            temp_time += stepsize             #self.stepsize_dict[_fmu]
+#                        except:
+#                            print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
+#                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
+#                            temp_time += self.stepsize_dict[_fmu]
+#                                                
+#                    else:
+#                        self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
+#                        temp_time += self.stepsize_dict[_fmu]
+#                
+#            for net_name, network in self.powerflow_dict.items():                
+#                if round(time%self.stepsize_dict[net_name]) == 0:
+#                    self.set_csv_signals(time)
+#                    network.step()
+#                    
+#                    temp_res = [time] + network.getOutput()
+#                    self.res_dict[net_name].loc[len(self.res_dict[net_name].index)] = temp_res
+#        
+#        if flag:
+#            self.clean_canvas()
+#            return self.results()
             
     def clean_canvas(self):            
         if self.clean_up:
@@ -651,43 +677,43 @@ class World():
             new_step_size = final_tStep-0.01
         return new_step_size
     
-    def results(self):
-        if self.interpolate_results:
-            try:
-                self.process_results(self.res_dict)
-                return self.results_dataframe
-            except:
-                return self.res_dict
-        else:
-            return self.res_dict
-     
-    
-    def process_results(self, results_dict):
-        if self.interpolate_results:
-            from scipy.interpolate import interp1d
-            temp1 = [(x, len(y)) for x, y in results_dict.items()]
-            temp2 = dict(temp1)
-            most_fmu_tsteps = max(temp2, key=temp2.get)
-            self.new_tp = np.array(results_dict[most_fmu_tsteps].loc[:, 'time'])
-            self.new_time_points = np.linspace(self.start_time, self.stop_time, len(np.asarray(self.new_tp <= self.stop_time).nonzero()[0]))
-            
-            self.results_dataframe.loc[:,'time'] = self.new_time_points
-            
-            #go through the results dict and create interpolated values.
-            #define interpolation funciton
-            for key, dataframe in results_dict.items():
-                df_time = dataframe.loc[:,'time']
-                df_time_temp = np.linspace(self.start_time, self.stop_time, len(np.asarray(df_time <= self.stop_time).nonzero()[0]))
-                del df_time
-                rem_columns = list(dataframe.columns)
-                rem_columns.remove('time')
-                for column_name in rem_columns:
-                    y = np.array(dataframe.loc[:,column_name])[:len(df_time_temp)]
-                    f = interp1d(df_time_temp, y, kind='previous')
-                    new_datavalues = f(self.new_time_points)
-                    self.results_dataframe.loc[:,column_name] = new_datavalues
-        else:
-            pass
+#    def results(self):
+#        if self.interpolate_results:
+#            try:
+#                self.process_results(self.res_dict)
+#                return self.results_dataframe
+#            except:
+#                return self.res_dict
+#        else:
+#            return self.res_dict
+#     
+#    
+#    def process_results(self, results_dict):
+#        if self.interpolate_results:
+#            from scipy.interpolate import interp1d
+#            temp1 = [(x, len(y)) for x, y in results_dict.items()]
+#            temp2 = dict(temp1)
+#            most_fmu_tsteps = max(temp2, key=temp2.get)
+#            self.new_tp = np.array(results_dict[most_fmu_tsteps].loc[:, 'time'])
+#            self.new_time_points = np.linspace(self.start_time, self.stop_time, len(np.asarray(self.new_tp <= self.stop_time).nonzero()[0]))
+#            
+#            self.results_dataframe.loc[:,'time'] = self.new_time_points
+#            
+#            #go through the results dict and create interpolated values.
+#            #define interpolation funciton
+#            for key, dataframe in results_dict.items():
+#                df_time = dataframe.loc[:,'time']
+#                df_time_temp = np.linspace(self.start_time, self.stop_time, len(np.asarray(df_time <= self.stop_time).nonzero()[0]))
+#                del df_time
+#                rem_columns = list(dataframe.columns)
+#                rem_columns.remove('time')
+#                for column_name in rem_columns:
+#                    y = np.array(dataframe.loc[:,column_name])[:len(df_time_temp)]
+#                    f = interp1d(df_time_temp, y, kind='previous')
+#                    new_datavalues = f(self.new_time_points)
+#                    self.results_dataframe.loc[:,column_name] = new_datavalues
+#        else:
+#            pass
 
         
     def create_df_for_fmu(self, fmu_name):
