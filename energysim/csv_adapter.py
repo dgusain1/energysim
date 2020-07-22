@@ -7,10 +7,10 @@ class csv_simulator():
         self.df = pd.read_csv(sim_loc)
         self.step_size = step_size
         #analyse the df, and calculate step size
-        assert 'time' not in self.df.columns, 'No time column in csv file. Please convert csv file to required format. CSV not added.'
-        autocorr = self.df.time.autocorr()
-        assert round(autocorr,4) != 1, 'energysim can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv simulator.'
-                
+        assert 'time' in self.df.columns, 'No time column in csv file. Please convert csv file to required format. CSV not added.'
+        autocorr = round(self.df.time.autocorr(), 4)
+        assert round(autocorr,4) == 1, 'energysim can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv simulator.'
+        self.time_array = self.df.time.to_numpy()
         
     
     def init(self):
@@ -26,7 +26,8 @@ class csv_simulator():
         #this should return a list of values from simulator as a list corresponding to parameters
         tmp = []
         for ele in parameters:
-            tmp.append(self.df.at[int(time/self.step_size), ele])
+            index = int(np.argwhere(self.time_array>time)[0] - 1)
+            tmp.append(self.df.at[index, ele])
         return tmp
         
 #        temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]

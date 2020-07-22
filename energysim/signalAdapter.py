@@ -11,15 +11,23 @@ class signal_adapter():
         self.signal_name = signal_name
         self.signal = signal
         
+    def init(self, *args, **kwargs):
+        pass
     
-    def get_value(self, time):
+    def step(self, time, *args, **kwargs):
+        pass
+    
+    def set_value(self, *args, **kwargs):
+        pass
+    
+    def get_value(self, parameters, time):
         
         if len(self.signal) == 1:
-            return self.signal[0]
+            return [self.signal[0]]
         elif len(self.signal) == 3:
-            return self.signal[0] if time < self.signal[1] else self.signal[2]
+            return [self.signal[0] if time < self.signal[1] else self.signal[2]]
         elif len(self.signal) == 4:
-            return self.signal[0] if time < self.signal[1] or time > self.signal[2] else self.signal[3]
+            return [self.signal[0] if time < self.signal[1] or time > self.signal[2] else self.signal[3]]
         else:
-            print('unrecognized signal format, using 0 values for signal %s.' %(self.signal_name))
-            return 0
+#            print('unrecognized signal format, using 0 values for signal %s.' %(self.signal_name))
+            return [0]

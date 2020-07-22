@@ -11,16 +11,17 @@ __about__ = "This one implements a common simulator, adds an API to connect othe
 
 from .csAdapter import FmuCsAdapter
 from .meAdapter import FmuMeAdapter
+from .csv_adapter import csv_simulator
 from .pypsaAdapter import pypsa_adapter
 from .signalAdapter import signal_adapter
 from .ppAdapter import pp_adapter
-from .pyScriptAdapter import py_adapter
+#from .pyScriptAdapter import py_adapter
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
 import pandas as pd
 import pypsa, logging as lg
-from time import time as current_time1, sleep
+#from time import time as current_time1, sleep
 import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -136,7 +137,7 @@ class World():
                 print(f"Simulator {sim_name} not added.")
             
         elif sim_type.lower() == 'csv':
-            self.add_csv(sim_name, sim_loc)
+            self.add_csv(csv_name=sim_name, csv_location=sim_loc, step_size=step_size, outputs=outputs)
             
         elif sim_type.lower() == 'external':
             if 'api_loc' not in kwargs.keys():
@@ -236,14 +237,21 @@ class World():
         signal_obj = signal_adapter(signal_name, signal)
         self.signal_dict[signal_name] = signal_obj
         if signal_name not in self.simulator_dict.keys():
-            self.simulator_dict[signal_name] = ['signal', signal_obj]
+            self.simulator_dict[signal_name] = ['signal', signal_obj, 900, 'y']
             if self.logging:
                 print("Added a signal '%s' to the world" %(signal_name))
         else:
             print(f"Please specify a unique name for simulator. {signal_name} already exists.")
 
+    def add_csv(self, csv_name, csv_location, step_size, outputs):
+        csv_obj = csv_simulator(csv_name, csv_location, step_size, outputs)
+        if csv_name not in self.simulator_dict.keys():
+            self.simulator_dict[csv_name] = ['csv', csv_obj, step_size, outputs]
+            if self.logging:
+                print("Added a csv '%s' to the world" %(csv_name))
     
-    def add_csv(self, csv_name, csv_location):
+    
+    def add_csv1(self, csv_name, csv_location):
         df = pd.read_csv(csv_location)
         #analyse the df, and calculate step size
         if 'time' not in df.columns:
@@ -321,8 +329,9 @@ class World():
         
         
     def get_lcm(self):
-        max_order = int(max([len(str(i).split('.')[1]) for i in self.stepsize_dict.values()]))
-        new_list = 10**(max_order)*np.array(self.stepsize_dict.values())        
+        ss_dict = [x[2] for x in self.simulator_dict.values() if x[0] != 'signal']
+        max_order = int(max([len(str(i).split('.')[1]) for i in ss_dict]))
+        new_list = 10**(max_order)*np.array(ss_dict)        
             
         def lcm1(a, b):
             greater = a if a>b else b
@@ -444,7 +453,7 @@ class World():
             print("Simulation status:\n")
         
         #determine the final_tStep for World
-        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]
+        self.stepsize_dict = [x[2] for x in self.simulator_dict.values() if x[0] != 'signal']
         if self.exchange != 0:
             self.macro_tstep = self.exchange
         else:
@@ -458,7 +467,7 @@ class World():
         
         #initialize simulators
         for simulator in self.simulator_dict.values():
-            simulator.init()        
+            simulator[1].init()        
         
         #record results
 #        for sim_name, values in self.simulator_dict.items():
@@ -471,23 +480,19 @@ class World():
                 
         
 
-    def simulate(self, startTime=False, stopTime=False):
-        if not startTime and not stopTime:
-            flag = True
-            dis = False
-            startTime = self.start_time
-            stopTime = self.stop_time
-            self.init()
-        else:
-            flag = False
-            dis = None
-        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
-        total_steps = int((stopTime-startTime)/self.final_tStep)+1
+    def simulate(self, pbar = True, **kwargs): 
+        print("Starting new simulation backend.")
+        startTime = self.start_time
+        stopTime = self.stop_time
+        self.init()
+        assert (stopTime-startTime >= self.macro_tstep), "difference between start and stop time > exchange value specified in world initialisation"
+        total_steps = int((stopTime-startTime)/self.macro_tstep)+1
         
-        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
+        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = not pbar):
             #exchange values at t=0
             self.exchange_variable_values(time)
             for sim_name, sim_items in self.simulator_dict.items():
+#                print(f'working with {sim_name}')
                 sim_type = sim_items[0]
                 simulator = sim_items[1]
                 sim_ss = sim_items[2]
@@ -495,6 +500,10 @@ class World():
                 temp_time = time
                 local_stop_time = min(temp_time + self.macro_tstep, stopTime)
                 while temp_time < local_stop_time:
+                    if sim_type != 'signal' and len(outputs)>0:
+                        tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+                        self.res_dict[sim_name].append(tmp)
+                        
                     if sim_type == 'fmu':
                         if sim_items[4]:                        
                             stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
@@ -502,7 +511,7 @@ class World():
                                 simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
                                 temp_time += stepsize             #self.stepsize_dict[_fmu]
                             except:
-                                print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
+                                print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {sim_ss}')
                                 simulator.step(min(temp_time, local_stop_time), sim_ss)
                                 temp_time += sim_ss                                                    
                         else:
@@ -512,17 +521,11 @@ class World():
                         simulator.step(temp_time)
                         temp_time += sim_ss
                     
-                    if sim_type != 'signal' and len(outputs)>0:
-                        tmp = [temp_time] + list(simulator.get_value(outputs))
-                        self.res_dict[sim_name].append(tmp)
                 
-            
             #exchange values after each simulator has reached macro-time step
             self.exchange_variable_values(time)
             
-        if flag:
-            self.clean_canvas()
-            return self.results()        
+        return self.results()        
                 
     def results(self):
         """
@@ -530,7 +533,8 @@ class World():
         """
         processed_res = {}
         for sim_name, results in self.res_dict.items():
-            output_names = self.simulator_dict[sim_name][3]
+            print(f'working with {sim_name}.')
+            output_names = ['time'] + self.simulator_dict[sim_name][3]
             processed_res[sim_name] = pd.DataFrame(results, columns = output_names)
         
         return processed_res
@@ -546,26 +550,27 @@ class World():
     def exchange_variable_values(self, t):
         #parse connections
         for output_, input_ in self.simulator_connections.items():
+#            print(f'working on {output_}, {input_}')
             #data collector
             #check if it is tuple or single
             if type(output_).__name__ == 'str':
-                ou_sim_name, ou_sim_var = output_.split('.')[0], output_.replace(output_.split('.')[0],'')[1:]                
-                tmp_var = self.simulator_dict[ou_sim_name].get_value(ou_sim_var, t)
+                ou_sim_name, ou_sim_var = output_.split('.')[0], output_.replace(output_.split('.')[0],'')[1:] 
+                tmp_var = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
             elif type(output_).__name__ == 'tuple':
                 tmps = []
                 for item in output_:
                     ou_sim_name, ou_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
-                    tmp = self.simulator_dict[ou_sim_name].get_value(ou_sim_var, t)
-                    tmps.append(tmp)
-                tmp_var = sum(tmps)
-            
+                    tmp = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
+                    tmps.append(tmp[0])
+                tmp_var = [sum(tmps)]
+#            print(tmp_var)
             if type(input_).__name__ == 'str':
                 in_sim_name, in_sim_var = input_.split('.')[0], input_.replace(input_.split('.')[0],'')[1:]
-                self.simulator_dict[in_sim_name].set_value(in_sim_var, tmp_var)
+                self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
             elif type(input_).__name__ == 'tuple':
                 for item in input_:
                     in_sim_name, in_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
-                    self.simulator_dict[in_sim_name].set_value(in_sim_var, tmp_var)
+                    self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
     
     
 #    def simulate1(self, startTime=False, stopTime=False):
@@ -629,43 +634,43 @@ class World():
 #            self.clean_canvas()
 #            return self.results()
             
-    def clean_canvas(self):            
-        if self.clean_up:
-            try:
-                for _fmu in self.fmu_dict.values():
-                    _fmu.cleanUp()
-            except:
-                print('Tried deleting temporary FMU files, but failed. Try manually.')
-            for _net in self.powerflow_dict.values():
-                _net.cleanUp()
+#    def clean_canvas(self):            
+#        if self.clean_up:
+#            try:
+#                for _fmu in self.fmu_dict.values():
+#                    _fmu.cleanUp()
+#            except:
+#                print('Tried deleting temporary FMU files, but failed. Try manually.')
+#            for _net in self.powerflow_dict.values():
+#                _net.cleanUp()
         
-    def sync(self, time):
-        '''
-        Manual call for exchange of values between simulators.
-        '''
-        self.exchange_values(time)
+#    def sync(self, time):
+#        '''
+#        Manual call for exchange of values between simulators.
+#        '''
+#        self.exchange_values(time)
         
-    def set_value(self, parameters, value):
-        '''
-        Must specify parameters and values in list format
-        '''
-        for item, val in zip(parameters, value):
-            sim_name = item.split('.')[0]
-            variable = item.replace(sim_name,'')[1:]
-            self.simulator_list[sim_name].set_value([variable], [val])
+#    def set_value(self, parameters, value):
+#        '''
+#        Must specify parameters and values in list format
+#        '''
+#        for item, val in zip(parameters, value):
+#            sim_name = item.split('.')[0]
+#            variable = item.replace(sim_name,'')[1:]
+#            self.simulator_list[sim_name].set_value([variable], [val])
 
 
-    def get_value(self, parameter):
-        '''
-        Must specify parameter in a list format.
-        '''
-        outputs = []
-        for item in parameter:
-            sim_name = item.split('.')[0]
-            variable = item.replace(sim_name,'')[1:]
-            temp_value = self.simulator_list[sim_name].get_value([variable])
-            outputs.append(temp_value[0])
-        return outputs
+#    def get_value(self, parameter):
+#        '''
+#        Must specify parameter in a list format.
+#        '''
+#        outputs = []
+#        for item in parameter:
+#            sim_name = item.split('.')[0]
+#            variable = item.replace(sim_name,'')[1:]
+#            temp_value = self.simulator_list[sim_name].get_value([variable])
+#            outputs.append(temp_value[0])
+#        return outputs
     
     def get_new_time(self, stop, curr):        
         return (stop-curr)/2
@@ -894,7 +899,7 @@ class World():
         for _sim in _sims:
             parameter_list_derived = list(parameter_dictionary[_sim])[0]
             parameter_values_to_set = list(parameter_dictionary[_sim])[1]
-            self.simulator_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
+            self.simulator_dict[_sim][1].set_value(parameter_list_derived, parameter_values_to_set)
 #            if _sim in self.fmu_dict.keys():
 #                self.fmu_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
 #            if _sim in self.powerflow_dict.keys():

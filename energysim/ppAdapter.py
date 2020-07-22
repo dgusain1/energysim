@@ -95,7 +95,7 @@ class pp_adapter():
     def setInput(self, inputValues):
         pass
     
-    def step(self):  
+    def step(self, *args, **kwargs):  
         a = pp.runpp(self.network)
         return a
     
