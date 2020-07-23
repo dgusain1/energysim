@@ -1,115 +1,122 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Oct 10 19:08:54 2018
-
-@author: digvijaygusain
-"""
-
-__version__ = '2.0'
-__author__ = 'Digvijay Gusain'
-__about__ = "This one implements a common simulator, adds an API to connect other simulators, and unifies message exchange."
-
 from .csAdapter import FmuCsAdapter
 from .meAdapter import FmuMeAdapter
 from .csv_adapter import csv_simulator
 from .pypsaAdapter import pypsa_adapter
-from .signalAdapter import signal_adapter
 from .ppAdapter import pp_adapter
-#from .pyScriptAdapter import py_adapter
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
 import pandas as pd
 import pypsa, logging as lg
-#from time import time as current_time1, sleep
 import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
-#import tempfile
 from functools import reduce
+import importlib
 
-class World():
-    '''
-
-    World is your cosimulation canvas. Initialise the World object with basic simulation 
-    parameters such as:
-        1. start_time (=0 by default) 
-        2. stop_time (=100 by default)
-        3. logging (False by default). Gives users update on simulation progress
-        4. exchange (=0 by dfault). Users can specify instance of information exchange
-        5. clean_up (True by default) cleans up temporary files created during the simulation (can be very large in some cases, hence recommended to keep it True)
-        6. interpolate_results (True by default) FMUs with larger time steps have their outputs interpolated to match the time step of the lowest time step of specified FMUs.
+class world():
+    r""" 
+    Initialization
+    ---------------    
+    ``world`` is your cosimulation canvas. It creates a ``world`` object on 
+    which simulators can be freely added. ``world`` accepts the 
+    following parameters :
+        1. ``start_time`` : (0 by default).
+        2. ``stop_time`` : (1000 by default).
+        3. ``logging`` : (False by default). Gives users update on simulation progress.
+        4. ``exchange`` : (60 by default). Users can specify instance of information exchange.
     
-    After specifying the world, you can add simulators to the world by add_simulator(). This is done by specifying the following:
-	1. sim_type: 'fmu' / 'powerflow' / 'csv' / 'signal'
-        2. sim_name: It is extremely essential that you assign the simulator a relevant name. This helps in specifying connections between different simulators later.
-        3. sim_location: Use a raw string address of simulator file.
-        4. outputs: specify the outputs that need to be recorded during simulation. 
-	5. inputs: specify the inputs of the simulator.
-        5. step_size (=1e-3 by default)
+    >>> my_world = world(start_time=0, stop_time=1000, logging=True, exchange=60)
     
-    When specifying signals, use signal = <signal>. The keyword is important.
-
-    The connections between simulators can be specified with a dictionary as follows:
-        {'_fmu1.output_variable1':'_fmu2.input_variable1',
-        '_fmu1.output_variable2':'_fmu2.input_variable2',
-        '_fmu1.output_variable3':'_fmu2.input_variable3',}
+    Specifying Simulators
+    ---------------------    
+    After initializing the world cosimulation object, you can add simulators 
+    to the world by ``add_simulator()``. This is done by specifying 
+    the following :
+        1. ``sim_type`` : 'fmu', 'powerflow', 'csv', 'signal'
+        2. ``sim_name`` : It is essential that you assign the simulator a unique name.
+        3. ``sim_loc`` : Use a raw string address of simulator location.
+        4. ``outputs`` : specify the outputs that need to be recorded during simulation from the simulator.
+        5. ``inputs`` : specify the inputs of the simulator.
+        6. ``step_size`` : step size for simulator (1e-3 by default).
     
-    Afterwards, simulate() function can be called to simulate the world. This returns a pandas dataframe
-    with output values of all simulators as specified during add_simulator phase.
+    >>> my_world.add_simulator(sim_type='fmu', sim_name='FMU1', 
+    >>> sim_loc=/path/to/sim, inputs=[], outputs=['var1','var2'], step_size=1)
     
-    NEW: World object can now be accessed as a single simulation entity. This allows users to embed World cosimulation into control schemes defined in Python as python functions. 
-	after specifying World, instead of calling my_world.simulate(), users can make a python loop.
-	
-	def control(x):
-		<do fancy stuff>\n
-		return some_values
-	my_world.init() \n
-	for time in range(1,10):
-        my_world.sync(time) \n
-		my_world.step(time) \n
-		tmp = my_world.get_value(<variable1>)\n
-		y = control(tmp)\n
-		my_world.set_value(<variable2>, <y>)\n
-	results = my_world.results()
-    '''
+    Connections between simulators
+    -------------------------------
+    The connections between simulators can be specified with a dictionary
+    as follows :
     
-    def __init__(self, start_time = 0, stop_time = 100, logging = False, exchange = 0, clean_up = True, interpolate_results = True):
+    >>> connections = {'sim1.output_variable1' : 'sim2.input_variable1',
+    >>>    'sim3.output_variable2' : 'sim4.input_variable2',
+    >>>    'sim1.output_variable3' : 'sim2.input_variable3',}
+    >>> my_world.add_connections(connections)
+    
+    This dictionary can be passed onto the world object.
+    
+    Initializing simulator variables
+    --------------------------------
+    To provide initial values to the simulators, the initial values can be
+    specified by providing a ``init`` dict :
+    
+    >>> initializations = {'sim_name1' : (['sim_variables'], [values]),
+    >>>                    'sim_name2' : (['sim_variables'], [values])}
+    >>> options = {'init' : initializations}
+    >>> my_world.options(options)
+    
+    Simulate
+    --------    
+    Finally, the ``simulate()`` function can be called to simulate the world. 
+    This returns a dictionary with simulator name as keys and the results of 
+    the simulator as pandas dataframe.    
+    ``pbar`` can be used to toggle the progress bar for the simulation.
+    
+    >>> my_world.simulate(pbar=True)
+    
+    Package Info
+    ------------
+    Author : Digvijay Gusain
+    
+    Email : digvijay.gusain29@gmail.com
+    
+    Version : 2.0
+    
+    
+    """
+    
+    def __init__(self, start_time = 0, stop_time = 1000, logging = False, exchange = 60):
         self.start_time = start_time
         self.stop_time = stop_time
-        self.fmu_dict = {}
-        self.stepsize_dict = {}
-        self.powerflow_stepsize_dict = {}
         self.logging = logging
         self.exchange = exchange
         self.modify_signal = False
         self.modify_dict = {}
-        self.signal_dict = {}
-        self.signals_dict_new = {}
         self.init_dict = {}
-        self.clean_up = clean_up
-        self.powerflow_dict = {}
-        self.powerflow_outputs = {}
-        self.powerflow_inputs = {}
-        self.snapshots_dict = {}
-        self.pf = ''
-        self.interpolate_results = interpolate_results
         self.G = True
-        self.csv_dict = {}
-        self.variable_dict = {}
         self.simulator_dict = {}
-    
-#    def gen_sim_ID():
-#        tf = tempfile.NamedTemporaryFile()
-#        return tf.name[5:]
-    
+
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
+        """
+        Method to add simulator to ``world()`` object. ``add_simulator()`` takes the following arguments as inputs :
+        
+        1. ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external'
+        2. ``sim_name`` : It is essential that you assign the simulator a unique name.
+        3. ``sim_loc`` : Use a raw string address of simulator location.
+        4. ``outputs`` : specify the outputs that need to be recorded during simulation from the simulator.
+        5. ``inputs`` : specify the inputs for the simulator.
+        6. ``step_size`` : step size for simulator (set to 1e-3 by default).
+        7. ``kwargs`` : Multiple options for FMUs and powerflow networks :
+            - For FMUs, users can specify the following : 
+                - variable : boolean argument for variable stepping in simulation. Default is False.
+                - validate : boolean argument for validating FMUs. Default is False.
+            - For powerflow network, users can specify :
+                - pf : 'pf' or 'opf' to toggle powerflow or optimal power flow when available. Currently only available for pandapower.
+        """
+        
         if sim_type.lower() == 'fmu':
-            if 'solver_name' in kwargs.keys():
-                solver_name = kwargs['solver_name']
-            else:
-                solver_name = 'Cvode'
+            solver_name = 'Cvode'
             if 'variable' in kwargs.keys():
                 variable = kwargs['variable']
             else:
@@ -128,73 +135,40 @@ class World():
                 pf='pf'
             self.add_powerflow(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size, pf=pf)
             
-        elif sim_type.lower() == 'signal':
-            if 'signal' in kwargs.keys():
-                signal = kwargs['signal']
-                self.add_signal(sim_name, signal)
-            else:
-                print(f"Signal needs to be specified to add signals. See documentation for defining signals.")
-                print(f"Simulator {sim_name} not added.")
-            
         elif sim_type.lower() == 'csv':
             self.add_csv(csv_name=sim_name, csv_location=sim_loc, step_size=step_size, outputs=outputs)
             
         elif sim_type.lower() == 'external':
-            if 'api_loc' not in kwargs.keys():
-                print(f'No sim api provided. Energysim will not add simulator {sim_name}')
-            else:
-                self.add_external_simulator(sim_name, sim_loc, **kwargs)
+            self.add_external_simulator(sim_name, sim_loc, outputs, step_size)#, kwargs['api_loc'])
             
         else:
-            print(f"Simulator type {sim_type} not recognized. Please use one of 'fmu', 'powerflow', 'signal', or 'csv' types.")
+            print(f"Simulator type {sim_type} not recognized. Possible sim_type are 'external', 'fmu', 'powerflow', 'csv' types.")
             print(f"Simulator {sim_name} not added")
     
-    def add_external_simulator(self, sim_name, sim_loc, **kwargs):
-        #fname is the py file
-        #sim_loc is the folder where fname.py is located
-        #sim_name is the name of the simulator in the energysim world.
-        if 'fname' not in kwargs.keys():
-            print(f'must specify the py file name. Energysim will not add {sim_name}')
+    def add_external_simulator(self, sim_name, sim_loc, outputs, step_size = 900, **kwargs):
+        sys.path.append(sim_loc)
+        tmp = importlib.import_module(sim_name)
+        external_simulator = tmp.external_simulator
+        #check that the sim_name is unique
+        if sim_name not in self.simulator_dict.keys():
+            simulator = external_simulator(sim_name=sim_name, sim_loc=sim_loc, outputs=outputs)            
+            self.simulator_dict[sim_name] = ['external', simulator, step_size, outputs]
+            if self.logging:
+                print("Added external simulator '%s' to the world" %(sim_name))
         else:
-            fname = kwargs['fname']
-            sys.path.append(sim_loc)            
-            exec('from ' + fname + 'import external_simulator')
-            if 'inputs' in kwargs.keys():
-                inputs = kwargs['inputs']
-            else:
-                inputs = []
-            if 'outputs' in kwargs.keys():
-                inputs = kwargs['outputs']
-            else:
-                outputs = []
-            if 'step_size' in kwargs.keys():
-                step_size = kwargs['step_size']
-            else:
-                step_size = 900
-            
-            #check that the sim_name is unique
-            if sim_name not in self.simulator_dict.keys():
-                simulator = external_simulator(sim_name=sim_name, sim_loc=sim_loc, inputs=inputs, outputs=outputs)            
-                self.simulator_dict[sim_name] = ['ext_sim', simulator, step_size, outputs]
-                if self.logging:
-                    print("Added external simulator '%s' to the world" %(sim_name))
-            else:
-                print(f"Please specify a unique name for simulator. {sim_name} already exists.")
+            print(f"Please specify a unique name for simulator. {sim_name} already exists.")
     
     def add_powerflow(self, network_name, net_loc, inputs = [], outputs = [], pf = 'pf', step_size=900, **kwargs):
-#        self.stepsize_dict[network_name] = step_size
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
         assert net_loc is not None, "No location specified for power flow model. Can't read without."
         try:
             network = pypsa_adapter(network_name, net_loc, inputs = inputs, outputs = outputs, logger_level = kwargs['logger'] if 'logger' in kwargs.keys() else 'DEBUG')
         except:
             network = pp_adapter(network_name, net_loc, inputs = inputs, outputs = outputs)
-        self.powerflow_dict[network_name] = network
-        self.pf = pf
         if network_name not in self.simulator_dict.keys():
             self.simulator_dict[network_name] = ['pf', network, step_size, outputs, pf]
             if self.logging:
-                print("Added powerflow network '%s' to the world" %(network_name))
+                print("Added powerflow simulator '%s' to the world" %(network_name))
         else:
             print(f"Please specify a unique name for simulator. {network_name} already exists.")
             
@@ -203,7 +177,6 @@ class World():
             validate=kwargs['validate']
         else:
             validate=True
-#        self.stepsize_dict[fmu_name] = step_size
         m_desc = read_model_description(fmu_loc, validate=validate)
         fmi_type = 'CoSimulation' if m_desc.coSimulation is not None else 'ModelExchange'
         if fmi_type == 'CoSimulation':
@@ -214,7 +187,6 @@ class World():
                              outputs=outputs,
                              exist=exist,
                              validate=validate)
-            self.fmu_dict[fmu_name] = fmu_temp
         elif fmi_type == 'ModelExchange':
             fmu_temp = FmuMeAdapter(fmu_loc,
                              instanceName=fmu_name,
@@ -223,55 +195,20 @@ class World():
                              outputs=outputs,
                              solver_name = solver_name,
                              validate=validate)
-            self.fmu_dict[fmu_name] = fmu_temp
         
-        self.variable_dict[fmu_name] = variable
         if fmu_name not in self.simulator_dict.keys():
             self.simulator_dict[fmu_name] = ['fmu', fmu_temp, step_size, outputs, variable]
             if self.logging:
-                print("Added a FMU '%s' to the world" %(fmu_name))
+                print("Added FMU simulator '%s' to the world" %(fmu_name))
         else:
             print(f"Please specify a unique name for simulator. {fmu_name} already exists.")        
     
-    def add_signal(self, signal_name, signal):
-        signal_obj = signal_adapter(signal_name, signal)
-        self.signal_dict[signal_name] = signal_obj
-        if signal_name not in self.simulator_dict.keys():
-            self.simulator_dict[signal_name] = ['signal', signal_obj, 900, 'y']
-            if self.logging:
-                print("Added a signal '%s' to the world" %(signal_name))
-        else:
-            print(f"Please specify a unique name for simulator. {signal_name} already exists.")
-
     def add_csv(self, csv_name, csv_location, step_size, outputs):
         csv_obj = csv_simulator(csv_name, csv_location, step_size, outputs)
         if csv_name not in self.simulator_dict.keys():
             self.simulator_dict[csv_name] = ['csv', csv_obj, step_size, outputs]
             if self.logging:
-                print("Added a csv '%s' to the world" %(csv_name))
-    
-    
-    def add_csv1(self, csv_name, csv_location):
-        df = pd.read_csv(csv_location)
-        #analyse the df, and calculate step size
-        if 'time' not in df.columns:
-            print('No time column in csv file. Please convert csv file to required format. CSV not added.')
-        else:
-            autocorr = df.time.autocorr()
-            if round(autocorr,4) != 1:
-                print('energysim can only read csv with fixed time intervals. Current file does not have time stamps with fixed interval. Cant add csv.')
-            else:
-                outputs = list(df.columns)
-                outputs.remove('time')
-                dt = df.time[1] - df.time[0]
-#                self.stepsize_dict[csv_name] = dt
-                self.csv_dict[csv_name] = df
-                if csv_name not in self.simulator_dict.keys():
-                    self.simulator_dict[csv_name] = ['csv', df, dt, outputs]
-                    if self.logging:
-                        print(f"Added csv: {csv_name} to World")
-                else:
-                    print(f"Please specify a unique name for simulator. {csv_name} already exists.")
+                print("Added CSV simulator '%s' to the world" %(csv_name))
     
     def add_connections(self,connections={}):
         '''
@@ -283,7 +220,6 @@ class World():
         if self.logging:
             print("Added %i connections between simulators to the World" %(len(self.simulator_connections)))
         
-        
     def get_fmu_name(self, name):
         if type(name).__name__ == 'str':
             return name.split('.')[0]
@@ -291,6 +227,10 @@ class World():
             return [x.split('.')[0] for x in name]
         
     def plot(self, plot_edge_labels=False):
+        """
+        Plots approximate graph diagram for the energysim network.
+        """
+        
         self.G=nx.DiGraph()
         for key, value in self.connections_between_fmus.items():
             
@@ -325,11 +265,9 @@ class World():
             nx.draw_networkx_edge_labels(self.G,pos, edge_labels=edge_labels)
         
         plt.show()
-                
-        
         
     def get_lcm(self):
-        ss_dict = [x[2] for x in self.simulator_dict.values() if x[0] != 'signal']
+        ss_dict = [x[2] for x in self.simulator_dict.values()]# if x[0] != 'signal']
         max_order = int(max([len(str(i).split('.')[1]) for i in ss_dict]))
         new_list = 10**(max_order)*np.array(ss_dict)        
             
@@ -348,112 +286,16 @@ class World():
         final_lcm = get_lcm_for(new_list)
         return final_lcm/10**max_order        
 
-    def perform_consistency_name_checks(self):
-        a1 = self.csv_dict.keys()
-        a2 = self.fmu_dict.keys()
-        a3 = self.signal_dict.keys()
-        a4 = self.powerflow_dict.keys()
-        if len(set(a1).intersection(a2, a3, a4)) != 0:
-            return False
-        else:
-            return True
-        
-    def create_df_for_pf(self, net_name, network):        
-        colums_of_pf = ['time']
-        for item in network.outputs:
-            name = [net_name + '.' + item]
-            colums_of_pf.extend(name)
-        
-        return pd.DataFrame(columns = colums_of_pf)
-    
-    def create_df_for_simulator(self, name, obj):
-        columns_of_df = ['time']
-        for item in obj.outputs:
-            name = [name + '.' + item]
-            columns_of_df.extend(name)
-        return pd.DataFrame(columns = columns_of_df)
-    
-#    def init_1(self):
-#        '''
-#        Initialises simulator objects in World
-#        '''
-#        if self.logging:
-#            print("Simulation started..")
-#            print("Simulation status:\n")
-#        
-#        #create simulator list
-#        self.simulator_list = {}
-#        self.simulator_list.update(self.fmu_dict )
-#        self.simulator_list.update(self.powerflow_dict)
-#        
-#        
-#        self.create_results_dataframe()
-#        
-#        assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cant run simulations when no simulators are specified!"
-#        if len(self.fmu_dict) + len(self.powerflow_dict) > 1:
-#            assert (len(self.connections_between_fmus) > 0),"Connections between FMUs are not specified!"
-#        
-#        self.res_dict = {}
-#        
-#        #initialise FMUs and their result dataframes
-#        for name, _fmu in self.fmu_dict.items():
-#            fmu_df = self.create_df_for_fmu(name)            
-#            self.res_dict[name] = fmu_df
-#            try:
-#                _fmu.setup()
-#                #check if initial vakues need to be set before initilisation
-#                if self.init_dict:
-#                    self.set_parameters(self.init_dict)
-#                    
-#                self.set_csv_signals(0)
-#                _fmu.init()
-#                print('Initialised FMU: %s'%(_fmu.instanceName))
-#            except:
-#                try:
-#                    print("Couldn't initialise %s. Trying again.." %(_fmu.instanceName))
-#                    _fmu.setup()
-#                    #check if initial vakues need to be set before initilisation
-#                    if self.init_dict:
-#                        self.set_parameters(self.init_dict)
-#                        
-#                    self.set_csv_signals(0)
-#                    _fmu.init()
-#                except:
-#                    print('Couldnt initialise %s. Simulation stopped.' %(_fmu.instanceName))
-#                    sys.exit()
-#        
-#        #initialise power flow and create its dataframe as well
-#        for net_name, network in self.powerflow_dict.items():
-#            net_df = self.create_df_for_pf(net_name, network)
-#            self.res_dict[net_name] = net_df
-#            self.set_csv_signals(0)
-#            network.init()
-#            print('Initialised powerflow network: %s'%(net_name))
-#        
-#        #determine when FMUs exchange information between themselves
-#        if self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items())>1:
-#            self.final_tStep = self.get_lcm()
-#        elif self.exchange == 0 and len(self.fmu_dict.items()) + len(self.powerflow_dict.items()) == 1:
-#            self.final_tStep = list(self.stepsize_dict.values())[0]
-#        else:
-#            self.final_tStep = self.exchange
-#        
-#        
-#        if len(self.fmu_dict)+len(self.signal_dict)+len(self.powerflow_dict) > 1:
-#            self.do_exchange = True
-#        else:
-#            self.do_exchange = False
-    
     def init(self):
         '''
-        Initialises simulator objects in World
+        Initialises simulator objects in world.
         '''
         if self.logging:
             print("Simulation started..")
             print("Simulation status:\n")
         
         #determine the final_tStep for World
-        self.stepsize_dict = [x[2] for x in self.simulator_dict.values() if x[0] != 'signal']
+        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]# if x[0] != 'signal']
         if self.exchange != 0:
             self.macro_tstep = self.exchange
         else:
@@ -469,17 +311,6 @@ class World():
         for simulator in self.simulator_dict.values():
             simulator[1].init()        
         
-        #record results
-#        for sim_name, values in self.simulator_dict.items():
-#            simulator = values[1]
-#            outputs = values[3]
-#            sim_type = values[0]
-#            if sim_type != 'signal' and len(outputs)>0:
-#                tmp = [0] + list(simulator.get_value(outputs))
-#                self.res_dict[sim_name].append(tmp)
-                
-        
-
     def simulate(self, pbar = True, **kwargs): 
         print("Starting new simulation backend.")
         startTime = self.start_time
@@ -492,7 +323,6 @@ class World():
             #exchange values at t=0
             self.exchange_variable_values(time)
             for sim_name, sim_items in self.simulator_dict.items():
-#                print(f'working with {sim_name}')
                 sim_type = sim_items[0]
                 simulator = sim_items[1]
                 sim_ss = sim_items[2]
@@ -500,18 +330,18 @@ class World():
                 temp_time = time
                 local_stop_time = min(temp_time + self.macro_tstep, stopTime)
                 while temp_time < local_stop_time:
-                    if sim_type != 'signal' and len(outputs)>0:
+                    if len(outputs)>0:
                         tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
                         self.res_dict[sim_name].append(tmp)
-                        
+                    
                     if sim_type == 'fmu':
-                        if sim_items[4]:                        
+                        if sim_items[4]:                     
                             stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
                             try:
                                 simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
                                 temp_time += stepsize             #self.stepsize_dict[_fmu]
                             except:
-                                print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {sim_ss}')
+                                print(f'Could not initiate variable step size for the FMU {sim_name}. Energysim will switch to fixed steps.')
                                 simulator.step(min(temp_time, local_stop_time), sim_ss)
                                 temp_time += sim_ss                                                    
                         else:
@@ -520,20 +350,15 @@ class World():
                     else:                        
                         simulator.step(temp_time)
                         temp_time += sim_ss
-                    
-                
-            #exchange values after each simulator has reached macro-time step
-            self.exchange_variable_values(time)
             
         return self.results()        
                 
     def results(self):
         """
-        This is new one
+        Processes the results from the cosimulation and provides them in a dict+df form.
         """
         processed_res = {}
         for sim_name, results in self.res_dict.items():
-            print(f'working with {sim_name}.')
             output_names = ['time'] + self.simulator_dict[sim_name][3]
             processed_res[sim_name] = pd.DataFrame(results, columns = output_names)
         
@@ -542,276 +367,17 @@ class World():
     def create_results_recorder(self):
         res_rec_dict = {}
         for sim_name, values in self.simulator_dict.items():
-            if values[0] != 'signal' and len(values[3])>0:
+            if len(values[3])>0:
                 res_rec_dict[sim_name] = []
                             
         return res_rec_dict
 
-    def exchange_variable_values(self, t):
-        #parse connections
-        for output_, input_ in self.simulator_connections.items():
-#            print(f'working on {output_}, {input_}')
-            #data collector
-            #check if it is tuple or single
-            if type(output_).__name__ == 'str':
-                ou_sim_name, ou_sim_var = output_.split('.')[0], output_.replace(output_.split('.')[0],'')[1:] 
-                tmp_var = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
-            elif type(output_).__name__ == 'tuple':
-                tmps = []
-                for item in output_:
-                    ou_sim_name, ou_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
-                    tmp = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
-                    tmps.append(tmp[0])
-                tmp_var = [sum(tmps)]
-#            print(tmp_var)
-            if type(input_).__name__ == 'str':
-                in_sim_name, in_sim_var = input_.split('.')[0], input_.replace(input_.split('.')[0],'')[1:]
-                self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
-            elif type(input_).__name__ == 'tuple':
-                for item in input_:
-                    in_sim_name, in_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
-                    self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
-    
-    
-#    def simulate1(self, startTime=False, stopTime=False):
-#        '''
-#        Simulates the energysim object from startTime to stopTime with a step. If no input argument is specified, start, stop, and step times are derived from energysim iniitalization.
-#        '''
-#        check = self.perform_consistency_name_checks()
-#        if not check:
-#            print('Found more than one similar names for added fmu, signal, powerflow, or csv. Please use unique names for each add_xxx() method.')
-#            print('Exiting simulation.')
-#            sys.exit()
-#        
-#        if not startTime and not stopTime:
-#            flag = True
-#            dis = False
-#            startTime = self.start_time
-#            stopTime = self.stop_time
-#            self.init()
-#        else:
-#            flag = False
-#            dis = None
-#        assert (stopTime-startTime >= self.final_tStep), "difference between start and stop time > exchange value specified in world initialisation"
-#        total_steps = int((stopTime-startTime)/self.final_tStep)+1
-#        
-#        for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = dis):
-#            
-#            if self.do_exchange:
-#                self.exchange_values(time)
-#                
-#            for _fmu in self.fmu_dict.keys():                
-#                temp_time = time
-#                local_stop_time = min(temp_time + self.final_tStep, stopTime)
-#                while temp_time < local_stop_time:
-#                    self.set_csv_signals(temp_time)
-#                    temp_res = [temp_time] + self.fmu_dict[_fmu].getOutput()
-#                    self.res_dict[_fmu].loc[len(self.res_dict[_fmu].index)] = temp_res
-#                    
-#                    if _fmu in self.variable_dict.keys():                        
-#                        stepsize = self.get_step_time(self.stepsize_dict[_fmu], local_stop_time, temp_time, self.final_tStep, time)
-#                        try:
-#                            self.fmu_dict[_fmu].step_advanced(min(temp_time, local_stop_time), stepsize)
-#                            temp_time += stepsize             #self.stepsize_dict[_fmu]
-#                        except:
-#                            print(f'caught exception at time {temp_time}, changing step size from {stepsize} to {self.stepsize_dict[_fmu]}')
-#                            self.fmu_dict[_fmu].step(min(temp_time, local_stop_time), self.stepsize_dict[_fmu])
-#                            temp_time += self.stepsize_dict[_fmu]
-#                                                
-#                    else:
-#                        self.fmu_dict[_fmu].step(min(temp_time, local_stop_time))
-#                        temp_time += self.stepsize_dict[_fmu]
-#                
-#            for net_name, network in self.powerflow_dict.items():                
-#                if round(time%self.stepsize_dict[net_name]) == 0:
-#                    self.set_csv_signals(time)
-#                    network.step()
-#                    
-#                    temp_res = [time] + network.getOutput()
-#                    self.res_dict[net_name].loc[len(self.res_dict[net_name].index)] = temp_res
-#        
-#        if flag:
-#            self.clean_canvas()
-#            return self.results()
-            
-#    def clean_canvas(self):            
-#        if self.clean_up:
-#            try:
-#                for _fmu in self.fmu_dict.values():
-#                    _fmu.cleanUp()
-#            except:
-#                print('Tried deleting temporary FMU files, but failed. Try manually.')
-#            for _net in self.powerflow_dict.values():
-#                _net.cleanUp()
-        
-#    def sync(self, time):
-#        '''
-#        Manual call for exchange of values between simulators.
-#        '''
-#        self.exchange_values(time)
-        
-#    def set_value(self, parameters, value):
-#        '''
-#        Must specify parameters and values in list format
-#        '''
-#        for item, val in zip(parameters, value):
-#            sim_name = item.split('.')[0]
-#            variable = item.replace(sim_name,'')[1:]
-#            self.simulator_list[sim_name].set_value([variable], [val])
-
-
-#    def get_value(self, parameter):
-#        '''
-#        Must specify parameter in a list format.
-#        '''
-#        outputs = []
-#        for item in parameter:
-#            sim_name = item.split('.')[0]
-#            variable = item.replace(sim_name,'')[1:]
-#            temp_value = self.simulator_list[sim_name].get_value([variable])
-#            outputs.append(temp_value[0])
-#        return outputs
-    
-    def get_new_time(self, stop, curr):        
-        return (stop-curr)/2
-        
-    def get_step_time(self, step_size, local_stop_time, current_time, final_tStep, int_start_time):
-        if current_time-int_start_time < 0.01 or local_stop_time-current_time < 0.01:
-            new_step_size = 0.001
-        else:
-            new_step_size = final_tStep-0.01
-        return new_step_size
-    
-#    def results(self):
-#        if self.interpolate_results:
-#            try:
-#                self.process_results(self.res_dict)
-#                return self.results_dataframe
-#            except:
-#                return self.res_dict
-#        else:
-#            return self.res_dict
-#     
-#    
-#    def process_results(self, results_dict):
-#        if self.interpolate_results:
-#            from scipy.interpolate import interp1d
-#            temp1 = [(x, len(y)) for x, y in results_dict.items()]
-#            temp2 = dict(temp1)
-#            most_fmu_tsteps = max(temp2, key=temp2.get)
-#            self.new_tp = np.array(results_dict[most_fmu_tsteps].loc[:, 'time'])
-#            self.new_time_points = np.linspace(self.start_time, self.stop_time, len(np.asarray(self.new_tp <= self.stop_time).nonzero()[0]))
-#            
-#            self.results_dataframe.loc[:,'time'] = self.new_time_points
-#            
-#            #go through the results dict and create interpolated values.
-#            #define interpolation funciton
-#            for key, dataframe in results_dict.items():
-#                df_time = dataframe.loc[:,'time']
-#                df_time_temp = np.linspace(self.start_time, self.stop_time, len(np.asarray(df_time <= self.stop_time).nonzero()[0]))
-#                del df_time
-#                rem_columns = list(dataframe.columns)
-#                rem_columns.remove('time')
-#                for column_name in rem_columns:
-#                    y = np.array(dataframe.loc[:,column_name])[:len(df_time_temp)]
-#                    f = interp1d(df_time_temp, y, kind='previous')
-#                    new_datavalues = f(self.new_time_points)
-#                    self.results_dataframe.loc[:,column_name] = new_datavalues
-#        else:
-#            pass
-
-        
-    def create_df_for_fmu(self, fmu_name):
-        colums_of_fmu = ['time']
-        _fmu = self.fmu_dict[fmu_name]
-        for item in _fmu.outputs:
-            name = [_fmu.instanceName + '.' + item]
-            colums_of_fmu.extend(name)
-        
-        fmu_df = pd.DataFrame(columns = colums_of_fmu)
-        
-        return fmu_df
-    
-        
-    def set_csv_signals(self, t):
-        for output_, input_ in self.connections_between_fmus.items():
-            is_csv = True if type(output_).__name__ == 'str' and output_.split('.')[0] in self.csv_dict.keys() else False
-            if is_csv:           # and type(output_).__name__ == 'str':
-                
-                if type(input_).__name__ == 'str':
-                    input_ele_name = input_.split('.')[0]
-                    is_powerflow = True if input_ele_name in self.powerflow_dict.keys() else False
-                    is_fmu = True if input_ele_name in self.fmu_dict.keys() else False
-                    if is_fmu:
-                        input_fmu = self.fmu_dict[input_ele_name]
-                        input_variable = input_.replace(input_ele_name,'')[1:]
-                        
-                        csv_name = output_.split('.')[0]
-                        csv_variable = output_.split('.')[1]
-                        csv_dt = self.stepsize_dict[csv_name]
-                        temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]
-                        input_fmu.set_value([input_variable], [temp_var])
-        
-                    if is_powerflow:
-                        network = self.powerflow_dict[input_ele_name]
-                        network_variable = input_.replace(input_ele_name,'')[1:]
-                        
-                        csv_name = output_.split('.')[0]
-                        csv_variable = output_.split('.')[1]
-                        csv_dt = self.stepsize_dict[csv_name]
-                        temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]
-                        network.set_value([network_variable], [temp_var])
-                    
-                if type(input_).__name__ == 'tuple':
-                    for input__ in input_:
-                        input_ele_name = input__.split('.')[0]
-                        is_powerflow = True if input_ele_name in self.powerflow_dict.keys() else False
-                        is_fmu = True if input_ele_name in self.fmu_dict.keys() else False
-                        
-                        if is_fmu:
-                            input_fmu = self.fmu_dict[input_ele_name]
-                            input_variable = input__.replace(input_ele_name,'')[1:]
-                            
-                            csv_name = output_.split('.')[0]
-                            csv_variable = output_.split('.')[1]
-                            csv_dt = self.stepsize_dict[csv_name]
-                            temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]
-                            input_fmu.set_value([input_variable], [temp_var])
-            
-            
-                        if is_powerflow:
-                            network = self.powerflow_dict[input_ele_name]
-                            network_variable = input__.replace(input_ele_name,'')[1:]
-                            
-                            csv_name = output_.split('.')[0]
-                            csv_variable = output_.split('.')[1]
-                            csv_dt = self.stepsize_dict[csv_name]
-                            temp_var = self.csv_dict[csv_name].at[int(t/csv_dt), csv_variable]
-                            
-                            network.set_value([network_variable], [temp_var])
-    
-    def get_output_exchange(self, op_, t):
-        ele_name = op_.split('.')[0]
-        is_fmu = True if ele_name in self.fmu_dict.keys() else False
-        is_pp_net = True if ele_name in self.powerflow_dict.keys() else False
-        is_signal = True if ele_name in self.signal_dict.keys() else False
-        is_csv = True if ele_name in self.csv_dict.keys() else False
-        
-        if is_fmu:
-            output_fmu = self.fmu_dict[ele_name]
-            output_variable =op_.replace(ele_name,'')[1:]
-            temp_var = output_fmu.get_value([output_variable])[0]
-        if is_pp_net:
-            network = self.powerflow_dict[ele_name]
-            output_variable =op_.replace(ele_name,'')[1:]
-            temp_var = network.get_value([output_variable])[0]
-        if is_signal:
-            signal = self.signal_dict[ele_name]
-            temp_var = signal.get_value(t)
-        if is_csv:
-            self.set_csv_signals(t)
-            temp_var = 'its csv'
-            
+    def alter_signal(self, op_, tmp):
+        '''
+        Checks if the signal needs modification as aspecified in modify_signal dict under options.
+        '''
+        #check if signal modification is needed.
+        temp_var = tmp[0]
         if self.modify_dict:
             flag = True if op_ in self.modify_dict.keys() else False
             if flag:
@@ -820,69 +386,55 @@ class World():
                 elif len(self.modify_dict[op_]) == 2:
                     ret_output = temp_var*self.modify_dict[op_][0] + self.modify_dict[op_][1]
                 else:
-                    print('Unknown signal modification on output %s. Not applying modification.' %(op_))
+                    print('Unknown signal modification on output %s. Not modification applied.' %(op_))
                     ret_output = temp_var
             else:
                 ret_output = temp_var
         else:
             ret_output = temp_var
-        
-        return ret_output
-        
-    
-        
-    def exchange_values(self, t):        
-        for output_, input_ in self.connections_between_fmus.items():
+        return [ret_output]
+
+    def exchange_variable_values(self, t):
+        """
+        Helper function for exchanging the variable values between simulators at particular time.
+        """
+        #parse connections
+        for output_, input_ in self.simulator_connections.items():
+            #data collector
+            #check if it is tuple or single
             if type(output_).__name__ == 'str':
-                temp_var = self.get_output_exchange(output_, t)
+                ou_sim_name, ou_sim_var = output_.split('.')[0], output_.replace(output_.split('.')[0],'')[1:] 
+                tmp_var1 = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
+                tmp_var = self.alter_signal(output_, tmp_var1)
             elif type(output_).__name__ == 'tuple':
-                temp_list = []
+                tmps = []
                 for item in output_:
-                    t_v = self.get_output_exchange(item, t)
-                    temp_list.append(t_v)
-                temp_var = sum(temp_list)
+                    ou_sim_name, ou_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
+                    tmp1 = self.simulator_dict[ou_sim_name][1].get_value([ou_sim_var], t)
+                    tmp = self.alter_signal(item, tmp1)
+                    tmps.append(tmp[0])
+                tmp_var = [sum(tmps)]
             
-            if not type(temp_var).__name__ == 'str':
-                if type(input_).__name__ == 'str':
-                    ele_name = input_.split('.')[0]
-                    pp_net = True if ele_name in self.powerflow_dict.keys() else False
-                    fmu = True if ele_name in self.fmu_dict.keys() else False
-                    
-                    if fmu:
-                        input_fmu = self.fmu_dict[ele_name]
-                        input_variable = input_.replace(ele_name,'')[1:]
-                        input_fmu.set_value([input_variable], [temp_var])
-                    if pp_net:
-                        input_pp = self.powerflow_dict[ele_name]
-                        input_variable = input_.replace(ele_name,'')[1:]
-                        input_pp.set_value([input_variable], [temp_var])
-                    
-                elif type(input_).__name__ == 'tuple':
-                    for item in input_:
-                        ele_name = item.split('.')[0]
-                        pp_net = True if ele_name in self.powerflow_dict.keys() else False
-                        fmu = True if ele_name in self.fmu_dict.keys() else False
-                        
-                        if fmu:
-                            input_fmu = self.fmu_dict[ele_name]
-                            input_variable = item.replace(ele_name,'')[1:]
-                            input_fmu.set_value([input_variable], [temp_var])
-                        if pp_net:
-                            input_pp = self.powerflow_dict[ele_name]
-                            input_variable = item.replace(ele_name,'')[1:]
-                            input_pp.set_value([input_variable], [temp_var])
-                    
-    def create_results_dataframe(self):
-        self.list_of_columns = ['time']
-        for _fmu in self.fmu_dict.values():
-            for item in _fmu.outputs:
-                name = [_fmu.instanceName + '.' + item]
-                self.list_of_columns.extend(name)
-        self.results_dataframe = pd.DataFrame(columns = self.list_of_columns)
+            if type(input_).__name__ == 'str':
+                in_sim_name, in_sim_var = input_.split('.')[0], input_.replace(input_.split('.')[0],'')[1:]
+                self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
+            elif type(input_).__name__ == 'tuple':
+                for item in input_:
+                    in_sim_name, in_sim_var = item.split('.')[0], item.replace(item.split('.')[0],'')[1:]
+                    self.simulator_dict[in_sim_name][1].set_value([in_sim_var], tmp_var)
     
+    def get_step_time(self, step_size, local_stop_time, current_time, final_tStep, int_start_time):
+        """
+        Helper function to obtain the variable time step for specified FMUs.
+        """
+        if current_time-int_start_time < 0.01 or local_stop_time-current_time < 0.01:
+            new_step_size = 0.001
+        else:
+            new_step_size = final_tStep-0.01
+        return new_step_size
     
     def options(self, settings):
-        assert (len(self.fmu_dict) + len(self.powerflow_dict) > 0),"Cannot add settings to world when no FMUs are specified!"
+        assert (len(self.simulator_dict) > 0),"Cannot add settings to world when no simulators are specified!"
         
         if 'parameter_set' in settings.keys():
             self.set_parameters(settings['parameter_set'])
@@ -900,11 +452,6 @@ class World():
             parameter_list_derived = list(parameter_dictionary[_sim])[0]
             parameter_values_to_set = list(parameter_dictionary[_sim])[1]
             self.simulator_dict[_sim][1].set_value(parameter_list_derived, parameter_values_to_set)
-#            if _sim in self.fmu_dict.keys():
-#                self.fmu_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
-#            if _sim in self.powerflow_dict.keys():
-#                self.powerflow_dict[_sim].set_value(parameter_list_derived, parameter_values_to_set)
-            
         
     def plot_results(self, xlab = 'Time(s)', ylab = '', y = [], scientific = False):
         locol = [x for x in self.list_of_columns if x!='time']
@@ -929,7 +476,3 @@ class World():
             plt.show()
         else:
             print('Results can only be plotted natively if interpolate_results option is set to True in World() options.')
-
-
-        
-        
