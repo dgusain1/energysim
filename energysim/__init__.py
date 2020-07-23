@@ -145,6 +145,8 @@ class world():
             print(f"Simulator type {sim_type} not recognized. Possible sim_type are 'external', 'fmu', 'powerflow', 'csv' types.")
             print(f"Simulator {sim_name} not added")
     
+    
+    
     def add_external_simulator(self, sim_name, sim_loc, outputs, step_size = 900, **kwargs):
         sys.path.append(sim_loc)
         tmp = importlib.import_module(sim_name)
@@ -226,13 +228,21 @@ class world():
         if type(name).__name__ == 'tuple':
             return [x.split('.')[0] for x in name]
         
-    def plot(self, plot_edge_labels=False):
+    def plot(self, plot_edge_labels=False, **kwargs):
         """
         Plots approximate graph diagram for the energysim network.
         """
-        
+        if 'node_size' in kwargs.keys():
+            node_size=kwargs['node_size']
+        else:
+            node_size = 300
+        if 'node_color' in kwargs.keys():
+            node_color = kwargs['node_color']
+        else:
+            node_color = 'r'
+            
         self.G=nx.DiGraph()
-        for key, value in self.connections_between_fmus.items():
+        for key, value in self.simulator_connections.items():
             
             if type(key).__name__ == 'str' and type(value).__name__ == 'str':
                 n1 = self.get_fmu_name(key)
@@ -257,13 +267,15 @@ class world():
             else:
                 print('There is a many to many dependance in the graph. Cannot create graph.')
         pos=nx.spring_layout(self.G)
-        nx.draw_networkx_nodes(self.G,pos, node_color='r', alpha=0.8, with_labels=True)
+        nx.draw_networkx_nodes(self.G,pos, node_size = node_size, node_color=node_color, alpha=0.8, with_labels=True)
         nx.draw_networkx_edges(self.G,pos, alpha=0.8, edge_color='b')
         nx.draw_networkx_labels(self.G,pos)
         if plot_edge_labels:
             edge_labels = nx.get_edge_attributes(self.G,'name')
             nx.draw_networkx_edge_labels(self.G,pos, edge_labels=edge_labels)
-        
+        plt.tick_params(axis = "x", which = "both", bottom = False, top = False)
+        plt.tick_params(axis = "y", which = "both", bottom = False, top = False)
+        plt.tight_layout()
         plt.show()
         
     def get_lcm(self):
@@ -295,7 +307,7 @@ class world():
             print("Simulation status:\n")
         
         #determine the final_tStep for World
-        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]# if x[0] != 'signal']
+#        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]
         if self.exchange != 0:
             self.macro_tstep = self.exchange
         else:
@@ -312,7 +324,6 @@ class world():
             simulator[1].init()        
         
     def simulate(self, pbar = True, **kwargs): 
-        print("Starting new simulation backend.")
         startTime = self.start_time
         stopTime = self.stop_time
         self.init()
