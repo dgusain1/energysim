@@ -26,7 +26,6 @@ class pp_adapter():
         self.network = pp.from_pickle(net_loc)
         all_names_exist = self.check_names(self.network)
         assert all_names_exist, "All load, generator, sgen, bus, and external grid elements must have names. Simulation stopped"
-        print('Successfully imported network')
         self.new_inputs, self.new_outputs = self.process_powerflow_ipop(self.network, inputs, outputs)
         self.outputs = outputs
 

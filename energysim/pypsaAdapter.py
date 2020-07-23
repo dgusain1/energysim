@@ -18,7 +18,6 @@ class pypsa_adapter():
         self.net_loc = net_loc
         self.network = pypsa.Network()
         self.network.import_from_csv_folder(net_loc)
-        print('Successfully imported network')
         assert len(self.network.snapshots) == 1, "Only one snapshot is supported."
         self.new_inputs, self.new_outputs = self.process_powerflow_ipop(self.network, inputs, outputs)
         self.outputs = outputs

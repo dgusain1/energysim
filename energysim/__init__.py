@@ -3,6 +3,7 @@ from .meAdapter import FmuMeAdapter
 from .csv_adapter import csv_simulator
 from .pypsaAdapter import pypsa_adapter
 from .ppAdapter import pp_adapter
+from .signalAdapter import signal_adapter
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
@@ -96,7 +97,13 @@ class world():
         self.init_dict = {}
         self.G = True
         self.simulator_dict = {}
-
+        
+    def add_signal(self, sim_name, signal):
+        if sim_name not in self.simulator_dict.keys():
+            signal_obj = signal_adapter(signal_name=sim_name, signal=signal)
+            self.simulator_dict[sim_name] = ['signal', signal_obj, 1, 'y']
+            
+    
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
         """
         Method to add simulator to ``world()`` object. ``add_simulator()`` takes the following arguments as inputs :
@@ -144,8 +151,6 @@ class world():
         else:
             print(f"Simulator type {sim_type} not recognized. Possible sim_type are 'external', 'fmu', 'powerflow', 'csv' types.")
             print(f"Simulator {sim_name} not added")
-    
-    
     
     def add_external_simulator(self, sim_name, sim_loc, outputs, step_size = 900, **kwargs):
         sys.path.append(sim_loc)
