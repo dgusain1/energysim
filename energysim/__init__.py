@@ -307,7 +307,6 @@ class world():
             print("Simulation status:\n")
         
         #determine the final_tStep for World
-#        self.stepsize_dict = [x[2] for x in self.simulator_dict.values()]
         if self.exchange != 0:
             self.macro_tstep = self.exchange
         else:

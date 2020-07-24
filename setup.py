@@ -1,20 +1,20 @@
 from setuptools import setup
 
 def readme():
-    with open('README.md', encoding='utf-8') as f:
+    with open('README.rst', encoding='utf-8') as f:
         README = f.read()
     return README
 
 
 setup(
       name='energysim',
-      version='0.0.3',
-      description='Python package for cosimulation of FMU based multi-energy systems',
+      version='2.0',
+      description='Python package for cosimulation of multi-energy systems',
       long_description=readme(),
-      long_description_content_type="text/markdown",
+      long_description_content_type="text/x-rst",
       url='https://github.com/dgusain1/energysim',
       author='Digvijay Gusain',
-      author_email='d.gusain@tudelft.nl',
+      author_email='digvijay.gusain29@gmail.com',
       license='MIT',
       classifiers=[
               'License :: OSI Approved :: MIT License',
