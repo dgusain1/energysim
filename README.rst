@@ -2,6 +2,7 @@
 .. image:: logo.png	
 
 Compatible with Python 3.6 and above.
+Documentation available `here <https://energysim.readthedocs.io/en/latest/>`_.
 
 What is energysim?
 ##################
@@ -37,7 +38,6 @@ Dependencies
 	6. Matplotlib
 	7. NetworkX
 	8. tqdm
-
 
 Usage
 #####
