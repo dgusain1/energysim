@@ -15,7 +15,7 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="energysim features" href="energysim_features.html" />
+    <link rel="next" title="Adding simulators" href="add_simulator.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -114,6 +114,8 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : Internal step size for simulator (1e-3 by default).</p></li>
 </ul>
 </div></blockquote>
+<p>Please see documentation on <code class="docutils literal notranslate"><span class="pre">add_simulator</span></code> to properly add simulators to <code class="docutils literal notranslate"><span class="pre">energysim</span></code>.
+The values to simulator input are kept constant for the duration between two macro time steps.</p>
 </div>
 <div class="section" id="connections-between-simulators">
 <h3>Connections between simulators<a class="headerlink" href="#connections-between-simulators" title="Permalink to this headline">¶</a></h3>
@@ -146,27 +148,36 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">pbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="links">
-<h3>Links<a class="headerlink" href="#links" title="Permalink to this headline">¶</a></h3>
 <div class="toctree-wrapper compound">
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#variable">variable</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#parameter-set">parameter_set</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#opf">opf</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#constant-signal">constant_signal</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#plot-of-cosimulation">plot of cosimulation</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="results.html#plotting-results">plotting results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#additional-arguments">Additional arguments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#variable-naming-convention">Variable naming convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#powerflow-networks">Powerflow networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#csv-files">CSV files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#external-simulators">External simulators</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#init-get-value-set-value-step">init, get_value, set_value, step</a></li>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#example-random-number-generator">example: random number generator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#init-method">init() method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#step-time-method">step(time) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#get-value-variable-time-method">get_value(variable, time) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#set-value-variable-value-method">set_value(variable, value) method</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#adding-signals">Adding signals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#modify-signals-before-exchange">Modify signals before exchange</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#enabling-sensitivity-analysis">Enabling sensitivity analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#optimal-power-flow">Optimal Power Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#validation-of-fmus">Validation of FMUs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#system-topology-plot">System Topology Plot</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#opfnotconvergederror">OPFNotConvergedError</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#fmu-initialization-error">FMU Initialization Error</a></li>
 </ul>
 </li>
 </ul>
@@ -202,16 +213,17 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
 <h3>Navigation</h3>
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a></li>
 <li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="#">Documentation overview</a><ul>
-      <li>Next: <a href="energysim_features.html" title="next chapter">energysim features</a></li>
+      <li>Next: <a href="add_simulator.html" title="next chapter">Adding simulators</a></li>
   </ul></li>
 </ul>
 </div>

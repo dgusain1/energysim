@@ -97,12 +97,12 @@ class world():
         self.init_dict = {}
         self.G = True
         self.simulator_dict = {}
-        
+    
     def add_signal(self, sim_name, signal, step_size=1):
-        if sim_name not in self.simulator_dict.keys():
+        check = self.check_signal_output(signal)
+        if check and sim_name not in self.simulator_dict.keys():            
             signal_obj = signal_adapter(signal_name=sim_name, signal=signal)
             self.simulator_dict[sim_name] = ['signal', signal_obj, step_size, ['y']]
-            
     
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):
         """
@@ -143,7 +143,11 @@ class world():
             self.add_powerflow(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size, pf=pf)
             
         elif sim_type.lower() == 'csv':
-            self.add_csv(csv_name=sim_name, csv_location=sim_loc, step_size=step_size, outputs=outputs)
+            if 'delimiter' in kwargs.keys():
+                delimiter=kwargs['delimiter']
+            else:
+                delimiter=','
+            self.add_csv(csv_name=sim_name, csv_location=sim_loc, step_size=step_size, outputs=outputs, delimiter=delimiter)
             
         elif sim_type.lower() == 'external':
             self.add_external_simulator(sim_name, sim_loc, outputs, step_size)#, kwargs['api_loc'])
@@ -233,19 +237,10 @@ class world():
         if type(name).__name__ == 'tuple':
             return [x.split('.')[0] for x in name]
         
-    def plot(self, plot_edge_labels=False, **kwargs):
+    def plot(self, plot_edge_labels=False, node_size=300, node_color='r'):
         """
         Plots approximate graph diagram for the energysim network.
         """
-        if 'node_size' in kwargs.keys():
-            node_size=kwargs['node_size']
-        else:
-            node_size = 300
-        if 'node_color' in kwargs.keys():
-            node_color = kwargs['node_color']
-        else:
-            node_color = 'r'
-            
         self.G=nx.DiGraph()
         for key, value in self.simulator_connections.items():
             
@@ -325,8 +320,17 @@ class world():
             self.set_parameters(self.init_dict)
         
         #initialize simulators
-        for simulator in self.simulator_dict.values():
-            simulator[1].init()        
+        for sim_name, sim_values in self.simulator_dict.items():
+            try:
+                sim_values[1].init()
+            except:
+                try:
+                    from time import sleep
+                    sleep(2)
+                    sim_values[1].init()
+                except:
+                    print(f"Could not initialize the {sim_values[0]} simulator {sim_name}. Check FAQs. Simulation stopped.")
+                    sys.exit()
         
     def simulate(self, pbar = True, **kwargs): 
         startTime = self.start_time
@@ -468,6 +472,14 @@ class world():
             parameter_list_derived = list(parameter_dictionary[_sim])[0]
             parameter_values_to_set = list(parameter_dictionary[_sim])[1]
             self.simulator_dict[_sim][1].set_value(parameter_list_derived, parameter_values_to_set)
+    
+    def check_signal_output(self, fx):
+        tmp = fx(1)
+        if type(tmp) == 'list':
+            return True
+        else:
+            print('Function must return list. Signal function will not be added.')
+            return False
         
     def plot_results(self, xlab = 'Time(s)', ylab = '', y = [], scientific = False):
         locol = [x for x in self.list_of_columns if x!='time']

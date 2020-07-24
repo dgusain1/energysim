@@ -66,7 +66,7 @@
 % Set up styles of URL: it should be placed after hyperref.
 \urlstyle{same}
 
-\addto\captionsenglish{\renewcommand{\contentsname}{Contents:}}
+\addto\captionsenglish{\renewcommand{\contentsname}{Contents}}
 
 \usepackage{sphinxmessages}
 \setcounter{tocdepth}{1}
@@ -74,7 +74,7 @@
 
 
 \title{energysim}
-\date{Jul 23, 2020}
+\date{Jul 24, 2020}
 \release{2.0}
 \author{Digvijay Gusain}
 \newcommand{\sphinxlogo}{\vbox{}}
@@ -90,120 +90,543 @@
 \phantomsection\label{\detokenize{index::doc}}
 
 
-\sphinxstylestrong{energysim} is a python based cosimulation tool designed to simplify multi\sphinxhyphen{}energy cosimulations. The tool was initially called \sphinxstylestrong{FMUWorld}, sincei t focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
-
-The idea behind development of \sphinxstylestrong{energysim} is to simplify cosimulation to focus on the high\sphinxhyphen{}level applications, such as energy system planning, evaluation of control strategies, etc., rather than low\sphinxhyphen{}level cosimulation tasks such as message exchange, time progression coordination, etc.
+Compatible with Python 3.6 and above.
 
 
-\chapter{Initialization}
+\chapter{What is energysim?}
+\label{\detokenize{index:what-is-energysim}}
+\sphinxcode{\sphinxupquote{energysim}} is a python based cosimulation tool designed to simplify multi\sphinxhyphen{}energy cosimulations. The tool was initially called \sphinxcode{\sphinxupquote{FMUWorld}}, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
+
+The idea behind development of \sphinxcode{\sphinxupquote{energysim}} is to simplify cosimulation to focus on the high\sphinxhyphen{}level applications, such as energy system planning, evaluation of control strategies, etc., rather than low\sphinxhyphen{}level cosimulation tasks such as message exchange, time progression coordination, etc.
+
+Currently, \sphinxcode{\sphinxupquote{energysim}} allows users to combine:
+\begin{enumerate}
+\sphinxsetlistlabels{\arabic}{enumi}{enumii}{}{.}%
+\item {} 
+Dynamic models packaged as \sphinxstyleemphasis{Functional Mockup Units}.
+
+\item {} 
+Pandapower networks packaged as \sphinxstyleemphasis{pickle files}.
+
+\item {} 
+PyPSA models (still under testing) as \sphinxstyleemphasis{Excel files}.
+
+\item {} 
+User\sphinxhyphen{}defined external simulators interfaced with \sphinxstyleemphasis{.py functions}.
+
+\item {} 
+CSV data files
+
+\end{enumerate}
+
+\noindent\sphinxincludegraphics{{energysim}.png}
+
+
+\chapter{Installation}
+\label{\detokenize{index:installation}}
+\sphinxcode{\sphinxupquote{energysim}} can be installed with \sphinxcode{\sphinxupquote{pip}} using:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{pip} \PYG{n}{install} \PYG{n}{energysim}
+\end{sphinxVerbatim}
+
+
+\section{Dependencies}
+\label{\detokenize{index:dependencies}}
+\sphinxcode{\sphinxupquote{energysim}} requires the following packages to work:
+\begin{enumerate}
+\sphinxsetlistlabels{\arabic}{enumi}{enumii}{}{.}%
+\item {} 
+FMPy
+
+\item {} 
+Pandapower
+
+\item {} 
+PyPSA
+
+\item {} 
+NumPy
+
+\item {} 
+Pandas
+
+\item {} 
+Matplotlib
+
+\item {} 
+NetworkX
+
+\item {} 
+tqdm
+
+\end{enumerate}
+
+
+\chapter{Usage}
+\label{\detokenize{index:usage}}
+\sphinxcode{\sphinxupquote{energysim}} cosimulation is designed for an easy\sphinxhyphen{}plug\sphinxhyphen{}and\sphinxhyphen{}play approach. The main component is the \sphinxcode{\sphinxupquote{world()}} object. This is the “playground” where all simulators, and connections are added and the options for simulation are specified. \sphinxcode{\sphinxupquote{world()}} can be imported by implementing:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{from} \PYG{n+nn}{energysim} \PYG{k+kn}{import} \PYG{n}{world}
+\end{sphinxVerbatim}
+
+
+\section{Initialization}
 \label{\detokenize{index:initialization}}
-\sphinxcode{\sphinxupquote{world}} is your cosimulation canvas. It creates a \sphinxcode{\sphinxupquote{world}} object on which simulators can be freely added. \sphinxcode{\sphinxupquote{world}} accepts the following parameters :
-\begin{quote}
+Once \sphinxcode{\sphinxupquote{world}} is imported, it can be initialized with basic simulation parameters using:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world} \PYG{o}{=} \PYG{n}{world}\PYG{p}{(}\PYG{n}{start\PYGZus{}time}\PYG{o}{=}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{n}{stop\PYGZus{}time}\PYG{o}{=}\PYG{l+m+mi}{1000}\PYG{p}{,} \PYG{n}{logging}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,} \PYG{n}{t\PYGZus{}macro}\PYG{o}{=}\PYG{l+m+mi}{60}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+\sphinxcode{\sphinxupquote{world}} accepts the following parameters :
 \begin{itemize}
 \item {} 
-\sphinxcode{\sphinxupquote{start\_time}} : (0 by default).
+\sphinxcode{\sphinxupquote{start\_time}} : simulation start time (0 by default).
 
 \item {} 
-\sphinxcode{\sphinxupquote{stop\_time}} : (1000 by default).
+\sphinxcode{\sphinxupquote{stop\_time}} : simulation end time (1000 by default).
 
 \item {} 
-\sphinxcode{\sphinxupquote{logging}} : (False by default). Gives users update on simulation progress.
+\sphinxcode{\sphinxupquote{logging}} : Flag to toggle update on simulation progress (True by default).
 
 \item {} 
-\sphinxcode{\sphinxupquote{exchange}} : (60 by default). Users can specify instance of information exchange.
+\sphinxcode{\sphinxupquote{t\_macro}} : Time steps at which information between simulators needs to be exchanged. (60 by default).
 
 \end{itemize}
 
+
+\section{Adding Simulators}
+\label{\detokenize{index:adding-simulators}}
+After initializing the world cosimulation object, simulators can be added to the world using the \sphinxcode{\sphinxupquote{add\_simulator()}} method:
+
 \begin{sphinxVerbatim}[commandchars=\\\{\}]
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{my\PYGZus{}world} \PYG{o}{=} \PYG{n}{world}\PYG{p}{(}\PYG{n}{start\PYGZus{}time}\PYG{o}{=}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{n}{stop\PYGZus{}time}\PYG{o}{=}\PYG{l+m+mi}{1000}\PYG{p}{,} \PYG{n}{logging}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,} \PYG{n}{exchange}\PYG{o}{=}\PYG{l+m+mi}{60}\PYG{p}{)}
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}simulator}\PYG{p}{(}\PYG{n}{sim\PYGZus{}type}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{fmu}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{FMU1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
+\PYG{n}{sim\PYGZus{}loc}\PYG{o}{=}\PYG{o}{/}\PYG{n}{path}\PYG{o}{/}\PYG{n}{to}\PYG{o}{/}\PYG{n}{sim}\PYG{p}{,} \PYG{n}{inputs}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{v1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{v2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{n}{outputs}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}
 \end{sphinxVerbatim}
-\end{quote}
 
-
-\chapter{Specifying Simulators}
-\label{\detokenize{index:specifying-simulators}}
-After initializing the world cosimulation object, you can add simulators
-to the world by \sphinxcode{\sphinxupquote{add\_simulator()}}. This is done by specifying
-the following :
-\begin{quote}
+where:
 \begin{itemize}
 \item {} 
-\sphinxcode{\sphinxupquote{sim\_type}} : ‘fmu’, ‘powerflow’, ‘csv’, ‘signal’
+\sphinxcode{\sphinxupquote{sim\_type}} : ‘fmu’, ‘powerflow’, ‘csv’, ‘external’
 
 \item {} 
-\sphinxcode{\sphinxupquote{sim\_name}} : It is essential that you assign the simulator a unique name.
+\sphinxcode{\sphinxupquote{sim\_name}} : Unique simulator name.
 
 \item {} 
-\sphinxcode{\sphinxupquote{sim\_loc}} : Use a raw string address of simulator location.
+\sphinxcode{\sphinxupquote{sim\_loc}} : A raw string address of simulator location.
 
 \item {} 
-\sphinxcode{\sphinxupquote{outputs}} : specify the outputs that need to be recorded during simulation from the simulator.
+\sphinxcode{\sphinxupquote{outputs}} : Variables that need to be recorded from the simulator during simulation.
 
 \item {} 
-\sphinxcode{\sphinxupquote{inputs}} : specify the inputs of the simulator.
+\sphinxcode{\sphinxupquote{inputs}} : Input variables to the simulator.
 
 \item {} 
-\sphinxcode{\sphinxupquote{step\_size}} : step size for simulator (1e\sphinxhyphen{}3 by default).
+\sphinxcode{\sphinxupquote{step\_size}} : Internal step size for simulator (1e\sphinxhyphen{}3 by default).
 
 \end{itemize}
 
-\begin{sphinxVerbatim}[commandchars=\\\{\}]
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}simulator}\PYG{p}{(}\PYG{n}{sim\PYGZus{}type}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{fmu}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{FMU1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{sim\PYGZus{}loc}\PYG{o}{=}\PYG{o}{/}\PYG{n}{path}\PYG{o}{/}\PYG{n}{to}\PYG{o}{/}\PYG{n}{sim}\PYG{p}{,} \PYG{n}{inputs}\PYG{o}{=}\PYG{p}{[}\PYG{p}{]}\PYG{p}{,} \PYG{n}{outputs}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}
-\end{sphinxVerbatim}
-\end{quote}
+Please see documentation on \sphinxcode{\sphinxupquote{add\_simulator}} to properly add simulators to \sphinxcode{\sphinxupquote{energysim}}.
+The values to simulator input are kept constant for the duration between two macro time steps.
 
 
-\chapter{Connections between simulators}
+\section{Connections between simulators}
 \label{\detokenize{index:connections-between-simulators}}
-The connections between simulators can be specified with a dictionary
-as follows :
+Once all the required simulators are added, the connections between them can be specified with a dictionary as follows
 
 \begin{sphinxVerbatim}[commandchars=\\\{\}]
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{connections} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.output\PYGZus{}variable1}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim2.input\PYGZus{}variable1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim3.output\PYGZus{}variable2}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim4.input\PYGZus{}variable2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.output\PYGZus{}variable3}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim2.input\PYGZus{}variable3}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}\PYG{p}{\PYGZcb{}}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}connections}\PYG{p}{(}\PYG{n}{connections}\PYG{p}{)}
+\PYG{n}{connections} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.output\PYGZus{}variable1}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim2.input\PYGZus{}variable1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
+   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim3.output\PYGZus{}variable2}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim4.input\PYGZus{}variable2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
+   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.output\PYGZus{}variable3}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim2.input\PYGZus{}variable3}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}\PYG{p}{\PYGZcb{}}
 \end{sphinxVerbatim}
 
-This dictionary can be passed onto the world object.
+This dictionary can be passed onto the world object:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}connections}\PYG{p}{(}\PYG{n}{connections}\PYG{p}{)}
+\end{sphinxVerbatim}
 
 
-\chapter{Initializing simulator variables}
+\section{Initializing simulator variables}
 \label{\detokenize{index:initializing-simulator-variables}}
-To provide initial values to the simulators, the initial values can be
-specified by providing a \sphinxcode{\sphinxupquote{init}} dict :
+Initialization is important to start\sphinxhyphen{}up simulator in a cosimulation. If the simulators are not internally initialized, or of users want to use different initial conditions for the simulators, it can easily be done in \sphinxcode{\sphinxupquote{energysim}}. To provide initial values to the simulators, an \sphinxcode{\sphinxupquote{init}} dictionary can be specified and given to the \sphinxcode{\sphinxupquote{world}} object
 
 \begin{sphinxVerbatim}[commandchars=\\\{\}]
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{initializations} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name1}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{,}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }                   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name2}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{\PYGZcb{}}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{options} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{init}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{n}{initializations}\PYG{p}{\PYGZcb{}}
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{options}\PYG{p}{(}\PYG{n}{options}\PYG{p}{)}
+\PYG{n}{initializations} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name1}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{,}
+                   \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name2}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{\PYGZcb{}}
+\PYG{n}{options} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{init}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{n}{initializations}\PYG{p}{\PYGZcb{}}
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{options}\PYG{p}{(}\PYG{n}{options}\PYG{p}{)}
 \end{sphinxVerbatim}
 
 
-\chapter{Simulate}
-\label{\detokenize{index:simulate}}
+\section{Executing simulation}
+\label{\detokenize{index:executing-simulation}}
 Finally, the \sphinxcode{\sphinxupquote{simulate()}} function can be called to simulate the world.
 This returns a dictionary with simulator name as keys and the results of
-the simulator as pandas dataframe.
-\sphinxcode{\sphinxupquote{pbar}} can be used to toggle the progress bar for the simulation.
+the simulator as pandas dataframe. \sphinxcode{\sphinxupquote{pbar}} can be used to toggle the progress bar for the simulation:
 
 \begin{sphinxVerbatim}[commandchars=\\\{\}]
-\PYG{g+gp}{\PYGZgt{}\PYGZgt{}\PYGZgt{} }\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{simulate}\PYG{p}{(}\PYG{n}{pbar}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+\PYG{n}{results} \PYG{o}{=} \PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{simulate}\PYG{p}{(}\PYG{n}{pbar}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
 \end{sphinxVerbatim}
 
 
-\chapter{Package Info}
-\label{\detokenize{index:package-info}}
-Author : Digvijay Gusain
+\subsection{Adding simulators}
+\label{\detokenize{add_simulator:adding-simulators}}\label{\detokenize{add_simulator::doc}}
+Adding simulators in energysim is done by calling the method \sphinxcode{\sphinxupquote{add\_simulator()}}.
+As mentioned, four main types of simulators can be added: FMU, powerflow networks, CSV, and external simulators.
 
-Email : \sphinxhref{mailto:digvijay.gusain29@gmail.com}{digvijay.gusain29@gmail.com}
+The add\_simulator requires \sphinxstylestrong{six} main arguments for all simulators. Optional arguments for FMUs, powerflows, and external simulators can be added if needed. These are:
+\begin{itemize}
+\item {} 
+\sphinxcode{\sphinxupquote{sim\_type}} : Specifies simulator type. Can be either of ‘fmu’, ‘powerflow’, ‘csv’, ‘external’
 
-Version : 2.0
+\item {} 
+\sphinxcode{\sphinxupquote{sim\_name}} : Each simulator must have a unique name. This is later required when specifying connections.
+
+\item {} 
+\sphinxcode{\sphinxupquote{sim\_loc}} : A raw string address of simulator location.
+
+\item {} 
+\sphinxcode{\sphinxupquote{outputs}} : Variables that need to be recorded from the simulator during simulation.
+
+\item {} 
+\sphinxcode{\sphinxupquote{inputs}} : Input variables to the simulator that are to be used while defining the connections.
+
+\item {} 
+\sphinxcode{\sphinxupquote{step\_size}} : Internal step size for simulator (1e\sphinxhyphen{}3 by default). Also known as micro\sphinxhyphen{}time steps. This is the time integration step required for solvers for the simulators. For example, some FMUs require integration time steps of 1e\sphinxhyphen{}3 secs, while for powerflow networks, the time step can be 15 mins (900s).
+
+\end{itemize}
+
+The \sphinxcode{\sphinxupquote{add\_simulator()}} works as follows:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}simulator}\PYG{p}{(}\PYG{n}{sim\PYGZus{}type} \PYG{o}{=} \PYG{n}{sim\PYGZus{}type}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name} \PYG{o}{=} \PYG{n}{sim\PYGZus{}name}\PYG{p}{,}
+                    \PYG{n}{sim\PYGZus{}loc} \PYG{o}{=} \PYG{n}{sim\PYGZus{}loc}\PYG{p}{,} \PYG{n}{outputs} \PYG{o}{=} \PYG{n}{outputs}\PYG{p}{,} \PYG{n}{inputs} \PYG{o}{=} \PYG{n}{inputs}\PYG{p}{,}
+                        \PYG{n}{step\PYGZus{}size} \PYG{o}{=} \PYG{n}{step\PYGZus{}size}\PYG{p}{)}
+\end{sphinxVerbatim}
 
 
-\chapter{Indices and tables}
+\subsubsection{Additional arguments}
+\label{\detokenize{add_simulator:additional-arguments}}
+Apart from the six required arguments, users can also specify additional arguments for each simulator. These are:
+\begin{enumerate}
+\sphinxsetlistlabels{\arabic}{enumi}{enumii}{}{.}%
+\item {} 
+For FMUs: FMPy generally validates the FMUs before initialization process. Users can skip this validation by specifyng the argument \sphinxtitleref{validate = False}. Generally, it has been observed, the FMUs packaged with OpenModelica fail validation. However, they can be simulated by setting the \sphinxcode{\sphinxupquote{validate = False}}.
+
+\item {} 
+FOr powerflow: For powerflow simulators, users can specify whether to execute a AC powerflow or an optimal power flow, or a DCpowerflow. This can be done by providing the specifying the value of argument \sphinxcode{\sphinxupquote{pf}}. It can be set to “pf”, “dcpf”, “opf”, or “dcopf”. Please note, this is only available for pandapower networks currently.
+
+\item {} 
+For csv: For csv files, the users can specify the delimiter by providing the argument \sphinxcode{\sphinxupquote{delimiter=\textquotesingle{},\textquotesingle{}}} or whatever the delimiter is.
+
+\end{enumerate}
+
+
+\subsubsection{Variable naming convention}
+\label{\detokenize{add_simulator:variable-naming-convention}}
+Since variable extraction is an important part of cosimulation, it is important to become aware of the variable naming convention used for the simulators in \sphinxcode{\sphinxupquote{energysim}}.
+
+
+\paragraph{FMUs}
+\label{\detokenize{add_simulator:fmus}}
+For FMUs, the variable naming convention is similar to how it is generally accessed within Modelica based environments. For example a variable\_k nested within the FMU model can be accessed using:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{sim\PYGZus{}name}\PYG{o}{.}\PYG{n}{Component\PYGZus{}1}\PYG{o}{.}\PYG{n}{SubComponent\PYGZus{}i}\PYG{o}{.}\PYG{n}{Variable\PYGZus{}k}
+\end{sphinxVerbatim}
+
+This is to be followed when specifying connections, initializations, or signal modifications.
+
+
+\subsubsection{Powerflow networks}
+\label{\detokenize{add_simulator:powerflow-networks}}
+Currently, \sphinxcode{\sphinxupquote{energysim}} can only record bus voltages magnitude (V) and bus voltage angles (VA), along with active (P) and reactive power (Q) values for loads, static generators, external grid, generators. For inputs, it can set the active (P) and reactive power (Q) setpoints for loads, static generators, generators. All the elements within the network must have a valid name. This has to be ensured before importing the pandapower network within \sphinxcode{\sphinxupquote{energysim}} environment.
+
+Consider a network ‘grid’ with 3 buses named ‘Bus1’, ‘Bus2’, ‘Bus3’. It has three loads named ‘Load1’, ‘Load2’, and ‘Load3’. Similarly, a generator ‘Gen1’ is connected to one of the buses.
+
+The following quantities can be specified to receive inputs in the connections dictionary:
+\begin{itemize}
+\item {} 
+Gen1.P
+
+\item {} 
+Gen1.Q
+
+\item {} 
+Load1.P, Load2.P, Load3.P
+
+\item {} 
+Load1.Q, Load2.Q, Load3.Q
+
+\end{itemize}
+
+The following quantities can be speified as outputs in \sphinxcode{\sphinxupquote{add\_simulator}} to be recorded:
+\begin{itemize}
+\item {} 
+Bus1.V, Bus2.V, Bus3.V
+
+\item {} 
+Bus1.Va, Bus2.Va, Bus3.Va
+
+\item {} 
+Gen1.P
+
+\item {} 
+Gen1.Q
+
+\item {} 
+Load1.P, Load2.P, Load3.P
+
+\item {} 
+Load1.Q, Load2.Q, Load3.Q
+
+\end{itemize}
+
+It must be clarified that energysim can only retreive or set variables in simulators when the simulators name are an exact match. Please make sure that component names and variable names such as P, Q are exactly how they are specified here.
+
+
+\subsubsection{CSV files}
+\label{\detokenize{add_simulator:csv-files}}
+CSV simulators are used to attach csv data files to \sphinxcode{\sphinxupquote{world}}. The csv file must have clearly specified columns. One of the columns must be ‘time’.
+
+The output variables for CSV simulators are the column names. Consider a csv file given by:
+
+\begin{DUlineblock}{0em}
+\item[] time,power
+\item[] 0,18
+\item[] 1,18
+\item[] 2,20
+\item[] 3,50
+\item[] 4,25
+\item[] 5,15
+\end{DUlineblock}
+
+The “power” variable can be accessed using \sphinxcode{\sphinxupquote{sim\_name.power}}. \sphinxcode{\sphinxupquote{energysim}} can then automatically read the power variable from csv files corresponding to simulation time. If the current simulation time is between two time values,   \sphinxcode{\sphinxupquote{energysim}} will read the value at time given by \sphinxcode{\sphinxupquote{index = int(np.argwhere(time\_array\textgreater{}current\_time){[}0{]} \sphinxhyphen{} 1)}} where \sphinxcode{\sphinxupquote{time\_array}} is the list of time values in the csv.
+
+
+\subsubsection{External simulators}
+\label{\detokenize{add_simulator:external-simulators}}
+Variables in external simulators can be accessed similar to other simulators:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{sim\PYGZus{}name}\PYG{o}{.}\PYG{n}{var1}
+\end{sphinxVerbatim}
+
+Users must make sure that the variable names within the simulator and that defined in \sphinxcode{\sphinxupquote{energysim}} connections dict are the same.
+
+
+\subsection{Working with external simulators}
+\label{\detokenize{working_external_sims:working-with-external-simulators}}\label{\detokenize{working_external_sims::doc}}
+One of the USPs of \sphinxcode{\sphinxupquote{energysim}} is that it can be coupled to external simulators fairly easily. However, it is expected that the users are familiar with intermediate level of python programming. In this section, we show how users can interface their own simulators with \sphinxcode{\sphinxupquote{energysim}} very easily.
+
+In the main code, users can add their simulators to \sphinxcode{\sphinxupquote{my\_world}} by using:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}simulator}\PYG{p}{(}\PYG{n}{sim\PYGZus{}type}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{external}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{my\PYGZus{}external\PYGZus{}simulator}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{sim\PYGZus{}loc} \PYG{o}{=} \PYG{n}{sim\PYGZus{}loc}\PYG{p}{,} \PYG{n}{outputs}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{var2}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+Here the \sphinxcode{\sphinxupquote{sim\_name}} is the file name of the interfaced simulator \sphinxstyleemphasis{my\_external\_simulator.py}. This file has the following template:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{}make necessary imports}
+
+
+\PYG{k}{class} \PYG{n+nc}{external\PYGZus{}simulator}\PYG{p}{(}\PYG{p}{)}\PYG{p}{:}
+    
+    \PYG{k}{def} \PYG{n+nf+fm}{\PYGZus{}\PYGZus{}init\PYGZus{}\PYGZus{}}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name}\PYG{p}{,} \PYG{n}{sim\PYGZus{}loc}\PYG{p}{,} \PYG{n}{inputs} \PYG{o}{=} \PYG{p}{[}\PYG{p}{]}\PYG{p}{,} \PYG{n}{outputs} \PYG{o}{=} \PYG{p}{[}\PYG{p}{]}\PYG{p}{,} \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}\PYG{p}{:}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{sim\PYGZus{}name} \PYG{o}{=} \PYG{n}{sim\PYGZus{}name}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{sim\PYGZus{}loc} \PYG{o}{=} \PYG{n}{sim\PYGZus{}loc}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{inputs} \PYG{o}{=} \PYG{n}{inputs}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{outputs} \PYG{o}{=} \PYG{n}{outputs}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{step\PYGZus{}size} \PYG{o}{=} \PYG{n}{step\PYGZus{}size}
+            
+    \PYG{k}{def} \PYG{n+nf}{init}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{)}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}specify simulator initialization command}
+        
+        \PYG{c+c1}{\PYGZsh{}remove pass after initialization has been set}
+        \PYG{k}{pass}
+    
+    \PYG{k}{def} \PYG{n+nf}{set\PYGZus{}value}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{variable}\PYG{p}{,} \PYG{n}{value}\PYG{p}{)}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}this should set the simulator paramaters as values. Return cmd not reqd}
+        
+        \PYG{c+c1}{\PYGZsh{}remove the pass after specifying set\PYGZus{}value}
+        \PYG{k}{pass}
+    
+    \PYG{k}{def} \PYG{n+nf}{get\PYGZus{}value}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{variable}\PYG{p}{,} \PYG{n}{time}\PYG{p}{)}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}this should return a list of values from simulator as a list corresponding to parameters}
+        
+        \PYG{o}{*}\PYG{o}{*}\PYG{n}{Return} \PYG{n}{reqd}\PYG{o}{*}\PYG{o}{*}
+        
+        \PYG{c+c1}{\PYGZsh{}remove the pass after specifying get\PYGZus{}value. }
+        \PYG{k}{pass}    
+    
+    \PYG{k}{def} \PYG{n+nf}{step}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{time}\PYG{p}{)}\PYG{p}{:}
+        \PYG{c+c1}{\PYGZsh{}use the time variable (if needed) to step the simulator to t=time}
+        
+        \PYG{c+c1}{\PYGZsh{}return is not required. remove the pass command afterwards.}
+        \PYG{k}{pass}
+    
+\end{sphinxVerbatim}
+
+The four functions inside \sphinxcode{\sphinxupquote{class external\_simulator()}} are all that \sphinxcode{\sphinxupquote{energysim}} requires to interface with the simulator. Users are free to make imports, and create other functions which can be called within this file. Let us go through each function and their definitions.
+
+
+\subsubsection{init() method}
+\label{\detokenize{working_external_sims:init-method}}
+Note that this is different from the \sphinxcode{\sphinxupquote{\_\_init\_\_()}} class. This method is needed to initialize the simulator. You can use it to, for example, establish connection to another software, or package. Basically, start\sphinxhyphen{}up the simulator.
+
+
+\subsubsection{step(time) method}
+\label{\detokenize{working_external_sims:step-time-method}}
+The \sphinxcode{\sphinxupquote{step}} method is used by \sphinxcode{\sphinxupquote{energysim}} coordinator to perform time stepping for each simulator. The coordinator steps the simulator by deltaT = \sphinxcode{\sphinxupquote{step\_size}} defined while adding the simulator to \sphinxcode{\sphinxupquote{world}}. The step method is useful when the model consists consists of time\sphinxhyphen{}dependent equations and exibits dynamics behavior.
+
+
+\subsubsection{get\_value(variable, time) method}
+\label{\detokenize{working_external_sims:get-value-variable-time-method}}
+The \sphinxcode{\sphinxupquote{get\_value}} method is used by the simulator to query \sphinxcode{\sphinxupquote{variable}} value from the simulator. The coordinator queries the simulator by asking the value of \sphinxcode{\sphinxupquote{variable}} at time=\textasciigrave{}\textasciigrave{}time\textasciigrave{}\textasciigrave{}. The \sphinxcode{\sphinxupquote{variable}} is enclosed in a python list. The user must define in this method, how to obtain the value of that \sphinxcode{\sphinxupquote{variable}} from its simulator.
+
+
+\subsubsection{set\_value(variable, value) method}
+\label{\detokenize{working_external_sims:set-value-variable-value-method}}
+The \sphinxcode{\sphinxupquote{set\_value}} method is used by the simulator to set the variable to a particular value at the time instance when message are exchanged between simulators. In this method, users must specify how to set the \sphinxcode{\sphinxupquote{variable}} to the specified \sphinxcode{\sphinxupquote{value}}. Both the \sphinxcode{\sphinxupquote{variable}} and \sphinxcode{\sphinxupquote{value}} are enclosed within a list.
+
+
+\subsection{energysim features}
+\label{\detokenize{energysim_features:energysim-features}}\label{\detokenize{energysim_features::doc}}
+Although key functions were highlighted in the main page, \sphinxcode{\sphinxupquote{energysim}} comes
+with additional inbuilt methods which allow users to take more control of the cosimulation.
+
+
+\subsubsection{Adding signals}
+\label{\detokenize{energysim_features:adding-signals}}
+The \sphinxcode{\sphinxupquote{add\_signal()}} method of the \sphinxcode{\sphinxupquote{world}} object provides the ability to add user\sphinxhyphen{}defined time (in)variant signals to the cosimulation objects. This is especially useful if some inputs of the cosimulation simulators need a constant signal, or a time varying signal (such as sin). In \sphinxcode{\sphinxupquote{energysim}}, this can be added by:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{k}{def} \PYG{n+nf}{my\PYGZus{}signal}\PYG{p}{(}\PYG{n}{time}\PYG{p}{)}\PYG{p}{:}
+    \PYG{k}{return} \PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}
+
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}signal}\PYG{p}{(}\PYG{n}{sim\PYGZus{}name}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{constant\PYGZus{}signal}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{signal} \PYG{o}{=} \PYG{n}{my\PYGZus{}signal}\PYG{p}{,} \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{1}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+Users need to make sure that the return value from the my\_signal part is within square brackets (\sphinxstylestrong{{[} {]}}), i.e. a \sphinxstylestrong{list}. The value returned must also be a single value. If multiple values are returned, the signal function will not be added. The signal function can also be more complex. For example, instead of \sphinxcode{\sphinxupquote{return {[}1{]}}}, the \sphinxcode{\sphinxupquote{my\_signal}} function can also \sphinxcode{\sphinxupquote{return np.sin(2*np.pi*time)}}.
+
+In the connections dictionary, this signal can then be connected to other simulators by:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{connections} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{constant\PYGZus{}signal.y}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.input\PYGZus{}variable1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{\PYGZcb{}}
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}connections}\PYG{p}{(}\PYG{n}{connections}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+The default step size is 1s for signals. However, it can be changed by specifying \sphinxcode{\sphinxupquote{step\_size}} argument in the \sphinxcode{\sphinxupquote{add\_signal}} method.
+
+
+\subsubsection{Modify signals before exchange}
+\label{\detokenize{energysim_features:modify-signals-before-exchange}}
+Many times, it is required in the simulation whereby output of a particular simulator needs to be “modified” before exchanging the value with a another simulator. This is fairly common in energy system integration simulations. For example, consider two simulators a CHP system and an electric network (EN). The power output from CHP simulator (an FMU) is obtained in Watts units. This power output of the CHP needs to be provided to the pandapower network. However, the EN accepts values only in MW. One way to address the problem is to change the output values of the CHP in the model itself and recompile the FMU. It may not always be possible to do so (FMU may be encrypted!). Therefore, \sphinxcode{\sphinxupquote{energysim}} provides an inbuilt method to address such problems by supplying the \sphinxcode{\sphinxupquote{modify\_dict}} to \sphinxcode{\sphinxupquote{world}} options. Two types of modifications can be applied: 1) multiply with a constant, and 2) multiply with a constant and add a constant. This is shown as follows
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{modifications} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim1.var1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{:}\PYG{p}{[}\PYG{n}{x}\PYG{p}{]}\PYG{p}{,} \PYG{c+c1}{\PYGZsh{}multiplies var1 of sim1 by x before variables are exchanged,}
+                 \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim2.var1}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{:}\PYG{p}{[}\PYG{n}{x1}\PYG{p}{,} \PYG{n}{x2}\PYG{p}{]} \PYG{c+c1}{\PYGZsh{}multiplies by x1 and adds x2}
+                \PYG{p}{\PYGZcb{}}
+
+\PYG{n}{options} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{init}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{n}{initializations}\PYG{p}{,}
+            \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{modify\PYGZus{}signal}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{:} \PYG{n}{modifications}\PYG{p}{\PYGZcb{}}
+
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{options}\PYG{p}{(}\PYG{n}{options}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+In the example highlighted above, the modification can be set as:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{}multiply electric power of chp by 1/1e6 to convert W \PYGZhy{}\PYGZgt{} MW before it is given to EN,}
+\PYG{n}{modifications} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{chp.e\PYGZus{}power}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{:}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{o}{/}\PYG{l+m+mf}{1e6}\PYG{p}{]}\PYG{p}{\PYGZcb{}}
+\end{sphinxVerbatim}
+
+
+\subsubsection{Enabling sensitivity analysis}
+\label{\detokenize{energysim_features:enabling-sensitivity-analysis}}
+An important part of energy system analysis is the parameter sensitivity. In \sphinxcode{\sphinxupquote{energysim}}, this can be done by updating the \sphinxcode{\sphinxupquote{init}} option to update parameters of the cosimulation.:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{}configure energysim with simulators}
+
+\PYG{k}{for} \PYG{n}{v1}\PYG{p}{,} \PYG{n}{v2} \PYG{o+ow}{in} \PYG{p}{[}\PYG{p}{(}\PYG{l+m+mf}{0.1}\PYG{p}{,}\PYG{l+m+mf}{0.2}\PYG{p}{)}\PYG{p}{,} \PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,}\PYG{l+m+mi}{2}\PYG{p}{)}\PYG{p}{,} \PYG{p}{(}\PYG{l+m+mi}{10}\PYG{p}{,}\PYG{l+m+mi}{20}\PYG{p}{)}\PYG{p}{]}\PYG{p}{:}
+    \PYG{n}{sens} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name1}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{,}
+            \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}name2}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{p}{(}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{sim\PYGZus{}variables}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{p}{[}\PYG{n}{values}\PYG{p}{]}\PYG{p}{)}\PYG{p}{\PYGZcb{}}
+            \PYG{n}{options} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{init}\PYG{l+s+s1}{\PYGZsq{}} \PYG{p}{:} \PYG{n}{sens}\PYG{p}{\PYGZcb{}}
+            \PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{options}\PYG{p}{(}\PYG{n}{options}\PYG{p}{)}
+    \PYG{n}{res} \PYG{o}{=} \PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{simulate}\PYG{p}{(}\PYG{n}{pbar}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{)}
+    \PYG{c+c1}{\PYGZsh{}extract relevant results and store them}
+\end{sphinxVerbatim}
+
+A more sophisticated functionality is planned to create an integrated sensitivity analysis with energysim.
+
+
+\subsubsection{Optimal Power Flow}
+\label{\detokenize{energysim_features:optimal-power-flow}}
+By default, the powerflow network added in \sphinxcode{\sphinxupquote{energysim}} are solved for ac powerflow. However, users can specify in the \sphinxcode{\sphinxupquote{add\_simulator}} arguments to solve for opf. This is shown below:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{add\PYGZus{}simulator}\PYG{p}{(}\PYG{n}{sim\PYGZus{}type} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{powerflow}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{n}{sim\PYGZus{}name} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{grid}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,}
+        \PYG{n}{sim\PYGZus{}loc} \PYG{o}{=} \PYG{n}{grid\PYGZus{}loc}\PYG{p}{,} \PYG{n}{inputs} \PYG{o}{=} \PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{wind1.P}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,} \PYG{n}{outputs}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{Bus 1.V}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{Bus 12.V}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{,} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{wind1.P}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{]}\PYG{p}{,}
+        \PYG{n}{step\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{3}\PYG{p}{,} \PYG{n}{pf} \PYG{o}{=} \PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{opf}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+This feature is currently only available in pandapower networks.
+
+
+\subsubsection{Validation of FMUs}
+\label{\detokenize{energysim_features:validation-of-fmus}}
+Internally, FMPy checks the validity of FMUs. To speedup, this flag can be set as \sphinxcode{\sphinxupquote{False}} while adding simulators.
+
+
+\subsubsection{System Topology Plot}
+\label{\detokenize{energysim_features:system-topology-plot}}
+\sphinxcode{\sphinxupquote{energysim}} uses \sphinxcode{\sphinxupquote{NetworkX}} to generate topology of the cosimulation based on the connections dictionary. This can be visualised by:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{n}{my\PYGZus{}world}\PYG{o}{.}\PYG{n}{plot}\PYG{p}{(}\PYG{n}{plot\PYGZus{}edge\PYGZus{}labels}\PYG{o}{=}\PYG{k+kc}{False}\PYG{p}{,} \PYG{n}{node\PYGZus{}size}\PYG{o}{=}\PYG{l+m+mi}{300}\PYG{p}{,} \PYG{n}{node\PYGZus{}color}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}}\PYG{l+s+s1}{r}\PYG{l+s+s1}{\PYGZsq{}}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+
+\subsection{FAQ}
+\label{\detokenize{faq:faq}}\label{\detokenize{faq::doc}}
+
+\subsubsection{OPFNotConvergedError}
+\label{\detokenize{faq:opfnotconvergederror}}
+OPF and DCOPF functionalities are subject to pandapower optimization. Therefore, you must make sure that OPF converence is met within the pandapower network before integrating it with \sphinxcode{\sphinxupquote{energysim.world}}.
+
+
+\subsubsection{FMU Initialization Error}
+\label{\detokenize{faq:fmu-initialization-error}}
+If you get an initialization failed error for FMU, please check if it works independently. You can use the following code structure to check:
+
+\begin{sphinxVerbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{from} \PYG{n+nn}{fmpy} \PYG{k+kn}{import} \PYG{o}{*}
+\PYG{n}{fmu\PYGZus{}loc} \PYG{o}{=} \PYG{o}{/}\PYG{n}{path}\PYG{o}{/}\PYG{n}{to}\PYG{o}{/}\PYG{n}{fmu}
+\PYG{n}{res}\PYG{o}{=}\PYG{n}{simulate\PYGZus{}fmu}\PYG{p}{(}\PYG{n}{fmu\PYGZus{}loc}\PYG{p}{)}
+\PYG{n+nb}{print}\PYG{p}{(}\PYG{n}{res}\PYG{p}{)}
+\end{sphinxVerbatim}
+
+If this works, but you still get initialization failed error with FMUs, you can try following remedies:
+\begin{enumerate}
+\sphinxsetlistlabels{\arabic}{enumi}{enumii}{}{.}%
+\item {} 
+Clear cache, temp folders.
+
+\item {} 
+Restart application
+
+\item {} 
+Run it with admin privileges
+
+\end{enumerate}
+
+
+\subsection{Indices and tables}
 \label{\detokenize{index:indices-and-tables}}\begin{itemize}
 \item {} 
 \DUrole{xref,std,std-ref}{genindex}

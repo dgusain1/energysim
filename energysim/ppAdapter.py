@@ -12,7 +12,7 @@ import pandapower as pp, sys
 
 class pp_adapter():
     
-    def __init__(self, network_name, net_loc, inputs = [], outputs = []):
+    def __init__(self, network_name, net_loc, inputs = [], outputs = [], pf='pf'):
         '''
         Initialises the pandapower network adapter for energysim cosimulaiton object. 
         Specify the following:
@@ -28,6 +28,9 @@ class pp_adapter():
         assert all_names_exist, "All load, generator, sgen, bus, and external grid elements must have names. Simulation stopped"
         self.new_inputs, self.new_outputs = self.process_powerflow_ipop(self.network, inputs, outputs)
         self.outputs = outputs
+        self.pf = pf
+        assert self.pf in ['pf', 'dcpf', 'opf', 'dcopf'], "PF option not recognized"
+            
 
     def check_names(self, network):
         for n in [ 'load', 'sgen', 'ext_grid', 'bus']:
@@ -37,7 +40,17 @@ class pp_adapter():
         return True
     
     def init(self):
-        pp.runpp(self.network)
+        if self.pf == 'pf':
+            pp.runpp(self.network)
+        elif self.pf == 'dcpf':
+            pp.rundcpp(self.network)
+        elif self.pf == 'opf':
+            pp.runopp(self.network)
+        else:
+            pp.rundcopp(self.network)
+        
+            
+        
     
     def set_value(self, parameters, values):
         '''
@@ -95,7 +108,14 @@ class pp_adapter():
         pass
     
     def step(self, *args, **kwargs):  
-        a = pp.runpp(self.network)
+        if self.pf == 'pf':
+            a = pp.runpp(self.network)
+        elif self.pf == 'dcpf':
+            a = pp.rundcpp(self.network)
+        elif self.pf == 'opf':
+            a = pp.runopp(self.network)
+        else:
+            a = pp.rundcopp(self.network)
         return a
     
     def process_powerflow_ipop(self, network, inputs, outputs):

@@ -9,10 +9,7 @@ class external_simulator():
         self.inputs = inputs
         self.outputs = outputs
         self.step_size = step_size
-        
-        #initalize sim object here
-        
-    
+            
     def init(self):
         #specify simulator initialization command
         
@@ -28,7 +25,9 @@ class external_simulator():
     def get_value(self, variable, time):
         #this should return a list of values from simulator as a list corresponding to parameters
         
-        #remove the pass after specifying get_value. **Return reqd**
+        **Return reqd**
+        
+        #remove the pass after specifying get_value. 
         pass    
     
     def step(self, time):

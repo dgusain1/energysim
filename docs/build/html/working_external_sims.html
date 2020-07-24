@@ -15,7 +15,8 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Working with results" href="results.html" />
+    <link rel="next" title="energysim features" href="energysim_features.html" />
+    <link rel="prev" title="Adding simulators" href="add_simulator.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -34,11 +35,68 @@
             
   <div class="section" id="working-with-external-simulators">
 <h1>Working with external simulators<a class="headerlink" href="#working-with-external-simulators" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="init-get-value-set-value-step">
-<h2>init, get_value, set_value, step<a class="headerlink" href="#init-get-value-set-value-step" title="Permalink to this headline">¶</a></h2>
+<p>One of the USPs of <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is that it can be coupled to external simulators fairly easily. However, it is expected that the users are familiar with intermediate level of python programming. In this section, we show how users can interface their own simulators with <code class="docutils literal notranslate"><span class="pre">energysim</span></code> very easily.</p>
+<p>In the main code, users can add their simulators to <code class="docutils literal notranslate"><span class="pre">my_world</span></code> by using:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="n">sim_name</span> <span class="o">=</span> <span class="s1">&#39;my_external_simulator&#39;</span><span class="p">,</span> <span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;var1&#39;</span><span class="p">,</span> <span class="s1">&#39;var2&#39;</span><span class="p">],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
 </div>
-<div class="section" id="example-random-number-generator">
-<h2>example: random number generator<a class="headerlink" href="#example-random-number-generator" title="Permalink to this headline">¶</a></h2>
+<p>Here the <code class="docutils literal notranslate"><span class="pre">sim_name</span></code> is the file name of the interfaced simulator <em>my_external_simulator.py</em>. This file has the following template:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#make necessary imports</span>
+
+
+<span class="k">class</span> <span class="nc">external_simulator</span><span class="p">():</span>
+    
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sim_name</span><span class="p">,</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">outputs</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_name</span> <span class="o">=</span> <span class="n">sim_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span> <span class="o">=</span> <span class="n">step_size</span>
+            
+    <span class="k">def</span> <span class="nf">init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1">#specify simulator initialization command</span>
+        
+        <span class="c1">#remove pass after initialization has been set</span>
+        <span class="k">pass</span>
+    
+    <span class="k">def</span> <span class="nf">set_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1">#this should set the simulator paramaters as values. Return cmd not reqd</span>
+        
+        <span class="c1">#remove the pass after specifying set_value</span>
+        <span class="k">pass</span>
+    
+    <span class="k">def</span> <span class="nf">get_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="c1">#this should return a list of values from simulator as a list corresponding to parameters</span>
+        
+        <span class="o">**</span><span class="n">Return</span> <span class="n">reqd</span><span class="o">**</span>
+        
+        <span class="c1">#remove the pass after specifying get_value. </span>
+        <span class="k">pass</span>    
+    
+    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="c1">#use the time variable (if needed) to step the simulator to t=time</span>
+        
+        <span class="c1">#return is not required. remove the pass command afterwards.</span>
+        <span class="k">pass</span>
+    
+</pre></div>
+</div>
+<p>The four functions inside <code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">external_simulator()</span></code> are all that <code class="docutils literal notranslate"><span class="pre">energysim</span></code> requires to interface with the simulator. Users are free to make imports, and create other functions which can be called within this file. Let us go through each function and their definitions.</p>
+<div class="section" id="init-method">
+<h2>init() method<a class="headerlink" href="#init-method" title="Permalink to this headline">¶</a></h2>
+<p>Note that this is different from the <code class="docutils literal notranslate"><span class="pre">__init__()</span></code> class. This method is needed to initialize the simulator. You can use it to, for example, establish connection to another software, or package. Basically, start-up the simulator.</p>
+</div>
+<div class="section" id="step-time-method">
+<h2>step(time) method<a class="headerlink" href="#step-time-method" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">step</span></code> method is used by <code class="docutils literal notranslate"><span class="pre">energysim</span></code> coordinator to perform time stepping for each simulator. The coordinator steps the simulator by deltaT = <code class="docutils literal notranslate"><span class="pre">step_size</span></code> defined while adding the simulator to <code class="docutils literal notranslate"><span class="pre">world</span></code>. The step method is useful when the model consists consists of time-dependent equations and exibits dynamics behavior.</p>
+</div>
+<div class="section" id="get-value-variable-time-method">
+<h2>get_value(variable, time) method<a class="headerlink" href="#get-value-variable-time-method" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">get_value</span></code> method is used by the simulator to query <code class="docutils literal notranslate"><span class="pre">variable</span></code> value from the simulator. The coordinator queries the simulator by asking the value of <code class="docutils literal notranslate"><span class="pre">variable</span></code> at time=``time``. The <code class="docutils literal notranslate"><span class="pre">variable</span></code> is enclosed in a python list. The user must define in this method, how to obtain the value of that <code class="docutils literal notranslate"><span class="pre">variable</span></code> from its simulator.</p>
+</div>
+<div class="section" id="set-value-variable-value-method">
+<h2>set_value(variable, value) method<a class="headerlink" href="#set-value-variable-value-method" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">set_value</span></code> method is used by the simulator to set the variable to a particular value at the time instance when message are exchanged between simulators. In this method, users must specify how to set the <code class="docutils literal notranslate"><span class="pre">variable</span></code> to the specified <code class="docutils literal notranslate"><span class="pre">value</span></code>. Both the <code class="docutils literal notranslate"><span class="pre">variable</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> are enclosed within a list.</p>
 </div>
 </div>
 
@@ -61,20 +119,24 @@
 <h3>Navigation</h3>
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Working with external simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#init-get-value-set-value-step">init, get_value, set_value, step</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#example-random-number-generator">example: random number generator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#init-method">init() method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-time-method">step(time) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#get-value-variable-time-method">get_value(variable, time) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#set-value-variable-value-method">set_value(variable, value) method</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="results.html" title="previous chapter">Working with results</a></li>
+      <li>Previous: <a href="add_simulator.html" title="previous chapter">Adding simulators</a></li>
+      <li>Next: <a href="energysim_features.html" title="next chapter">energysim features</a></li>
   </ul></li>
 </ul>
 </div>

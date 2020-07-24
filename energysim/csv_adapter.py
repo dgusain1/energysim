@@ -2,9 +2,9 @@ import pandas as pd, numpy as np
 
 class csv_simulator():
     
-    def __init__(self, sim_name, sim_loc, step_size = 900, outputs = []):
+    def __init__(self, sim_name, sim_loc, step_size = 900, outputs = [], delimiter=','):
         #initalize sim object here
-        self.df = pd.read_csv(sim_loc)
+        self.df = pd.read_csv(sim_loc, delimiter=delimiter)
         self.step_size = step_size
         #analyse the df, and calculate step size
         assert 'time' in self.df.columns, 'No time column in csv file. Please convert csv file to required format. CSV not added.'

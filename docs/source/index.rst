@@ -79,6 +79,8 @@ where:
 	- ``inputs`` : Input variables to the simulator.
 	- ``step_size`` : Internal step size for simulator (1e-3 by default).
 
+Please see documentation on ``add_simulator`` to properly add simulators to ``energysim``.
+The values to simulator input are kept constant for the duration between two macro time steps.
 
 Connections between simulators
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -111,17 +113,15 @@ the simulator as pandas dataframe. ``pbar`` can be used to toggle the progress b
 
 	results = my_world.simulate(pbar=True)
 
-Links
-^^^^^
-
 
 .. toctree::
 	:maxdepth: 2
 	:caption: Contents
 	
-	energysim_features
-	results
+	add_simulator
 	working_external_sims
+	energysim_features
+	faq
 
 
 Indices and tables

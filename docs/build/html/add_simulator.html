@@ -1,0 +1,210 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adding simulators &#8212; energysim 2.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Working with external simulators" href="working_external_sims.html" />
+    <link rel="prev" title="energysim documentation" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="adding-simulators">
+<h1>Adding simulators<a class="headerlink" href="#adding-simulators" title="Permalink to this headline">¶</a></h1>
+<p>Adding simulators in energysim is done by calling the method <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code>.
+As mentioned, four main types of simulators can be added: FMU, powerflow networks, CSV, and external simulators.</p>
+<p>The add_simulator requires <strong>six</strong> main arguments for all simulators. Optional arguments for FMUs, powerflows, and external simulators can be added if needed. These are:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> : Specifies simulator type. Can be either of ‘fmu’, ‘powerflow’, ‘csv’, ‘external’</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> : Each simulator must have a unique name. This is later required when specifying connections.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> : A raw string address of simulator location.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> : Variables that need to be recorded from the simulator during simulation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> : Input variables to the simulator that are to be used while defining the connections.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : Internal step size for simulator (1e-3 by default). Also known as micro-time steps. This is the time integration step required for solvers for the simulators. For example, some FMUs require integration time steps of 1e-3 secs, while for powerflow networks, the time step can be 15 mins (900s).</p></li>
+</ul>
+</div></blockquote>
+<p>The <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> works as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span> <span class="o">=</span> <span class="n">sim_type</span><span class="p">,</span> <span class="n">sim_name</span> <span class="o">=</span> <span class="n">sim_name</span><span class="p">,</span>
+                    <span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span><span class="p">,</span>
+                        <span class="n">step_size</span> <span class="o">=</span> <span class="n">step_size</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="section" id="additional-arguments">
+<h2>Additional arguments<a class="headerlink" href="#additional-arguments" title="Permalink to this headline">¶</a></h2>
+<p>Apart from the six required arguments, users can also specify additional arguments for each simulator. These are:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>For FMUs: FMPy generally validates the FMUs before initialization process. Users can skip this validation by specifyng the argument <cite>validate = False</cite>. Generally, it has been observed, the FMUs packaged with OpenModelica fail validation. However, they can be simulated by setting the <code class="docutils literal notranslate"><span class="pre">validate</span> <span class="pre">=</span> <span class="pre">False</span></code>.</p></li>
+<li><p>FOr powerflow: For powerflow simulators, users can specify whether to execute a AC powerflow or an optimal power flow, or a DCpowerflow. This can be done by providing the specifying the value of argument <code class="docutils literal notranslate"><span class="pre">pf</span></code>. It can be set to “pf”, “dcpf”, “opf”, or “dcopf”. Please note, this is only available for pandapower networks currently.</p></li>
+<li><p>For csv: For csv files, the users can specify the delimiter by providing the argument <code class="docutils literal notranslate"><span class="pre">delimiter=','</span></code> or whatever the delimiter is.</p></li>
+</ol>
+</div></blockquote>
+</div>
+<div class="section" id="variable-naming-convention">
+<h2>Variable naming convention<a class="headerlink" href="#variable-naming-convention" title="Permalink to this headline">¶</a></h2>
+<p>Since variable extraction is an important part of cosimulation, it is important to become aware of the variable naming convention used for the simulators in <code class="docutils literal notranslate"><span class="pre">energysim</span></code>.</p>
+<div class="section" id="fmus">
+<h3>FMUs<a class="headerlink" href="#fmus" title="Permalink to this headline">¶</a></h3>
+<p>For FMUs, the variable naming convention is similar to how it is generally accessed within Modelica based environments. For example a variable_k nested within the FMU model can be accessed using:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span><span class="o">.</span><span class="n">Component_1</span><span class="o">.</span><span class="n">SubComponent_i</span><span class="o">.</span><span class="n">Variable_k</span>
+</pre></div>
+</div>
+<p>This is to be followed when specifying connections, initializations, or signal modifications.</p>
+</div>
+</div>
+<div class="section" id="powerflow-networks">
+<h2>Powerflow networks<a class="headerlink" href="#powerflow-networks" title="Permalink to this headline">¶</a></h2>
+<p>Currently, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> can only record bus voltages magnitude (V) and bus voltage angles (VA), along with active (P) and reactive power (Q) values for loads, static generators, external grid, generators. For inputs, it can set the active (P) and reactive power (Q) setpoints for loads, static generators, generators. All the elements within the network must have a valid name. This has to be ensured before importing the pandapower network within <code class="docutils literal notranslate"><span class="pre">energysim</span></code> environment.</p>
+<p>Consider a network ‘grid’ with 3 buses named ‘Bus1’, ‘Bus2’, ‘Bus3’. It has three loads named ‘Load1’, ‘Load2’, and ‘Load3’. Similarly, a generator ‘Gen1’ is connected to one of the buses.</p>
+<p>The following quantities can be specified to receive inputs in the connections dictionary:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Gen1.P</p></li>
+<li><p>Gen1.Q</p></li>
+<li><p>Load1.P, Load2.P, Load3.P</p></li>
+<li><p>Load1.Q, Load2.Q, Load3.Q</p></li>
+</ul>
+</div></blockquote>
+<p>The following quantities can be speified as outputs in <code class="docutils literal notranslate"><span class="pre">add_simulator</span></code> to be recorded:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Bus1.V, Bus2.V, Bus3.V</p></li>
+<li><p>Bus1.Va, Bus2.Va, Bus3.Va</p></li>
+<li><p>Gen1.P</p></li>
+<li><p>Gen1.Q</p></li>
+<li><p>Load1.P, Load2.P, Load3.P</p></li>
+<li><p>Load1.Q, Load2.Q, Load3.Q</p></li>
+</ul>
+</div></blockquote>
+<p>It must be clarified that energysim can only retreive or set variables in simulators when the simulators name are an exact match. Please make sure that component names and variable names such as P, Q are exactly how they are specified here.</p>
+</div>
+<div class="section" id="csv-files">
+<h2>CSV files<a class="headerlink" href="#csv-files" title="Permalink to this headline">¶</a></h2>
+<p>CSV simulators are used to attach csv data files to <code class="docutils literal notranslate"><span class="pre">world</span></code>. The csv file must have clearly specified columns. One of the columns must be ‘time’.</p>
+<p>The output variables for CSV simulators are the column names. Consider a csv file given by:</p>
+<div class="line-block">
+<div class="line">time,power</div>
+<div class="line">0,18</div>
+<div class="line">1,18</div>
+<div class="line">2,20</div>
+<div class="line">3,50</div>
+<div class="line">4,25</div>
+<div class="line">5,15</div>
+</div>
+<p>The “power” variable can be accessed using <code class="docutils literal notranslate"><span class="pre">sim_name.power</span></code>. <code class="docutils literal notranslate"><span class="pre">energysim</span></code> can then automatically read the power variable from csv files corresponding to simulation time. If the current simulation time is between two time values,   <code class="docutils literal notranslate"><span class="pre">energysim</span></code> will read the value at time given by <code class="docutils literal notranslate"><span class="pre">index</span> <span class="pre">=</span> <span class="pre">int(np.argwhere(time_array&gt;current_time)[0]</span> <span class="pre">-</span> <span class="pre">1)</span></code> where <code class="docutils literal notranslate"><span class="pre">time_array</span></code> is the list of time values in the csv.</p>
+</div>
+<div class="section" id="external-simulators">
+<h2>External simulators<a class="headerlink" href="#external-simulators" title="Permalink to this headline">¶</a></h2>
+<p>Variables in external simulators can be accessed similar to other simulators:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span><span class="o">.</span><span class="n">var1</span>
+</pre></div>
+</div>
+<p>Users must make sure that the variable names within the simulator and that defined in <code class="docutils literal notranslate"><span class="pre">energysim</span></code> connections dict are the same.</p>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">energysim</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Adding simulators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#additional-arguments">Additional arguments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#variable-naming-convention">Variable naming convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#powerflow-networks">Powerflow networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#csv-files">CSV files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#external-simulators">External simulators</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">energysim documentation</a></li>
+      <li>Next: <a href="working_external_sims.html" title="next chapter">Working with external simulators</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Digvijay Gusain.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/add_simulator.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

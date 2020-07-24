@@ -15,8 +15,7 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Working with results" href="results.html" />
-    <link rel="prev" title="energysim documentation" href="index.html" />
+    <link rel="prev" title="Working with external simulators" href="working_external_sims.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -37,21 +36,78 @@
 <h1>energysim features<a class="headerlink" href="#energysim-features" title="Permalink to this headline">¶</a></h1>
 <p>Although key functions were highlighted in the main page, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> comes
 with additional inbuilt methods which allow users to take more control of the cosimulation.</p>
-<div class="section" id="variable">
-<h2>variable<a class="headerlink" href="#variable" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="adding-signals">
+<h2>Adding signals<a class="headerlink" href="#adding-signals" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">add_signal()</span></code> method of the <code class="docutils literal notranslate"><span class="pre">world</span></code> object provides the ability to add user-defined time (in)variant signals to the cosimulation objects. This is especially useful if some inputs of the cosimulation simulators need a constant signal, or a time varying signal (such as sin). In <code class="docutils literal notranslate"><span class="pre">energysim</span></code>, this can be added by:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_signal</span><span class="p">(</span><span class="n">time</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="n">my_world</span><span class="o">.</span><span class="n">add_signal</span><span class="p">(</span><span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;constant_signal&#39;</span><span class="p">,</span> <span class="n">signal</span> <span class="o">=</span> <span class="n">my_signal</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
 </div>
-<div class="section" id="parameter-set">
-<h2>parameter_set<a class="headerlink" href="#parameter-set" title="Permalink to this headline">¶</a></h2>
+<p>Users need to make sure that the return value from the my_signal part is within square brackets (<strong>[ ]</strong>), i.e. a <strong>list</strong>. The value returned must also be a single value. If multiple values are returned, the signal function will not be added. The signal function can also be more complex. For example, instead of <code class="docutils literal notranslate"><span class="pre">return</span> <span class="pre">[1]</span></code>, the <code class="docutils literal notranslate"><span class="pre">my_signal</span></code> function can also <code class="docutils literal notranslate"><span class="pre">return</span> <span class="pre">np.sin(2*np.pi*time)</span></code>.</p>
+<p>In the connections dictionary, this signal can then be connected to other simulators by:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">connections</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;constant_signal.y&#39;</span> <span class="p">:</span> <span class="s1">&#39;sim1.input_variable1&#39;</span><span class="p">}</span>
+<span class="n">my_world</span><span class="o">.</span><span class="n">add_connections</span><span class="p">(</span><span class="n">connections</span><span class="p">)</span>
+</pre></div>
 </div>
-<div class="section" id="opf">
-<h2>opf<a class="headerlink" href="#opf" title="Permalink to this headline">¶</a></h2>
+<p>The default step size is 1s for signals. However, it can be changed by specifying <code class="docutils literal notranslate"><span class="pre">step_size</span></code> argument in the <code class="docutils literal notranslate"><span class="pre">add_signal</span></code> method.</p>
 </div>
-<div class="section" id="constant-signal">
-<h2>constant_signal<a class="headerlink" href="#constant-signal" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="modify-signals-before-exchange">
+<h2>Modify signals before exchange<a class="headerlink" href="#modify-signals-before-exchange" title="Permalink to this headline">¶</a></h2>
+<p>Many times, it is required in the simulation whereby output of a particular simulator needs to be “modified” before exchanging the value with a another simulator. This is fairly common in energy system integration simulations. For example, consider two simulators a CHP system and an electric network (EN). The power output from CHP simulator (an FMU) is obtained in Watts units. This power output of the CHP needs to be provided to the pandapower network. However, the EN accepts values only in MW. One way to address the problem is to change the output values of the CHP in the model itself and recompile the FMU. It may not always be possible to do so (FMU may be encrypted!). Therefore, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> provides an inbuilt method to address such problems by supplying the <code class="docutils literal notranslate"><span class="pre">modify_dict</span></code> to <code class="docutils literal notranslate"><span class="pre">world</span></code> options. Two types of modifications can be applied: 1) multiply with a constant, and 2) multiply with a constant and add a constant. This is shown as follows</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">modifications</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sim1.var1&#39;</span><span class="p">:[</span><span class="n">x</span><span class="p">],</span> <span class="c1">#multiplies var1 of sim1 by x before variables are exchanged,</span>
+                 <span class="s1">&#39;sim2.var1&#39;</span><span class="p">:[</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">]</span> <span class="c1">#multiplies by x1 and adds x2</span>
+                <span class="p">}</span>
+
+<span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;init&#39;</span> <span class="p">:</span> <span class="n">initializations</span><span class="p">,</span>
+            <span class="s1">&#39;modify_signal&#39;</span><span class="p">:</span> <span class="n">modifications</span><span class="p">}</span>
+
+<span class="n">my_world</span><span class="o">.</span><span class="n">options</span><span class="p">(</span><span class="n">options</span><span class="p">)</span>
+</pre></div>
 </div>
-<div class="section" id="plot-of-cosimulation">
-<h2>plot of cosimulation<a class="headerlink" href="#plot-of-cosimulation" title="Permalink to this headline">¶</a></h2>
-<p>networkx</p>
+<p>In the example highlighted above, the modification can be set as:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#multiply electric power of chp by 1/1e6 to convert W -&gt; MW before it is given to EN,</span>
+<span class="n">modifications</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;chp.e_power&#39;</span><span class="p">:[</span><span class="mi">1</span><span class="o">/</span><span class="mf">1e6</span><span class="p">]}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="enabling-sensitivity-analysis">
+<h2>Enabling sensitivity analysis<a class="headerlink" href="#enabling-sensitivity-analysis" title="Permalink to this headline">¶</a></h2>
+<p>An important part of energy system analysis is the parameter sensitivity. In <code class="docutils literal notranslate"><span class="pre">energysim</span></code>, this can be done by updating the <code class="docutils literal notranslate"><span class="pre">init</span></code> option to update parameters of the cosimulation.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#configure energysim with simulators</span>
+
+<span class="k">for</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span> <span class="ow">in</span> <span class="p">[(</span><span class="mf">0.1</span><span class="p">,</span><span class="mf">0.2</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">20</span><span class="p">)]:</span>
+    <span class="n">sens</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sim_name1&#39;</span> <span class="p">:</span> <span class="p">([</span><span class="s1">&#39;sim_variables&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">values</span><span class="p">]),</span>
+            <span class="s1">&#39;sim_name2&#39;</span> <span class="p">:</span> <span class="p">([</span><span class="s1">&#39;sim_variables&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">values</span><span class="p">])}</span>
+            <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;init&#39;</span> <span class="p">:</span> <span class="n">sens</span><span class="p">}</span>
+            <span class="n">my_world</span><span class="o">.</span><span class="n">options</span><span class="p">(</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">pbar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="c1">#extract relevant results and store them</span>
+</pre></div>
+</div>
+<p>A more sophisticated functionality is planned to create an integrated sensitivity analysis with energysim.</p>
+</div>
+<div class="section" id="optimal-power-flow">
+<h2>Optimal Power Flow<a class="headerlink" href="#optimal-power-flow" title="Permalink to this headline">¶</a></h2>
+<p>By default, the powerflow network added in <code class="docutils literal notranslate"><span class="pre">energysim</span></code> are solved for ac powerflow. However, users can specify in the <code class="docutils literal notranslate"><span class="pre">add_simulator</span></code> arguments to solve for opf. This is shown below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span> <span class="o">=</span> <span class="s1">&#39;powerflow&#39;</span><span class="p">,</span> <span class="n">sim_name</span> <span class="o">=</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span>
+        <span class="n">sim_loc</span> <span class="o">=</span> <span class="n">grid_loc</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wind1.P&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Bus 1.V&#39;</span><span class="p">,</span> <span class="s1">&#39;Bus 12.V&#39;</span><span class="p">,</span> <span class="s1">&#39;wind1.P&#39;</span><span class="p">],</span>
+        <span class="n">step_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pf</span> <span class="o">=</span> <span class="s1">&#39;opf&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This feature is currently only available in pandapower networks.</p>
+</div>
+<div class="section" id="validation-of-fmus">
+<h2>Validation of FMUs<a class="headerlink" href="#validation-of-fmus" title="Permalink to this headline">¶</a></h2>
+<p>Internally, FMPy checks the validity of FMUs. To speedup, this flag can be set as <code class="docutils literal notranslate"><span class="pre">False</span></code> while adding simulators.</p>
+</div>
+<div class="section" id="system-topology-plot">
+<h2>System Topology Plot<a class="headerlink" href="#system-topology-plot" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> uses <code class="docutils literal notranslate"><span class="pre">NetworkX</span></code> to generate topology of the cosimulation based on the connections dictionary. This can be visualised by:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_edge_labels</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">node_size</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">node_color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
 </div>
 </div>
 
@@ -74,24 +130,24 @@ with additional inbuilt methods which allow users to take more control of the co
 <h3>Navigation</h3>
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">energysim features</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#variable">variable</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#parameter-set">parameter_set</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#opf">opf</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#constant-signal">constant_signal</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#plot-of-cosimulation">plot of cosimulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adding-signals">Adding signals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#modify-signals-before-exchange">Modify signals before exchange</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enabling-sensitivity-analysis">Enabling sensitivity analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optimal-power-flow">Optimal Power Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validation-of-fmus">Validation of FMUs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#system-topology-plot">System Topology Plot</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">energysim documentation</a></li>
-      <li>Next: <a href="results.html" title="next chapter">Working with results</a></li>
+      <li>Previous: <a href="working_external_sims.html" title="previous chapter">Working with external simulators</a></li>
   </ul></li>
 </ul>
 </div>
