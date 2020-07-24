@@ -214,8 +214,8 @@ class world():
         else:
             print(f"Please specify a unique name for simulator. {fmu_name} already exists.")        
     
-    def add_csv(self, csv_name, csv_location, step_size, outputs):
-        csv_obj = csv_simulator(csv_name, csv_location, step_size, outputs)
+    def add_csv(self, csv_name, csv_location, step_size, outputs, delimiter):
+        csv_obj = csv_simulator(csv_name, csv_location, step_size, outputs, delimiter)
         if csv_name not in self.simulator_dict.keys():
             self.simulator_dict[csv_name] = ['csv', csv_obj, step_size, outputs]
             if self.logging:
