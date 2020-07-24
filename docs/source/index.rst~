@@ -1,0 +1,20 @@
+Welcome to energysim's documentation!
+=====================================
+
+here is a simple code.::
+
+    print('hello')
+    >> hello
+    
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

@@ -26,9 +26,9 @@ class world():
         1. ``start_time`` : (0 by default).
         2. ``stop_time`` : (1000 by default).
         3. ``logging`` : (False by default). Gives users update on simulation progress.
-        4. ``exchange`` : (60 by default). Users can specify instance of information exchange.
+        4. ``t_macro`` : (60 by default). Users can specify instance of information exchange.
     
-    >>> my_world = world(start_time=0, stop_time=1000, logging=True, exchange=60)
+    >>> my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
     
     Specifying Simulators
     ---------------------    
@@ -87,11 +87,11 @@ class world():
     
     """
     
-    def __init__(self, start_time = 0, stop_time = 1000, logging = False, exchange = 60):
+    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
-        self.exchange = exchange
+        self.exchange = t_macro
         self.modify_signal = False
         self.modify_dict = {}
         self.init_dict = {}
