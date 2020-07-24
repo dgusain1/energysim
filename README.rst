@@ -4,7 +4,7 @@
 Compatible with Python 3.6 and above.
 
 What is energysim?
-#################
+##################
 
 ``energysim`` is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called ``FMUWorld``, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
 
