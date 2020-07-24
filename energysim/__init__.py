@@ -99,8 +99,7 @@ class world():
         self.simulator_dict = {}
     
     def add_signal(self, sim_name, signal, step_size=1):
-        check = self.check_signal_output(signal)
-        if check and sim_name not in self.simulator_dict.keys():            
+        if sim_name not in self.simulator_dict.keys():            
             signal_obj = signal_adapter(signal_name=sim_name, signal=signal)
             self.simulator_dict[sim_name] = ['signal', signal_obj, step_size, ['y']]
     
