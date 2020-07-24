@@ -37,9 +37,8 @@
 <p>Compatible with Python 3.6 and above.</p>
 <div class="section" id="what-is-energysim">
 <h2>What is energysim?<a class="headerlink" href="#what-is-energysim" title="Permalink to this headline">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called <code class="docutils literal notranslate"><span class="pre">FMUWorld</span></code>, sincei t focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.</p>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called <code class="docutils literal notranslate"><span class="pre">FMUWorld</span></code>, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.</p>
 <p>The idea behind development of <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc.</p>
-<img alt="_images/energysim.png" src="_images/energysim.png" />
 <p>Currently, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> allows users to combine:</p>
 <blockquote>
 <div><ol class="arabic simple">
@@ -50,6 +49,7 @@
 <li><p>CSV data files</p></li>
 </ol>
 </div></blockquote>
+<img alt="_images/energysim.png" src="_images/energysim.png" />
 </div>
 <div class="section" id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
@@ -98,9 +98,12 @@
 </div>
 <div class="section" id="adding-simulators">
 <h3>Adding Simulators<a class="headerlink" href="#adding-simulators" title="Permalink to this headline">¶</a></h3>
-<p>After initializing the world cosimulation object, simulators can be added
-to the world using the <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> method. This is done by specifying
-the following :</p>
+<p>After initializing the world cosimulation object, simulators can be added to the world using the <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> method:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;FMU1&#39;</span><span class="p">,</span>
+<span class="n">sim_loc</span><span class="o">=/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">sim</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;v1&#39;</span><span class="p">,</span> <span class="s1">&#39;v2&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;var1&#39;</span><span class="p">,</span><span class="s1">&#39;var2&#39;</span><span class="p">],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> : ‘fmu’, ‘powerflow’, ‘csv’, ‘external’</p></li>
@@ -108,13 +111,9 @@ the following :</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> : A raw string address of simulator location.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> : Variables that need to be recorded from the simulator during simulation.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> : Input variables to the simulator.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : internal step size for simulator (1e-3 by default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : Internal step size for simulator (1e-3 by default).</p></li>
 </ul>
 </div></blockquote>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;FMU1&#39;</span><span class="p">,</span>
-<span class="n">sim_loc</span><span class="o">=/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">sim</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;v1&#39;</span><span class="p">,</span> <span class="s1">&#39;v2&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;var1&#39;</span><span class="p">,</span><span class="s1">&#39;var2&#39;</span><span class="p">],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-</pre></div>
-</div>
 </div>
 <div class="section" id="connections-between-simulators">
 <h3>Connections between simulators<a class="headerlink" href="#connections-between-simulators" title="Permalink to this headline">¶</a></h3>
@@ -153,9 +152,23 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
 <div class="toctree-wrapper compound">
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#variable">variable</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#parameter-set">parameter_set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#opf">opf</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#constant-signal">constant_signal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#plot-of-cosimulation">plot of cosimulation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Working with results</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="results.html#plotting-results">plotting results</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#init-get-value-set-value-step">init, get_value, set_value, step</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#example-random-number-generator">example: random number generator</a></li>
+</ul>
+</li>
 </ul>
 </div>
 <div class="section" id="indices-and-tables">

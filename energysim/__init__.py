@@ -98,10 +98,10 @@ class world():
         self.G = True
         self.simulator_dict = {}
         
-    def add_signal(self, sim_name, signal):
+    def add_signal(self, sim_name, signal, step_size=1):
         if sim_name not in self.simulator_dict.keys():
             signal_obj = signal_adapter(signal_name=sim_name, signal=signal)
-            self.simulator_dict[sim_name] = ['signal', signal_obj, 1, 'y']
+            self.simulator_dict[sim_name] = ['signal', signal_obj, step_size, ['y']]
             
     
     def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs = [], outputs = [], step_size=1, **kwargs):

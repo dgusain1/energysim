@@ -11,8 +11,6 @@ What is energysim?
 
 The idea behind development of ``energysim`` is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc. 
 
-.. image:: images/energysim.png
-
 Currently, ``energysim`` allows users to combine:
 	
 	1. Dynamic models packaged as *Functional Mockup Units*.
@@ -20,7 +18,8 @@ Currently, ``energysim`` allows users to combine:
 	3. PyPSA models (still under testing) as *Excel files*.
 	4. User-defined external simulators interfaced with *.py functions*.
 	5. CSV data files
-	
+
+.. image:: images/energysim.png	
 
 Installation
 ############
@@ -66,21 +65,20 @@ Once ``world`` is imported, it can be initialized with basic simulation paramete
 
 Adding Simulators
 ^^^^^^^^^^^^^^^^^
-After initializing the world cosimulation object, simulators can be added 
-to the world using the ``add_simulator()`` method. This is done by specifying 
-the following :
+After initializing the world cosimulation object, simulators can be added to the world using the ``add_simulator()`` method::
+
+	my_world.add_simulator(sim_type='fmu', sim_name='FMU1', 
+	sim_loc=/path/to/sim, inputs=['v1', 'v2'], outputs=['var1','var2'], step_size=1)
+	
+where:
 
 	- ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external'
 	- ``sim_name`` : Unique simulator name.
 	- ``sim_loc`` : A raw string address of simulator location.
 	- ``outputs`` : Variables that need to be recorded from the simulator during simulation.
 	- ``inputs`` : Input variables to the simulator.
-	- ``step_size`` : internal step size for simulator (1e-3 by default).
+	- ``step_size`` : Internal step size for simulator (1e-3 by default).
 
-::
-
-	my_world.add_simulator(sim_type='fmu', sim_name='FMU1', 
-	sim_loc=/path/to/sim, inputs=['v1', 'v2'], outputs=['var1','var2'], step_size=1)
 
 Connections between simulators
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -104,6 +102,7 @@ Initialization is important to start-up simulator in a cosimulation. If the simu
 	options = {'init' : initializations}
 	my_world.options(options)
 
+
 Executing simulation
 ^^^^^^^^^^^^^^^^^^^^
 Finally, the ``simulate()`` function can be called to simulate the world. 
@@ -111,7 +110,6 @@ This returns a dictionary with simulator name as keys and the results of
 the simulator as pandas dataframe. ``pbar`` can be used to toggle the progress bar for the simulation::
 
 	results = my_world.simulate(pbar=True)
-
 
 Links
 ^^^^^

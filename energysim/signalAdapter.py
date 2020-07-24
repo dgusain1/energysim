@@ -21,13 +21,13 @@ class signal_adapter():
         pass
     
     def get_value(self, parameters, time):
+        return self.signal(time)
         
-        if len(self.signal) == 1:
-            return [self.signal[0]]
-        elif len(self.signal) == 3:
-            return [self.signal[0] if time < self.signal[1] else self.signal[2]]
-        elif len(self.signal) == 4:
-            return [self.signal[0] if time < self.signal[1] or time > self.signal[2] else self.signal[3]]
-        else:
-#            print('unrecognized signal format, using 0 values for signal %s.' %(self.signal_name))
-            return [0]
+#        if len(self.signal) == 1:
+#            return [self.signal[0]]
+#        elif len(self.signal) == 3:
+#            return [self.signal[0] if time < self.signal[1] else self.signal[2]]
+#        elif len(self.signal) == 4:
+#            return [self.signal[0] if time < self.signal[1] or time > self.signal[2] else self.signal[3]]
+#        else:
+#            return [0]
