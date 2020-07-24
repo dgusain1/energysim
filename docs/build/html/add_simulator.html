@@ -60,7 +60,7 @@ As mentioned, four main types of simulators can be added: FMU, powerflow network
 <blockquote>
 <div><ol class="arabic simple">
 <li><p>For FMUs: FMPy generally validates the FMUs before initialization process. Users can skip this validation by specifyng the argument <cite>validate = False</cite>. Generally, it has been observed, the FMUs packaged with OpenModelica fail validation. However, they can be simulated by setting the <code class="docutils literal notranslate"><span class="pre">validate</span> <span class="pre">=</span> <span class="pre">False</span></code>.</p></li>
-<li><p>FOr powerflow: For powerflow simulators, users can specify whether to execute a AC powerflow or an optimal power flow, or a DCpowerflow. This can be done by providing the specifying the value of argument <code class="docutils literal notranslate"><span class="pre">pf</span></code>. It can be set to “pf”, “dcpf”, “opf”, or “dcopf”. Please note, this is only available for pandapower networks currently.</p></li>
+<li><p>For powerflow: For powerflow simulators, users can specify whether to execute a AC powerflow or an optimal power flow, or a DCpowerflow. This can be done by providing the specifying the value of argument <code class="docutils literal notranslate"><span class="pre">pf</span></code>. It can be set to “pf”, “dcpf”, “opf”, or “dcopf”. Please note, this is only available for pandapower networks currently.</p></li>
 <li><p>For csv: For csv files, the users can specify the delimiter by providing the argument <code class="docutils literal notranslate"><span class="pre">delimiter=','</span></code> or whatever the delimiter is.</p></li>
 </ol>
 </div></blockquote>
