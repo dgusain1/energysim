@@ -87,11 +87,10 @@ class world():
     
     """
     
-    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60):
+    def __init__(self, start_time = 0, stop_time = 1000, logging = False):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
-        self.exchange = t_macro
         self.modify_signal = False
         self.modify_dict = {}
         self.init_dict = {}
@@ -329,13 +328,27 @@ class world():
                 except:
                     print(f"Could not initialize the {sim_values[0]} simulator {sim_name}. Check FAQs. Simulation stopped.")
                     sys.exit()
-        
+    
+    def get_time_series(self):
+        deltaTs = np.unique(list(self.simulator_connections.values()))
+        a1=[[self.start_time, self.stop_time]]
+        for i in deltaTs:
+            a1.append([round(x,4) for x in np.arange(self.start_time,self.stop_time,i)])
+        b = set().union(*a1)
+        return b
+            
+    
     def simulate(self, pbar = True, **kwargs): 
         startTime = self.start_time
         stopTime = self.stop_time
         self.init()
+        time_series = self.get_time_series()
         assert (stopTime-startTime >= self.macro_tstep), "difference between start and stop time > exchange value specified in world initialisation"
         total_steps = int((stopTime-startTime)/self.macro_tstep)+1
+        
+        for time in time_series:
+            self.exchange_variable_values(time)
+            
         
         for time in tqdm(np.linspace(startTime, stopTime, total_steps), disable = not pbar):
             #exchange values at t=0
