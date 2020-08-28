@@ -50,6 +50,12 @@ class pp_adapter():
             pp.rundcopp(self.network)
         
             
+    def check_input_var(self, ele, var):
+        tmp = 'res_'+ele
+        if var in list(getattr(getattr(self.network,tmp),'columns')):
+            return True
+        else:
+            return False
         
     
     def set_value(self, parameters, values):
@@ -58,50 +64,144 @@ class pp_adapter():
         '''
         for parameter, value in zip(parameters, values):
             ele_name, input_variable = parameter.split('.')
-            assert input_variable in ['P', 'Q'], "Powerflow input variable not valid. Use P, Q to  define variables."
             if ele_name in list(self.network.gen.name):
-                adder, residual = 'gen', 'p_mw' if input_variable == 'P' else 'q_mvar'
+                if input_variable in list(self.network.gen.columns):
+                    adder, residual = 'gen', input_variable
+                    self.network.gen.at[(self.network.gen.name==ele_name).idxmax(), input_variable] = value
+                    getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
+                elif input_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.gen[self.network.gen['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'gen'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']=value
+                else:
+                    print(f"Parameter {parameter} not found in network {self.network_name}.")
+                    sys.exit()
             elif ele_name in list(self.network.load.name):
-                adder, residual = 'load', 'p_mw' if input_variable == 'P' else 'q_mvar'
+                if input_variable in list(self.network.load.columns):
+                    adder, residual = 'load', input_variable
+                    getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
+                elif input_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.load[self.network.load['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'load'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']=value
+                else:
+                    print(f"Parameter {parameter} not found in network {self.network_name}.")
+                    sys.exit()
             elif ele_name in list(self.network.sgen.name):
-                adder, residual = 'sgen', 'p_mw' if input_variable == 'P' else 'q_mvar'
+                if input_variable in list(self.network.sgen.columns):
+                    adder, residual = 'sgen', input_variable
+                    getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
+                elif input_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.sgen[self.network.sgen['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'sgen'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']=value
+
+                else:
+                    print(f"Parameter {parameter} not found in network {self.network_name}.")
+                    sys.exit()
             else:
                 print(f'Could not find {ele_name} as a component in {self.network} network. Make sure element names are correctly specified in get_value()')
                 sys.exit()
             
-            getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual] = value
-    
-    def get_value(self, parameters, time):
+    def get_value(self, parameters):
         '''
         Must specify parameter in a list format.
         '''
         temp_parameter_list = [x.split('.') for x in parameters]
         temp_output = []
         for ele_name, output_variable in temp_parameter_list:
-            if output_variable.lower() == 'v':
-                x = 'vm_pu'
-            elif output_variable.lower() == 'va':
-                x = 'va_degree'
             if ele_name in list(self.network.gen.name):
-                adder, residual = 'res_gen', 'p_mw' if output_variable == 'P' else 'q_mvar'
+                if output_variable in list(self.network.res_gen.columns):
+                    adder, residual = 'res_gen', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable in list(self.network.gen.columns):
+                    adder, residual = 'gen', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.gen[self.network.gen['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'gen'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    temp_var = self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']
+                    temp_output.append(temp_var)
+                else:
+                    print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                    sys.exit()                    
             elif ele_name in list(self.network.load.name):
-                adder, residual = 'res_load', 'p_mw' if output_variable == 'P' else 'q_mvar'
+                if output_variable in list(self.network.res_load.columns):
+                    adder, residual = 'res_load', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable in list(self.network.load.columns):
+                    adder, residual = 'load', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.load[self.network.load['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'load'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    temp_var = self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']
+                    temp_output.append(temp_var)
+                else:
+                    print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                    sys.exit()
             elif ele_name in list(self.network.bus.name):
-                adder, residual = 'res_bus', x
+                if output_variable in list(self.network.res_bus.columns):
+                    adder, residual = 'res_bus', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable in list(self.network.bus.columns):
+                    adder, residual = 'bus', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    print(f'Bus variable cannot have cost parameters')
+                    sys.exit()
+                else:
+                    print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                    sys.exit()
             elif ele_name in list(self.network.sgen.name):
-                adder, residual = 'res_sgen', 'p_mw' if output_variable == 'P' else 'q_mvar'
+                if output_variable in list(self.network.res_sgen.columns):
+                    adder, residual = 'res_sgen', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable in list(self.network.sgen.columns):
+                    adder, residual = 'sgen', output_variable
+                    temp_var = getattr(self.network, adder).at[(getattr(self.network, adder).name == ele_name).idxmax(), residual]
+                    temp_output.append(temp_var)
+                elif output_variable == 'cp1_eur_per_mw':
+                    #index of load
+                    idx = self.network.sgen[self.network.sgen['name']==ele_name].index.values[0]
+                    tmp1 = self.network.poly_cost['et'] == 'sgen'
+                    tmp2 = self.network.poly_cost['element'] == idx
+                    temp_var = self.network.poly_cost.at[self.network.poly_cost[tmp1&tmp2].index.values[0],'cp1_eur_per_mw']
+                    temp_output.append(temp_var)
+
+                else:
+                    print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                    sys.exit()
             else:
                 print(f'Could not find {ele_name} as a component in {self.network} network. Make sure element names are correctly specified in get_value()')
                 sys.exit()
                 
-            temp_var = getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele_name).idxmax(), residual]
-            temp_output.append(temp_var)
+
         
         return temp_output
         
     
     def getOutput(self):
-        return [getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele).idxmax(), residual] for ele, adder, residual in self.new_outputs]
+        return self.get_value(self.outputs)
+#        return [getattr(self.network, adder).at[(getattr(self.network, adder[4:]).name == ele).idxmax(), residual] for ele, adder, residual in self.new_outputs]
         
     
     def setInput(self, inputValues):
@@ -123,42 +223,61 @@ class pp_adapter():
             new_outputs = []
             for item in inputs:
                 ele_name, input_variable = item.split('.')
-                assert input_variable in ['P', 'Q'], "Powerflow input variable not valid. Use P, Q to  define variables."
-                #check in generators
-                if ele_name in list(network.gen.name):
-                    adder, residual = 'gen', 'p_mw' if input_variable == 'P' else 'q_mvar'
-                elif ele_name in list(network.load.name):
-                    adder, residual = 'load', 'p_mw' if input_variable == 'P' else 'q_mvar'
-                elif ele_name in list(network.sgen.name):
-                    adder, residual = 'sgen', 'p_mw' if input_variable == 'P' else 'q_mvar'
+                if ele_name in list(self.network.gen.name):
+                    adder, residual = 'gen', input_variable
+                elif ele_name in list(self.network.load.name):
+                    adder, residual = 'load', input_variable
+                elif ele_name in list(self.network.sgen.name):
+                    adder, residual = 'sgen', input_variable
                 else:
-                    print(f'Only Generator, load, and sgen P, Q inputs are supported for pandapower nets. Couldnt find {ele_name} in either loads or generators. Quitting simulation.')
+                    print(f'Couldnt find {ele_name}. Quitting simulation.')
                     sys.exit()
                 new_inputs.append((ele_name, adder, residual))
             
             for item in outputs:
                 ele_name, output_variable = item.split('.')
-                assert output_variable in ['P', 'Q', 'V', 'Va'], "Powerflow output variable not valid. Use P, Q, V, Va to  define variables."
-                
-                if output_variable == 'V':
-                    x = 'vm_pu'
-                elif output_variable == 'Va':
-                    x = 'va_degree'
+                if ele_name in list(self.network.gen.name):
+                    if output_variable in list(self.network.res_gen.columns):
+                        adder, residual = 'res_gen', output_variable
+                    elif output_variable in list(self.network.gen.columns):
+                        adder, residual = 'gen', output_variable
+                    else:
+                        print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                        sys.exit()
+                        
+                elif ele_name in list(self.network.load.name):
+                    if output_variable in list(self.network.res_load.columns):
+                        adder, residual = 'res_load', output_variable
+                    elif output_variable in list(self.network.load.columns):
+                        adder, residual = 'load', output_variable
+                    else:
+                        print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                        sys.exit()
+    
+                elif ele_name in list(self.network.bus.name):
+                    if output_variable in list(self.network.res_bus.columns):
+                        adder, residual = 'res_bus', output_variable
+                    elif output_variable in list(self.network.bus.columns):
+                        adder, residual = 'bus', output_variable
+                    else:
+                        print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                        sys.exit()
                     
-                if ele_name in list(network.gen.name):
-                    adder, residual = 'res_gen', 'p_mw' if output_variable == 'P' else 'q_mvar'
-                elif ele_name in list(network.load.name):
-                    adder, residual = 'res_load', 'p_mw' if output_variable == 'P' else 'q_mvar'
-                elif ele_name in list(network.bus.name):
-                    adder, residual = 'res_bus', x
-                elif ele_name in list(network.sgen.name):
-                    adder, residual = 'res_sgen', 'p_mw' if output_variable == 'P' else 'q_mvar'
+                elif ele_name in list(self.network.sgen.name):
+                    if output_variable in list(self.network.res_sgen.columns):
+                        adder, residual = 'res_sgen', output_variable
+                    elif output_variable in list(self.network.sgen.columns):
+                        adder, residual = 'sgen', output_variable
+                    else:
+                        print(f'Variable {output_variable} does not exist in pandapower network {self.network_name}.')
+                        sys.exit()
+
                 else:
-                    print(f'Only Generator, load, storage, and bus P, Q, outputs are supported. Couldnt find {ele_name} in specified network. Quitting simulation.')
+                    print(f'Couldnt find {ele_name} in specified network. Quitting simulation.')
                     sys.exit()
                 new_outputs.append((ele_name, adder, residual))
                 
             return new_inputs, new_outputs   
-    
+     
     def cleanUp(self):
         del self.network
