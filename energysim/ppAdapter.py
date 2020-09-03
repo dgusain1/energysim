@@ -109,7 +109,7 @@ class pp_adapter():
                 print(f'Could not find {ele_name} as a component in {self.network} network. Make sure element names are correctly specified in get_value()')
                 sys.exit()
             
-    def get_value(self, parameters):
+    def get_value(self, parameters, *args):
         '''
         Must specify parameter in a list format.
         '''
