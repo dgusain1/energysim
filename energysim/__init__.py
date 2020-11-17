@@ -350,8 +350,7 @@ class world():
                 while temp_time < local_stop_time:
                     if len(outputs)>0:
                         tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-                        self.res_dict[sim_name] = np.vstack( self.res_dict[sim_name], tmp)
-#                        self.res_dict[sim_name].append(tmp)
+                        self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], tmp))
 
                     if sim_type == 'fmu':
                         if sim_items[4]:
@@ -379,7 +378,7 @@ class world():
         processed_res = {}
         for sim_name, results in self.res_dict.items():
             output_names = ['time'] + self.simulator_dict[sim_name][3]
-            processed_res[sim_name] = pd.DataFrame(results, columns = output_names)
+            processed_res[sim_name] = pd.DataFrame(results[1:], columns = output_names)
 
         return processed_res
 
@@ -387,7 +386,8 @@ class world():
         res_rec_dict = {}
         for sim_name, values in self.simulator_dict.items():
             if len(values[3])>0:
-                res_rec_dict[sim_name] = np.empty((0,len(values[3])+1),dtype=np.float64)
+                res_rec_dict[sim_name] = np.array([np.zeros(len(values[3])+1)])#np.empty((0,len(values[3])+1),dtype=np.float64)
+#                res_rec_dict[sim_name] = []
 
         return res_rec_dict
 
