@@ -347,10 +347,12 @@ class world():
                 outputs = sim_items[3]
                 temp_time = time
                 local_stop_time = min(temp_time + self.macro_tstep, stopTime)
+                tmp_var = []
                 while temp_time < local_stop_time:
                     if len(outputs)>0:
                         tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-                        self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], tmp))
+                        tmp_var.append(tmp)
+#                        self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], tmp))
 
                     if sim_type == 'fmu':
                         if sim_items[4]:
@@ -368,6 +370,7 @@ class world():
                     else:
                         simulator.step(temp_time)
                         temp_time += sim_ss
+                self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], np.array(tmp_var)))
 
         return self.results()
 
