@@ -15,6 +15,8 @@ from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 from functools import reduce
 import importlib
+import tables as tb
+filters = tb.Filters(complevel=5, complib='zlib')
 
 class world():
     r"""
@@ -87,7 +89,7 @@ class world():
 
     """
 
-    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60):
+    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60, res_filename=tempfile.TemporaryFile(prefix = 'es', suffix='_res').name[-14:]):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
@@ -97,6 +99,7 @@ class world():
         self.init_dict = {}
         self.G = True
         self.simulator_dict = {}
+        self.file_name = res_filename
 
     def add_signal(self, sim_name, signal, step_size=1):
         if sim_name not in self.simulator_dict.keys():
@@ -311,8 +314,10 @@ class world():
         else:
             self.macro_tstep = self.get_lcm()
 
-        self.res_dict = self.create_results_recorder()
-
+#        self.res_dict = self.create_results_recorder()
+        
+        self.create_results_recorder()
+        
         #set initial conditions
         if self.init_dict:
             self.set_parameters(self.init_dict)
@@ -370,7 +375,8 @@ class world():
                     else:
                         simulator.step(temp_time)
                         temp_time += sim_ss
-                self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], np.array(tmp_var)))
+                self.record_data(sim_name, np.array(tmp_var))
+#                self.res_dict[sim_name] = np.vstack( (self.res_dict[sim_name], np.array(tmp_var)))
 
         return self.results()
 
@@ -379,21 +385,45 @@ class world():
         Processes the results from the cosimulation and provides them in a dict+df form.
         """
         processed_res = {}
-        for sim_name, results in self.res_dict.items():
-            output_names = ['time'] + self.simulator_dict[sim_name][3]
-            processed_res[sim_name] = pd.DataFrame(results[1:], columns = output_names)
+        
+        with tb.open_file(filename=self.file_name + '.h5', mode='r') as f:
+            for sim_name, values in self.simulator_dict.items():
+                sim_data = list(getattr(f.root, sim_name))
+                tmp = pd.DataFrame(data=sim_data, columns=['time'] + values[3])
+                processed_res[sim_name] = tmp
+                
+#        for sim_name, results in self.res_dict.items():
+#            output_names = ['time'] + self.simulator_dict[sim_name][3]
+#            processed_res[sim_name] = pd.DataFrame(results[1:], columns = output_names)
 
         return processed_res
 
     def create_results_recorder(self):
-        res_rec_dict = {}
-        for sim_name, values in self.simulator_dict.items():
-            if len(values[3])>0:
-                res_rec_dict[sim_name] = np.array([np.zeros(len(values[3])+1)])#np.empty((0,len(values[3])+1),dtype=np.float64)
+        with tb.open_file(filename=self.file_name+'.h5', mode='w') as f:
+            for sim_name, values in self.simulator_dict.items():
+                if len(values[3])>0:    
+                    shape = (0, len(values[3])+1)
+                    f.create_earray(
+                        where='/',
+                        name=sim_name,
+                        filters=filters,
+                        shape=shape,
+                        atom=tb.Float64Atom())
+        
+#        res_rec_dict = {}
+#        for sim_name, values in self.simulator_dict.items():
+#            if len(values[3])>0:
+#                res_rec_dict[sim_name] = np.array([np.zeros(len(values[3])+1)])#np.empty((0,len(values[3])+1),dtype=np.float64)
 #                res_rec_dict[sim_name] = []
 
-        return res_rec_dict
+#        return res_rec_dict
+    
+    def record_data(self, sim, data):
 
+        with tb.open_file(filename=self.file_name+'.h5', mode='a') as f:
+            earray= getattr(f.root,sim)
+            earray.append(sequence=data)
+    
     def alter_signal(self, op_, tmp):
         '''
         Checks if the signal needs modification as aspecified in modify_signal dict under options.
