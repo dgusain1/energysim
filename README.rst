@@ -1,5 +1,5 @@
 
-.. image:: logo.png	
+.. image:: logo.png
 
 Compatible with Python 3.6 and above.
 Documentation available `here <https://energysim.readthedocs.io/en/latest/>`_.
@@ -9,10 +9,10 @@ What is energysim?
 
 ``energysim`` is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called ``FMUWorld``, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
 
-The idea behind development of ``energysim`` is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc. 
+The idea behind development of ``energysim`` is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc.
 
 Currently, ``energysim`` allows users to combine:
-	
+
 	1. Dynamic models packaged as *Functional Mockup Units*.
 	2. Pandapower networks packaged as *pickle files*.
 	3. PyPSA models (still under testing) as *Excel files*.
@@ -38,6 +38,7 @@ Dependencies
 	6. Matplotlib
 	7. NetworkX
 	8. tqdm
+	9. PyTables
 
 Usage
 #####
@@ -49,7 +50,7 @@ Usage
 
 Initialization
 ^^^^^^^^^^^^^^
-Once ``world`` is imported, it can be initialized with basic simulation parameters using:: 
+Once ``world`` is imported, it can be initialized with basic simulation parameters using::
 
 
 	my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
@@ -58,16 +59,16 @@ Once ``world`` is imported, it can be initialized with basic simulation paramete
 
 	- ``start_time`` : simulation start time (0 by default).
 	- ``stop_time`` : simulation end time (1000 by default).
-	- ``logging`` : Flag to toggle update on simulation progress (True by default). 
+	- ``logging`` : Flag to toggle update on simulation progress (True by default).
 	- ``t_macro`` : Time steps at which information between simulators needs to be exchanged. (60 by default).
 
 Adding Simulators
 ^^^^^^^^^^^^^^^^^
 After initializing the world cosimulation object, simulators can be added to the world using the ``add_simulator()`` method::
 
-	my_world.add_simulator(sim_type='fmu', sim_name='FMU1', 
+	my_world.add_simulator(sim_type='fmu', sim_name='FMU1',
 	sim_loc=/path/to/sim, inputs=['v1', 'v2'], outputs=['var1','var2'], step_size=1)
-	
+
 where:
 
 	- ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external'
@@ -105,13 +106,17 @@ Initialization is important to start-up simulator in a cosimulation. If the simu
 
 Executing simulation
 ^^^^^^^^^^^^^^^^^^^^
-Finally, the ``simulate()`` function can be called to simulate the world. 
-This returns a dictionary with simulator name as keys and the results of 
+The ``simulate()`` function can be called to simulate the world.
+This returns a dictionary with simulator name as keys and the results of
 the simulator as pandas dataframe. ``pbar`` can be used to toggle the progress bar for the simulation::
 
-	results = my_world.simulate(pbar=True)
+	my_world.simulate(pbar=True)
 
+Extracting Results
+^^^^^^^^^^^^^^^^^^
+Results can be extracted by calling ``results()`` function on ``my_world`` object. Additionally, ``to_csv`` flag can be toggled to export results to csv files. If False, the function returns a dictionary object with each simulators' results as pandas dataframe.
 
+	results = my_world.results(to_csv=True)
 
 More information is provided on the documentation page.
 

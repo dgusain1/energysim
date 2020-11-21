@@ -1,18 +1,17 @@
 
 <!DOCTYPE html>
 
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>energysim documentation &#8212; energysim 2.0 documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script src="_static/jquery.js"></script>
-    <script src="_static/underscore.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/language_data.js"></script>
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Adding simulators" href="add_simulator.html" />
@@ -145,7 +144,14 @@ The values to simulator input are kept constant for the duration between two mac
 <p>Finally, the <code class="docutils literal notranslate"><span class="pre">simulate()</span></code> function can be called to simulate the world.
 This returns a dictionary with simulator name as keys and the results of
 the simulator as pandas dataframe. <code class="docutils literal notranslate"><span class="pre">pbar</span></code> can be used to toggle the progress bar for the simulation:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">pbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">pbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="extracting-results">
+<h3>Extracting Results<a class="headerlink" href="#extracting-results" title="Permalink to this headline">¶</a></h3>
+<p>Results can be extracted by calling <code class="docutils literal notranslate"><span class="pre">results()</span></code> function on <code class="docutils literal notranslate"><span class="pre">my_world</span></code> object. Additionally, <code class="docutils literal notranslate"><span class="pre">to_csv</span></code> flag can be toggled to export results to csv files. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, the function returns a dictionary object with each simulators’ results as pandas dataframe:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">results</span><span class="p">(</span><span class="n">to_csv</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="toctree-wrapper compound">
@@ -236,7 +242,7 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
     </form>
     </div>
 </div>
-<script>$('#searchbox').show(0);</script>
+<script type="text/javascript">$('#searchbox').show(0);</script>
 
 
 
@@ -253,7 +259,7 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
       &copy;2020, Digvijay Gusain.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
