@@ -8,7 +8,7 @@ def readme():
 
 setup(
       name='energysim',
-      version='2.0.9',
+      version='2.1.0',
       description='Python package for cosimulation of multi-energy systems',
       long_description=readme(),
       long_description_content_type="text/x-rst",
@@ -22,8 +22,8 @@ setup(
               'Programming Language :: Python :: 3.6'],
       packages=['energysim'],
       include_package_data=True,
-      install_requires=['numpy', 'pandas', 'tqdm', 
-                        'fmpy==0.2.14', 'pandapower', 
+      install_requires=['numpy', 'pandas', 'tqdm',
+                        'fmpy==0.2.14', 'pandapower',
                         'pypsa', 'networkx', 'matplotlib',
-                        'pytables', 'h5py']
+                        'tables', 'h5py']
       )
