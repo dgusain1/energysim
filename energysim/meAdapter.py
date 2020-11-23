@@ -292,7 +292,7 @@ class FmuMeAdapter():
         self.fmu.terminate()
         self.fmu.freeInstance()
         del self.solver
-        shutil.rmtree(self.unzipDir)
+#        shutil.rmtree(self.unzipDir)
     
     def simulate(self, timeout=180):
         from fmpy import simulate_fmu

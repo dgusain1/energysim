@@ -4,6 +4,7 @@ from .csv_adapter import csv_simulator
 from .pypsaAdapter import pypsa_adapter
 from .ppAdapter import pp_adapter
 from .signalAdapter import signal_adapter
+from .utils import convert_hdf_to_dict, record_data, create_results_recorder
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
@@ -17,6 +18,7 @@ from functools import reduce
 import importlib, os
 import tables as tb
 filters = tb.Filters(complevel=5, complib='zlib')
+import gc
 
 class world():
     r"""
@@ -89,7 +91,7 @@ class world():
 
     """
     
-    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60, res_filename='es_res'):
+    def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60, res_filename='es_res.h5'):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
@@ -307,14 +309,18 @@ class world():
         if self.logging:
             print("Simulation started..")
             print("Simulation status:\n")
-
+        
+        self.sim_dict={}
+        for i, j in self.simulator_dict.items():
+            self.sim_dict[i] = j[3]
+            
         #determine the final_tStep for World
         if self.exchange != 0:
             self.macro_tstep = self.exchange
         else:
             self.macro_tstep = self.get_lcm()
 
-        self.create_results_recorder()
+        create_results_recorder(file_name=self.file_name, sim_dict=self.sim_dict)
         
         #set initial conditions
         if self.init_dict:
@@ -332,14 +338,14 @@ class world():
                 except:
                     print(f"Could not initialize the {sim_values[0]} simulator {sim_name}. Check FAQs. Simulation stopped.")
                     sys.exit()
+        
 
-    def simulate(self, pbar = True, **kwargs):
+    def simulate(self, pbar = True, record_all=True):
         startTime = self.start_time
         stopTime = self.stop_time
         self.init()
         assert (stopTime-startTime >= self.macro_tstep), "difference between start and stop time > exchange value specified in world initialisation"
         total_steps = int((stopTime-startTime)/self.macro_tstep)
-
         for time in tqdm(np.linspace(startTime, stopTime, total_steps, endpoint=False), disable = not pbar):
             #exchange values at t=0
             tmp_dict = {}
@@ -352,8 +358,11 @@ class world():
                 outputs = sim_items[3]
                 temp_time = time
                 tmp_var = []
+                if len(outputs)>0 and record_all == False:
+                    tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+                    tmp_var.append(tmp)
                 while temp_time < local_stop_time:
-                    if len(outputs)>0:
+                    if len(outputs)>0 and record_all:
                         tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
                         tmp_var.append(tmp)
 
@@ -374,8 +383,16 @@ class world():
                         simulator.step(temp_time)
                         temp_time += sim_ss
                 tmp_dict[sim_name] = np.array(tmp_var)
+                del tmp_var
+                gc.collect()
                 
-            self.record_data(tmp_dict)
+            record_data(file_name=self.file_name, res_dict=tmp_dict)
+            del tmp_dict
+            gc.collect()
+        
+        for sim_name, sim_items in self.simulator_dict.items():
+            if sim_items[0] == 'fmu':
+                sim_items[1].cleanUp()
 
         return 'Done'
 
@@ -383,51 +400,41 @@ class world():
         """
         Processes the results from the cosimulation and provides them in a dict+df form.
         """
-        processed_res = {}
         
-        with tb.open_file(filename=self.file_name + '.h5', mode='r') as f:
-            for sim_name, values in self.simulator_dict.items():
-                sim_data = list(getattr(f.root, sim_name))
-                tmp = pd.DataFrame(data=sim_data, columns=['time'] + values[3])
-                processed_res[sim_name] = tmp
-        
+        res = convert_hdf_to_dict(file_name = self.file_name, sim_dict=self.sim_dict, to_csv=to_csv)
         if to_csv:
-            parent_dir = os.getcwd()
-            tmp_path = os.path.join(parent_dir, 'res')
-            for sim_name, res_df in processed_res.items():
-                if os.path.isdir(tmp_path):
-                    res_df.to_csv(os.path.join(tmp_path,f'res_{sim_name}.csv'))
-                else:
-                    os.makedirs(tmp_path)
-                    res_df.to_csv(os.path.join(tmp_path,f'res_{sim_name}.csv'))
-            print(f"Exported results to {tmp_path}.")
+            print(res)
         else:
-            return processed_res
+            return res
 
-    def create_results_recorder(self):
-        with tb.open_file(filename=self.file_name+'.h5', mode='w') as f:
-            for sim_name, values in self.simulator_dict.items():
-                if len(values[3])>0:    
-                    shape = (0, len(values[3])+1)
-                    f.create_earray(
-                        where='/',
-                        name=sim_name,
-                        filters=filters,
-                        shape=shape,
-                        atom=tb.Float64Atom())
+#    def create_results_recorder(self):
+#        """Creates a hdf5 file to store results"""
+#        
+#        with tb.open_file(filename=self.file_name, mode='w') as f:
+#            for sim_name, values in self.simulator_dict.items():
+#                if len(values[3])>0:    
+#                    shape = (0, len(values[3])+1)
+#                    f.create_earray(
+#                        where='/',
+#                        name=sim_name,
+#                        filters=filters,
+#                        shape=shape,
+#                        atom=tb.Float64Atom())
 
     
-    def record_data(self, res_dict):
-        with tb.open_file(filename=self.file_name+'.h5', mode='a') as f:
-            for sim, data in res_dict.items():
-                earray= getattr(f.root,sim)
-                earray.append(sequence=data)
-        
-    def record_data1(self, sim, data):
-
-        with tb.open_file(filename=self.file_name+'.h5', mode='a') as f:
-            earray= getattr(f.root,sim)
-            earray.append(sequence=data)
+#    def record_data(self, res_dict):
+#        """Utility function to record the data"""
+#        
+#        with tb.open_file(filename=self.file_name, mode='a') as f:
+#            for sim, data in res_dict.items():
+#                earray= getattr(f.root,sim)
+#                earray.append(sequence=data)
+#        
+#    def record_data1(self, sim, data):
+#        """Utility function to record the data"""
+#        with tb.open_file(filename=self.file_name+'.h5', mode='a') as f:
+#            earray= getattr(f.root,sim)
+#            earray.append(sequence=data)
     
     
     def alter_signal(self, op_, tmp):
