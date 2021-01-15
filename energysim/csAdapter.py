@@ -88,16 +88,19 @@ class FmuCsAdapter():
                                  modelIdentifier=self.modelDescription.coSimulation.modelIdentifier,
                                  instanceName=self.instanceName)
             self.fmu.instantiate(functions=callbacks)
+            
         else:
             self.fmu = FMU2Slave(guid = self.modelDescription.guid,
                      unzipDirectory=self.unzipDir,
                      modelIdentifier=self.modelDescription.coSimulation.modelIdentifier,
                      instanceName=self.instanceName)
             self.fmu.instantiate(callbacks=callbacks)
+            self.fmu.setupExperiment(startTime=self.start_time, tolerance=self.tolerance)
         
         self.input = Input(self.fmu, self.modelDescription, None)
         
-        
+    def set_start_values(self, init_dict):
+        apply_start_values(self.fmu, self.modelDescription, init_dict, apply_default_start_values=False)
 
     def set_value(self,parameterName,Value):
         '''
@@ -144,10 +147,11 @@ class FmuCsAdapter():
         
     def init(self): 
         if self.is_fmi1:
+            self.input.apply(0)
             self.fmu.initialize()
         else:
-            self.fmu.setupExperiment(startTime=self.start_time, tolerance=self.tolerance)
             self.fmu.enterInitializationMode()
+            input.apply(0)
             self.fmu.exitInitializationMode()
     
     

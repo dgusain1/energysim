@@ -12,7 +12,7 @@ import shutil, sys
 from fmpy.simulation import Recorder, Input, apply_start_values
 from random import random
 from fmpy.fmi2 import *
-import numpy as np
+import numpy as np, os
 
 class FmuMeAdapter():
     '''
@@ -29,6 +29,7 @@ class FmuMeAdapter():
                  outputs = [],
                  solver_name = 'Cvode',
                  show_fmu_info = False,
+                 exist=False,
                  validate=True):
 
         assert (fmu_location is not None), "Must specify FMU location"
@@ -49,17 +50,34 @@ class FmuMeAdapter():
         self.validate=validate
         if show_fmu_info:
             dump(self.fmu_location)
-
+        self.exist = exist
         self.setup()
         
 
         
     def setup(self):
+        fmi_call_logger=None
         self.t_next = self.start_time
         self.unzipDir = extract(self.fmu_location)
         self.modelDescription = read_model_description(self.fmu_location, validate=self.validate)
         self.is_fmi1 = self.modelDescription.fmiVersion == '1.0'
         logger = printLogMessage
+        # common FMU constructor arguments
+        self.fmu_args = {'guid': self.modelDescription.guid,
+                    'unzipDirectory': self.unzipDir,
+                    'instanceName': self.instanceName,
+                    'fmiCallLogger': fmi_call_logger}
+        
+        if self.exist:
+
+            from fmpy.util import compile_dll
+        
+            # compile the shared library from the C sources
+            self.fmu_args['libraryPath'] = compile_dll(model_description=self.modelDescription,
+                                                  sources_dir=os.path.join(self.unzipDir, 'sources'))
+        
+        self.fmu_args['modelIdentifier'] = self.modelDescription.modelExchange.modelIdentifier
+        
         if self.is_fmi1:
             callbacks = fmi1CallbackFunctions()
             callbacks.logger = fmi1CallbackLoggerTYPE(logger)
@@ -84,6 +102,8 @@ class FmuMeAdapter():
                                  instanceName=self.instanceName)
             #instantiate FMU
             self.fmu.instantiate(functions=callbacks)
+            self.fmu.setTime(self.start_time)
+            
         else:
             self.fmu = FMU2Model(guid = self.modelDescription.guid,
                      unzipDirectory=self.unzipDir,
@@ -91,7 +111,13 @@ class FmuMeAdapter():
                      instanceName=self.instanceName)
             #instantiate FMU
             self.fmu.instantiate(callbacks=callbacks)
+            self.fmu.setupExperiment(startTime=self.start_time)
 
+        self.input = Input(self.fmu, self.modelDescription, None) 
+    
+    def set_start_values(self, init_dict):
+        apply_start_values(self.fmu, self.modelDescription, init_dict, apply_default_start_values=False)
+    
     def set_value(self,parameterName,Value):
         '''
         Must specify parameters and values in list format
@@ -139,11 +165,11 @@ class FmuMeAdapter():
         #self.set_inital_inputs({})
         self.input = Input(self.fmu, self.modelDescription, None)
         if self.is_fmi1:
-            self.fmu.setTime(self.start_time)
+#            self.fmu.setTime(self.start_time)
             self.input.apply(0)
             self.fmu.initialize()
         else:
-            self.fmu.setupExperiment(startTime=self.start_time)
+#            self.fmu.setupExperiment(startTime=self.start_time)
             self.fmu.enterInitializationMode()
             self.input.apply(0)
             self.fmu.exitInitializationMode()

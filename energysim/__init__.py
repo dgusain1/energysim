@@ -8,14 +8,13 @@ from .utils import convert_hdf_to_dict, record_data, create_results_recorder
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
-import pandas as pd
+#import pandas as pd
 import pypsa, logging as lg
-import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 pypsa.pf.logger.setLevel(lg.CRITICAL)
 from functools import reduce
-import importlib, os
+import importlib
 import tables as tb
 filters = tb.Filters(complevel=5, complib='zlib')
 import gc
@@ -133,7 +132,7 @@ class world():
             else:
                 variable=False
             if 'validate' in kwargs.keys():
-                validate=kwargs['variable']
+                validate=kwargs['validate']
             else:
                 validate=False
             self.add_fmu(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size,
@@ -245,6 +244,7 @@ class world():
         """
         Plots approximate graph diagram for the energysim network.
         """
+        import networkx as nx
         self.G=nx.DiGraph()
         for key, value in self.simulator_connections.items():
 
@@ -338,7 +338,40 @@ class world():
                 except:
                     print(f"Could not initialize the {sim_values[0]} simulator {sim_name}. Check FAQs. Simulation stopped.")
                     sys.exit()
-        
+    
+    def step_simulator(self, sim, time, record_all, local_stop_time):
+        sim_name, sim_items = sim
+        sim_type = sim_items[0]
+        simulator = sim_items[1]
+        sim_ss = sim_items[2]
+        outputs = sim_items[3]
+        temp_time = time
+        tmp_var = []
+        if len(outputs)>0 and record_all == False:
+            tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+            tmp_var.append(tmp)
+        while temp_time < local_stop_time:
+            if len(outputs)>0 and record_all:
+                tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+                tmp_var.append(tmp)
+    
+            if sim_type == 'fmu':
+                if sim_items[4]:
+                    stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
+                    try:
+                        simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
+                        temp_time += stepsize             #self.stepsize_dict[_fmu]
+                    except:
+                        print(f'Could not initiate variable step size for the FMU {sim_name}. Energysim will switch to fixed steps.')
+                        simulator.step(min(temp_time, local_stop_time), sim_ss)
+                        temp_time += sim_ss
+                else:
+                    simulator.step(min(temp_time, local_stop_time))
+                    temp_time += sim_ss
+            else:
+                simulator.step(temp_time)
+                temp_time += sim_ss
+        return tmp_var
 
     def simulate(self, pbar = True, record_all=True):
         startTime = self.start_time
@@ -352,36 +385,37 @@ class world():
             self.exchange_variable_values(time)
             local_stop_time = time + self.macro_tstep#, stopTime)
             for sim_name, sim_items in self.simulator_dict.items():
-                sim_type = sim_items[0]
-                simulator = sim_items[1]
-                sim_ss = sim_items[2]
-                outputs = sim_items[3]
-                temp_time = time
-                tmp_var = []
-                if len(outputs)>0 and record_all == False:
-                    tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-                    tmp_var.append(tmp)
-                while temp_time < local_stop_time:
-                    if len(outputs)>0 and record_all:
-                        tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-                        tmp_var.append(tmp)
-
-                    if sim_type == 'fmu':
-                        if sim_items[4]:
-                            stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
-                            try:
-                                simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
-                                temp_time += stepsize             #self.stepsize_dict[_fmu]
-                            except:
-                                print(f'Could not initiate variable step size for the FMU {sim_name}. Energysim will switch to fixed steps.')
-                                simulator.step(min(temp_time, local_stop_time), sim_ss)
-                                temp_time += sim_ss
-                        else:
-                            simulator.step(min(temp_time, local_stop_time))
-                            temp_time += sim_ss
-                    else:
-                        simulator.step(temp_time)
-                        temp_time += sim_ss
+                tmp_var = self.step_simulator((sim_name, sim_items), time, record_all, local_stop_time)
+#                sim_type = sim_items[0]
+#                simulator = sim_items[1]
+#                sim_ss = sim_items[2]
+#                outputs = sim_items[3]
+#                temp_time = time
+#                tmp_var = []
+#                if len(outputs)>0 and record_all == False:
+#                    tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+#                    tmp_var.append(tmp)
+#                while temp_time < local_stop_time:
+#                    if len(outputs)>0 and record_all:
+#                        tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+#                        tmp_var.append(tmp)
+#
+#                    if sim_type == 'fmu':
+#                        if sim_items[4]:
+#                            stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
+#                            try:
+#                                simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
+#                                temp_time += stepsize             #self.stepsize_dict[_fmu]
+#                            except:
+#                                print(f'Could not initiate variable step size for the FMU {sim_name}. Energysim will switch to fixed steps.')
+#                                simulator.step(min(temp_time, local_stop_time), sim_ss)
+#                                temp_time += sim_ss
+#                        else:
+#                            simulator.step(min(temp_time, local_stop_time))
+#                            temp_time += sim_ss
+#                    else:
+#                        simulator.step(temp_time)
+#                        temp_time += sim_ss
                 tmp_dict[sim_name] = np.array(tmp_var)
                 del tmp_var
                 gc.collect()
@@ -407,35 +441,6 @@ class world():
         else:
             return res
 
-#    def create_results_recorder(self):
-#        """Creates a hdf5 file to store results"""
-#        
-#        with tb.open_file(filename=self.file_name, mode='w') as f:
-#            for sim_name, values in self.simulator_dict.items():
-#                if len(values[3])>0:    
-#                    shape = (0, len(values[3])+1)
-#                    f.create_earray(
-#                        where='/',
-#                        name=sim_name,
-#                        filters=filters,
-#                        shape=shape,
-#                        atom=tb.Float64Atom())
-
-    
-#    def record_data(self, res_dict):
-#        """Utility function to record the data"""
-#        
-#        with tb.open_file(filename=self.file_name, mode='a') as f:
-#            for sim, data in res_dict.items():
-#                earray= getattr(f.root,sim)
-#                earray.append(sequence=data)
-#        
-#    def record_data1(self, sim, data):
-#        """Utility function to record the data"""
-#        with tb.open_file(filename=self.file_name+'.h5', mode='a') as f:
-#            earray= getattr(f.root,sim)
-#            earray.append(sequence=data)
-    
     
     def alter_signal(self, op_, tmp):
         '''
