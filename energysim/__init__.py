@@ -519,9 +519,15 @@ class world():
     def set_parameters(self, parameter_dictionary):
         _sims = parameter_dictionary.keys()
         for _sim in _sims:
-            parameter_list_derived = list(parameter_dictionary[_sim])[0]
-            parameter_values_to_set = list(parameter_dictionary[_sim])[1]
-            self.simulator_dict[_sim][1].set_value(parameter_list_derived, parameter_values_to_set)
+            if self.simulator_dict[_sim][0] == 'fmu':
+                parameter_list_derived = list(parameter_dictionary[_sim])[0]
+                parameter_values_to_set = list(parameter_dictionary[_sim])[1]
+                self.simulator_dict[_sim][1].set_start_values(init_dict = dict(zip(parameter_list_derived, parameter_values_to_set)))
+            else:
+                
+                parameter_list_derived = list(parameter_dictionary[_sim])[0]
+                parameter_values_to_set = list(parameter_dictionary[_sim])[1]
+                self.simulator_dict[_sim][1].set_value(parameter_list_derived, parameter_values_to_set)
 
     def check_signal_output(self, fx):
         tmp = fx(1)
