@@ -147,11 +147,11 @@ class FmuCsAdapter():
         
     def init(self): 
         if self.is_fmi1:
-            self.input.apply(0)
+            #self.input.apply(0)
             self.fmu.initialize()
         else:
             self.fmu.enterInitializationMode()
-            input.apply(0)
+            #input.apply(0)
             self.fmu.exitInitializationMode()
     
     

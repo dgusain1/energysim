@@ -325,7 +325,7 @@ class world():
         #set initial conditions
         if self.init_dict:
             self.set_parameters(self.init_dict)
-
+        
         #initialize simulators
         for sim_name, sim_values in self.simulator_dict.items():
             try:
