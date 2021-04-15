@@ -8,6 +8,39 @@ Created on Mon Nov 23 10:17:34 2020
 import tables as tb, pandas as pd, os
 filters = tb.Filters(complevel=5, complib='zlib')
 
+def convert_to_df(file_name, headers={}):
+    '''Converts the input h5 file to dataframes'''
+    processed_res = {}
+    if len(headers)>0:
+        with tb.open_file(filename=file_name, mode='r') as f:
+            for key, value in headers.items():
+                sim_data = list(getattr(f.root, key))
+                df = pd.DataFrame(data=sim_data, columns = ['time'] + value)
+                processed_res[key] = df
+    else:
+        with tb.open_file(filename=file_name, mode='r') as f:
+            for i in range(len(list(f.root))):
+                sim_data = list(list(f.root)[i])
+                df = pd.DataFrame(data=sim_data)
+                processed_res[i] = df
+    return processed_res
+
+def convert_to_csv(file_name, headers={}):
+    '''Converts the input h5 file to csv data files'''
+    if len(headers)>0:
+        with tb.open_file(filename=file_name, mode='r') as f:
+            for key, value in headers.items():
+                sim_data = list(getattr(f.root, key))
+                df = pd.DataFrame(data=sim_data, columns = ['time'] + value)
+                df.to_csv(f'res_{key}.csv', header=None)
+    else:
+        with tb.open_file(filename=file_name, mode='r') as f:
+            for i in range(len(list(f.root))):
+                sim_data = list(list(f.root)[i])
+                df = pd.DataFrame(data=sim_data)
+                df.to_csv(f'res_{i}.csv', header=None)
+        
+
 def convert_hdf_to_dict(file_name='es_res.h5', sim_dict={}, to_csv = False, **kwargs):
     processed_res = {}
     with tb.open_file(filename=file_name, mode='r') as f:
