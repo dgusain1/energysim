@@ -8,7 +8,6 @@ from .utils import convert_hdf_to_dict, record_data, create_results_recorder
 from fmpy.model_description import read_model_description
 import sys
 import numpy as np
-#import pandas as pd
 import pypsa, logging as lg
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -73,11 +72,15 @@ class world():
     Simulate
     --------
     Finally, the ``simulate()`` function can be called to simulate the world.
-    This returns a dictionary with simulator name as keys and the results of
-    the simulator as pandas dataframe.
-    ``pbar`` can be used to toggle the progress bar for the simulation.
+    When ``record_all`` is True, ``energysim`` records the value of variables not only at macro time steps, but also at micro time steps specified by the user when adding the simulators. This allows the users to get a better understanding of simulators in between macro time steps. When set to False, variables are only recorded at macro time step. This is useful in case a long term simulation (for ex. a day) is performed, but one of the simulators has a time step in milli-seconds. ``pbar`` can be used to toggle the progress bar for the simulation::
 
-    >>> my_world.simulate(pbar=True)
+    >>> my_world.simulate(pbar=True, record_all=False)
+
+    Extracting Results
+    ------------------
+    Results can be extracted by calling ``results()`` function on ``my_world`` object. This returns a dictionary object with each simulators' results as pandas dataframe. Additionally, ``to_csv`` flag can be toggled to export results to csv files.
+
+    >>> results = my_world.results(to_csv=True)
 
     Package Info
     ------------
@@ -85,7 +88,7 @@ class world():
 
     Email : digvijay.gusain29@gmail.com
 
-    Version : 2.0
+    Version : 2.1.7
 
 
     """
@@ -143,6 +146,7 @@ class world():
                 pf = kwargs['pf']
             else:
                 pf='pf'
+                
             self.add_powerflow(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size, pf=pf)
 
         elif sim_type.lower() == 'csv':
@@ -350,9 +354,16 @@ class world():
         if len(outputs)>0 and record_all == False:
             tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
             tmp_var.append(tmp)
+        elif len(outputs) == 0 and record_all == False:
+            tmp = [temp_time]
+            tmp_var.append(tmp)
+        
         while temp_time < local_stop_time:
             if len(outputs)>0 and record_all:
                 tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
+                tmp_var.append(tmp)
+            elif len(outputs) == 0 and record_all:
+                tmp = [temp_time]
                 tmp_var.append(tmp)
     
             if sim_type == 'fmu':
@@ -374,6 +385,9 @@ class world():
         return tmp_var
 
     def simulate(self, pbar = True, record_all=True):
+        '''
+        Simulates the world object
+        '''
         startTime = self.start_time
         stopTime = self.stop_time
         self.init()
@@ -386,36 +400,6 @@ class world():
             local_stop_time = time + self.macro_tstep#, stopTime)
             for sim_name, sim_items in self.simulator_dict.items():
                 tmp_var = self.step_simulator((sim_name, sim_items), time, record_all, local_stop_time)
-#                sim_type = sim_items[0]
-#                simulator = sim_items[1]
-#                sim_ss = sim_items[2]
-#                outputs = sim_items[3]
-#                temp_time = time
-#                tmp_var = []
-#                if len(outputs)>0 and record_all == False:
-#                    tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-#                    tmp_var.append(tmp)
-#                while temp_time < local_stop_time:
-#                    if len(outputs)>0 and record_all:
-#                        tmp = [temp_time] + list(simulator.get_value(outputs, temp_time))
-#                        tmp_var.append(tmp)
-#
-#                    if sim_type == 'fmu':
-#                        if sim_items[4]:
-#                            stepsize = self.get_step_time(sim_ss, local_stop_time, temp_time, self.macro_tstep, time)
-#                            try:
-#                                simulator.step_advanced(min(temp_time, local_stop_time), stepsize)
-#                                temp_time += stepsize             #self.stepsize_dict[_fmu]
-#                            except:
-#                                print(f'Could not initiate variable step size for the FMU {sim_name}. Energysim will switch to fixed steps.')
-#                                simulator.step(min(temp_time, local_stop_time), sim_ss)
-#                                temp_time += sim_ss
-#                        else:
-#                            simulator.step(min(temp_time, local_stop_time))
-#                            temp_time += sim_ss
-#                    else:
-#                        simulator.step(temp_time)
-#                        temp_time += sim_ss
                 tmp_dict[sim_name] = np.array(tmp_var)
                 del tmp_var
                 gc.collect()
@@ -436,10 +420,7 @@ class world():
         """
         
         res = convert_hdf_to_dict(file_name = self.file_name, sim_dict=self.sim_dict, to_csv=to_csv)
-        if to_csv:
-            print(res)
-        else:
-            return res
+        return res
 
     
     def alter_signal(self, op_, tmp):

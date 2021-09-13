@@ -73,7 +73,7 @@ def record_data(file_name, res_dict):
     
     with tb.open_file(filename=file_name, mode='a') as f:
         for sim, data in res_dict.items():
-            earray= getattr(f.root,sim)
+            earray= getattr(f.root, sim)
             earray.append(sequence=data)
 
 def create_results_recorder(file_name, sim_dict):
@@ -81,11 +81,11 @@ def create_results_recorder(file_name, sim_dict):
     
     with tb.open_file(filename=file_name, mode='w') as f:
         for sim_name, outputs in sim_dict.items():
-            if len(outputs)>0:    
-                shape = (0, len(outputs)+1)
-                f.create_earray(
-                    where='/',
-                    name=sim_name,
-                    filters=filters,
-                    shape=shape,
-                    atom=tb.Float64Atom())
+            # if len(outputs)>0:    
+            shape = (0, len(outputs)+1)
+            f.create_earray(
+                where='/',
+                name=sim_name,
+                filters=filters,
+                shape=shape,
+                atom=tb.Float32Atom())

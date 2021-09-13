@@ -107,14 +107,13 @@ Initialization is important to start-up simulator in a cosimulation. If the simu
 Executing simulation
 ^^^^^^^^^^^^^^^^^^^^
 The ``simulate()`` function can be called to simulate the world.
-This returns a dictionary with simulator name as keys and the results of
-the simulator as pandas dataframe. ``pbar`` can be used to toggle the progress bar for the simulation::
+When ``record_all`` is True, ``energysim`` records the value of variables not only at macro time steps, but also at micro time steps specified by the user when adding the simulators. This allows the users to get a better understanding of simulators in between macro time steps. When set to False, variables are only recorded at macro time step. This is useful in case a long term simulation (for ex. a day) is performed, but one of the simulators has a time step in milli-seconds. ``pbar`` can be used to toggle the progress bar for the simulation::
 
-	my_world.simulate(pbar=True)
+	my_world.simulate(pbar=True, record_all=False)
 
 Extracting Results
 ^^^^^^^^^^^^^^^^^^
-Results can be extracted by calling ``results()`` function on ``my_world`` object. Additionally, ``to_csv`` flag can be toggled to export results to csv files. If False, the function returns a dictionary object with each simulators' results as pandas dataframe.
+Results can be extracted by calling ``results()`` function on ``my_world`` object. This returns a dictionary object with each simulators' results as pandas dataframe. Additionally, ``to_csv`` flag can be toggled to export results to csv files.
 
 	results = my_world.results(to_csv=True)
 
