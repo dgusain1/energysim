@@ -3,12 +3,9 @@
 
 class external_simulator():
     
-    def __init__(self, sim_name, sim_loc, inputs = [], outputs = [], step_size=1):
-        self.sim_name = sim_name
-        self.sim_loc = sim_loc
+    def __init__(self, inputs = [], outputs = [], **kwargs):
         self.inputs = inputs
         self.outputs = outputs
-        self.step_size = step_size
         
         #initalize sim object here
         

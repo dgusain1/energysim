@@ -1,0 +1,2 @@
+New in 2.1.8
+- added ability to specify inputs to external_simulator

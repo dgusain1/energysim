@@ -8,7 +8,7 @@ def readme():
 
 setup(
       name='energysim',
-      version='2.1.7',
+      version='2.1.8',
       description='Python package for cosimulation of multi-energy systems',
       long_description=readme(),
       long_description_content_type="text/x-rst",
