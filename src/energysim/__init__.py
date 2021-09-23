@@ -88,9 +88,6 @@ class world():
 
     Email : digvijay.gusain29@gmail.com
 
-    Version : 2.1.x
-
-
     """
     
     def __init__(self, start_time = 0, stop_time = 1000, logging = False, t_macro = 60, res_filename='es_res.h5'):
@@ -157,21 +154,19 @@ class world():
             self.add_csv(csv_name=sim_name, csv_location=sim_loc, step_size=step_size, outputs=outputs, delimiter=delimiter)
 
         elif sim_type.lower() == 'external':
-            elif sim_type.lower() == 'external':
             self.add_external_simulator(sim_name = sim_name, sim_loc = sim_loc, inputs = inputs, outputs = outputs, step_size = step_size)
 
         else:
             print(f"Simulator type {sim_type} not recognized. Possible sim_type are 'external', 'fmu', 'powerflow', 'csv' types.")
             print(f"Simulator {sim_name} not added")
 
-    def add_external_simulator(self, sim_name, sim_loc, inputs, outputs, step_size = 900, **kwargs):
+    def add_external_simulator(self, sim_name, sim_loc, inputs, outputs, step_size = 900):
         sys.path.append(sim_loc)
         tmp = importlib.import_module(sim_name)
         external_simulator = tmp.external_simulator
-        kwargs = kwargs
         #check that the sim_name is unique
         if sim_name not in self.simulator_dict.keys():
-            simulator = external_simulator(inputs = inputs, outputs=outputs, options=kwargs)
+            simulator = external_simulator(inputs = inputs, outputs=outputs)
             self.simulator_dict[sim_name] = ['external', simulator, step_size, outputs]
             if self.logging:
                 print("Added external simulator '%s' to the world" %(sim_name))
