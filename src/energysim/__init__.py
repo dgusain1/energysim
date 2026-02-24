@@ -509,7 +509,7 @@ class world():
 
     def check_signal_output(self, fx):
         tmp = fx(1)
-        if type(tmp) == list:
+        if isinstance(tmp, list):
             return True
         else:
             print('Function must return list. Signal function will not be added.')
