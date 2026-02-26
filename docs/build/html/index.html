@@ -1,25 +1,26 @@
-
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
-    <title>energysim documentation &#8212; energysim 2.0 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>energysim documentation &#8212; energysim 2.1.9.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=0ae25b9e"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Adding simulators" href="add_simulator.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
+
   
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+  
 
   </head><body>
   
@@ -31,181 +32,385 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="energysim-documentation">
-<h1>energysim documentation<a class="headerlink" href="#energysim-documentation" title="Permalink to this headline">¶</a></h1>
-<p>Compatible with Python 3.6 and above.</p>
-<div class="section" id="what-is-energysim">
-<h2>What is energysim?<a class="headerlink" href="#what-is-energysim" title="Permalink to this headline">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called <code class="docutils literal notranslate"><span class="pre">FMUWorld</span></code>, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.</p>
-<p>The idea behind development of <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc.</p>
+  <section id="energysim-documentation">
+<h1>energysim documentation<a class="headerlink" href="#energysim-documentation" title="Link to this heading">¶</a></h1>
+<p>Compatible with Python 3.8 and above.</p>
+<section id="what-is-energysim">
+<h2>What is energysim?<a class="headerlink" href="#what-is-energysim" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> is a Python-based co-simulation tool designed to simplify
+multi-energy co-simulations.  The tool was originally called <code class="docutils literal notranslate"><span class="pre">FMUWorld</span></code>,
+since it focussed exclusively on combining Functional Mockup Units (FMUs).
+It has since evolved into a general-purpose co-simulation coordinator that
+supports a wide variety of energy-system simulators.</p>
+<p>The idea behind <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is to let users focus on high-level
+applications — energy-system planning, control-strategy evaluation,
+sector coupling — while the framework handles low-level tasks such as
+message exchange, time-step coordination, dependency ordering, and
+algebraic-loop detection.</p>
 <p>Currently, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> allows users to combine:</p>
-<blockquote>
-<div><ol class="arabic simple">
-<li><p>Dynamic models packaged as <em>Functional Mockup Units</em>.</p></li>
-<li><p>Pandapower networks packaged as <em>pickle files</em>.</p></li>
-<li><p>PyPSA models (still under testing) as <em>Excel files</em>.</p></li>
-<li><p>User-defined external simulators interfaced with <em>.py functions</em>.</p></li>
-<li><p>CSV data files</p></li>
+<ol class="arabic simple">
+<li><p>Dynamic models packaged as <strong>Functional Mockup Units</strong> (FMI 1.0 &amp; 2.0,
+Co-Simulation and Model Exchange).</p></li>
+<li><p><strong>Pandapower</strong> networks (PF, DCPF, OPF, DCOPF).</p></li>
+<li><p><strong>PyPSA</strong> networks <em>(experimental)</em>.</p></li>
+<li><p>User-defined <strong>external simulators</strong> written in Python.</p></li>
+<li><p><strong>CSV</strong> data files (time-indexed profiles).</p></li>
+<li><p><strong>DIgSILENT PowerFactory</strong> models via the Python API.</p></li>
+<li><p><strong>MATLAB / GNU Octave</strong> models as <code class="docutils literal notranslate"><span class="pre">.m</span></code> functions.</p></li>
+<li><p><strong>Signal generators</strong> (Python lambda / function).</p></li>
+<li><p>Standalone <strong>Python scripts</strong>.</p></li>
 </ol>
-</div></blockquote>
 <img alt="_images/energysim.png" src="_images/energysim.png" />
-</div>
-<div class="section" id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> can be installed with <code class="docutils literal notranslate"><span class="pre">pip</span></code> using:</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> can be installed with <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">energysim</span>
 </pre></div>
 </div>
-<div class="section" id="dependencies">
-<h3>Dependencies<a class="headerlink" href="#dependencies" title="Permalink to this headline">¶</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> requires the following packages to work:</p>
-<blockquote>
-<div><ol class="arabic simple">
-<li><p>FMPy</p></li>
-<li><p>Pandapower</p></li>
-<li><p>PyPSA</p></li>
+<p>To install with all optional dependencies:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">energysim</span><span class="p">[</span><span class="nb">all</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="dependencies">
+<h3>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">¶</a></h3>
+<p><strong>Core</strong> (always required):</p>
+<ul class="simple">
 <li><p>NumPy</p></li>
 <li><p>Pandas</p></li>
 <li><p>Matplotlib</p></li>
 <li><p>NetworkX</p></li>
 <li><p>tqdm</p></li>
-</ol>
-</div></blockquote>
-</div>
-</div>
-<div class="section" id="usage">
-<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> cosimulation is designed for an easy-plug-and-play approach. The main component is the <code class="docutils literal notranslate"><span class="pre">world()</span></code> object. This is the “playground” where all simulators, and connections are added and the options for simulation are specified. <code class="docutils literal notranslate"><span class="pre">world()</span></code> can be imported by implementing:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">energysim</span> <span class="kn">import</span> <span class="n">world</span>
-</pre></div>
-</div>
-<div class="section" id="initialization">
-<h3>Initialization<a class="headerlink" href="#initialization" title="Permalink to this headline">¶</a></h3>
-<p>Once <code class="docutils literal notranslate"><span class="pre">world</span></code> is imported, it can be initialized with basic simulation parameters using:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span> <span class="o">=</span> <span class="n">world</span><span class="p">(</span><span class="n">start_time</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">stop_time</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">logging</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">t_macro</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">world</span></code> accepts the following parameters :</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">start_time</span></code> : simulation start time (0 by default).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">stop_time</span></code> : simulation end time (1000 by default).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">logging</span></code> : Flag to toggle update on simulation progress (True by default).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">t_macro</span></code> : Time steps at which information between simulators needs to be exchanged. (60 by default).</p></li>
+<li><p>PyTables (<code class="docutils literal notranslate"><span class="pre">tables</span></code>)</p></li>
 </ul>
-</div></blockquote>
-</div>
-<div class="section" id="adding-simulators">
-<h3>Adding Simulators<a class="headerlink" href="#adding-simulators" title="Permalink to this headline">¶</a></h3>
-<p>After initializing the world cosimulation object, simulators can be added to the world using the <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> method:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;FMU1&#39;</span><span class="p">,</span>
-<span class="n">sim_loc</span><span class="o">=/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">sim</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;v1&#39;</span><span class="p">,</span> <span class="s1">&#39;v2&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;var1&#39;</span><span class="p">,</span><span class="s1">&#39;var2&#39;</span><span class="p">],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<p><strong>Optional</strong> (installed lazily when the first simulator of that type is
+added):</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Package</p></th>
+<th class="head"><p>When needed</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FMPy</p></td>
+<td><p>FMU simulators</p></td>
+</tr>
+<tr class="row-odd"><td><p>pandapower</p></td>
+<td><p>Powerflow simulators</p></td>
+</tr>
+<tr class="row-even"><td><p>PyPSA</p></td>
+<td><p>PyPSA network simulators</p></td>
+</tr>
+<tr class="row-odd"><td><p>oct2py</p></td>
+<td><p>MATLAB/Octave models (Octave backend)</p></td>
+</tr>
+<tr class="row-even"><td><p>MATLAB Engine</p></td>
+<td><p>MATLAB/Octave models (MATLAB backend)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Plotly</p></td>
+<td><p>Interactive HTML dashboards</p></td>
+</tr>
+</tbody>
+</table>
+<p>Install adapter-specific extras with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">energysim</span><span class="p">[</span><span class="n">fmu</span><span class="p">]</span>          <span class="c1"># FMPy</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="n">energysim</span><span class="p">[</span><span class="n">powerflow</span><span class="p">]</span>    <span class="c1"># pandapower</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="n">energysim</span><span class="p">[</span><span class="n">pypsa</span><span class="p">]</span>        <span class="c1"># PyPSA</span>
 </pre></div>
 </div>
-<p>where:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> : ‘fmu’, ‘powerflow’, ‘csv’, ‘external’</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> : Unique simulator name.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> : A raw string address of simulator location.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> : Variables that need to be recorded from the simulator during simulation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> : Input variables to the simulator.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : Internal step size for simulator (1e-3 by default).</p></li>
+</section>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> is designed for a plug-and-play workflow.  The main
+component is the <code class="docutils literal notranslate"><span class="pre">world</span></code> object — the coordinator where all simulators,
+connections, and options are registered:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">energysim</span><span class="w"> </span><span class="kn">import</span> <span class="n">world</span>
+</pre></div>
+</div>
+<section id="initialization">
+<h3>Initialization<a class="headerlink" href="#initialization" title="Link to this heading">¶</a></h3>
+<p>Create a <code class="docutils literal notranslate"><span class="pre">world</span></code> with the basic simulation parameters:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span> <span class="o">=</span> <span class="n">world</span><span class="p">(</span>
+    <span class="n">start_time</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">stop_time</span><span class="o">=</span><span class="mi">86400</span><span class="p">,</span>
+    <span class="n">t_macro</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span>
+    <span class="n">logging</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">coupling</span><span class="o">=</span><span class="s1">&#39;jacobi&#39;</span><span class="p">,</span>
+    <span class="n">extrapolation</span><span class="o">=</span><span class="s1">&#39;zero-order&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">world()</span></code> accepts the following parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">start_time</span></code> — simulation start time in seconds (default <code class="docutils literal notranslate"><span class="pre">0</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stop_time</span></code> — simulation stop time in seconds (default <code class="docutils literal notranslate"><span class="pre">1000</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">t_macro</span></code> — macro time-step at which variables are exchanged
+between simulators (default <code class="docutils literal notranslate"><span class="pre">60</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">logging</span></code> — toggle simulation progress updates (default <code class="docutils literal notranslate"><span class="pre">False</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">res_filename</span></code> — HDF5 results file name (default <code class="docutils literal notranslate"><span class="pre">'es_res.h5'</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">coupling</span></code> — coupling strategy (default <code class="docutils literal notranslate"><span class="pre">'jacobi'</span></code>):</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'jacobi'</span></code> — exchange all variables, then step all simulators
+(one-step delay in feedback loops).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'gauss-seidel'</span></code> — step simulators in topological order;
+each simulator’s outputs are immediately available to downstream
+simulators.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'iterative'</span></code> — fixed-point iteration with convergence check
+within each macro step (most accurate for tightly coupled systems).</p></li>
 </ul>
-</div></blockquote>
-<p>Please see documentation on <code class="docutils literal notranslate"><span class="pre">add_simulator</span></code> to properly add simulators to <code class="docutils literal notranslate"><span class="pre">energysim</span></code>.
-The values to simulator input are kept constant for the duration between two macro time steps.</p>
-</div>
-<div class="section" id="connections-between-simulators">
-<h3>Connections between simulators<a class="headerlink" href="#connections-between-simulators" title="Permalink to this headline">¶</a></h3>
-<p>Once all the required simulators are added, the connections between them can be specified with a dictionary as follows</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">connections</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sim1.output_variable1&#39;</span> <span class="p">:</span> <span class="s1">&#39;sim2.input_variable1&#39;</span><span class="p">,</span>
-   <span class="s1">&#39;sim3.output_variable2&#39;</span> <span class="p">:</span> <span class="s1">&#39;sim4.input_variable2&#39;</span><span class="p">,</span>
-   <span class="s1">&#39;sim1.output_variable3&#39;</span> <span class="p">:</span> <span class="s1">&#39;sim2.input_variable3&#39;</span><span class="p">,}</span>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">extrapolation</span></code> — how exchanged values are estimated between
+exchange points (default <code class="docutils literal notranslate"><span class="pre">'zero-order'</span></code>):</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'zero-order'</span></code> — hold the last exchanged value constant.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'linear'</span></code> — linearly extrapolate from the two most recent values.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">max_iterations</span></code> — maximum fixed-point iterations per macro step
+when <code class="docutils literal notranslate"><span class="pre">coupling='iterative'</span></code> (default <code class="docutils literal notranslate"><span class="pre">10</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">convergence_tolerance</span></code> — relative tolerance for convergence check
+in iterative coupling (default <code class="docutils literal notranslate"><span class="pre">1e-6</span></code>).</p></li>
+</ul>
+<p>See <a class="reference internal" href="architecture.html"><span class="doc">Architecture</span></a> for a detailed explanation of each coupling mode.</p>
+</section>
+<section id="adding-simulators">
+<h3>Adding simulators<a class="headerlink" href="#adding-simulators" title="Link to this heading">¶</a></h3>
+<p>Simulators are added using <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span>
+    <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;plant&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;model.fmu&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;power_cmd&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;temperature&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<p>This dictionary can be passed onto the world object:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_connections</span><span class="p">(</span><span class="n">connections</span><span class="p">)</span>
+<p>Parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> — one of <code class="docutils literal notranslate"><span class="pre">'fmu'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerflow'</span></code>, <code class="docutils literal notranslate"><span class="pre">'csv'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'external'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerfactory'</span></code>, <code class="docutils literal notranslate"><span class="pre">'matlab'</span></code>, <code class="docutils literal notranslate"><span class="pre">'script'</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> — unique identifier used in connections and results.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> — path to the model or data file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> — list of input variable names (populated via connections).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> — list of output variable names to record.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> — micro time-step in seconds (default <code class="docutils literal notranslate"><span class="pre">1</span></code>).</p></li>
+</ul>
+<p>See <a class="reference internal" href="add_simulator.html"><span class="doc">Adding simulators</span></a> for the full reference for each simulator type.</p>
+<p>Signals can be added with a dedicated method:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_signal</span><span class="p">(</span>
+    <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;setpoint&#39;</span><span class="p">,</span>
+    <span class="n">signal</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">[</span><span class="mf">42.0</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="initializing-simulator-variables">
-<h3>Initializing simulator variables<a class="headerlink" href="#initializing-simulator-variables" title="Permalink to this headline">¶</a></h3>
-<p>Initialization is important to start-up simulator in a cosimulation. If the simulators are not internally initialized, or of users want to use different initial conditions for the simulators, it can easily be done in <code class="docutils literal notranslate"><span class="pre">energysim</span></code>. To provide initial values to the simulators, an <code class="docutils literal notranslate"><span class="pre">init</span></code> dictionary can be specified and given to the <code class="docutils literal notranslate"><span class="pre">world</span></code> object</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">initializations</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sim_name1&#39;</span> <span class="p">:</span> <span class="p">([</span><span class="s1">&#39;sim_variables&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">values</span><span class="p">]),</span>
-                   <span class="s1">&#39;sim_name2&#39;</span> <span class="p">:</span> <span class="p">([</span><span class="s1">&#39;sim_variables&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">values</span><span class="p">])}</span>
-<span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;init&#39;</span> <span class="p">:</span> <span class="n">initializations</span><span class="p">}</span>
-<span class="n">my_world</span><span class="o">.</span><span class="n">options</span><span class="p">(</span><span class="n">options</span><span class="p">)</span>
+</section>
+<section id="connections-between-simulators">
+<h3>Connections between simulators<a class="headerlink" href="#connections-between-simulators" title="Link to this heading">¶</a></h3>
+<p>Once all simulators are added, their connections are specified with a
+dictionary mapping source outputs to destination inputs:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">connections</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;weather.temperature&#39;</span><span class="p">:</span>  <span class="s1">&#39;building.T_ambient&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;weather.irradiance&#39;</span><span class="p">:</span>   <span class="s1">&#39;pv.G_solar&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;pv.P_dc&#39;</span><span class="p">:</span>              <span class="s1">&#39;grid.PV.p_mw&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;controller.p_cmd&#39;</span><span class="p">:</span>     <span class="p">(</span><span class="s1">&#39;battery.P_cmd&#39;</span><span class="p">,</span> <span class="s1">&#39;grid.Battery.p_mw&#39;</span><span class="p">),</span>
+<span class="p">}</span>
+<span class="n">my_world</span><span class="o">.</span><span class="n">add_connections</span><span class="p">(</span><span class="n">connections</span><span class="p">)</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">add_connections()</span></code> performs <strong>automatic validation</strong>:</p>
+<ul class="simple">
+<li><p><strong>Simulator existence</strong> — raises <code class="docutils literal notranslate"><span class="pre">ConnectionError</span></code> if a referenced
+simulator name is not registered.</p></li>
+<li><p><strong>Malformed variable strings</strong> — raises <code class="docutils literal notranslate"><span class="pre">ConnectionError</span></code> if a
+variable string does not contain a <code class="docutils literal notranslate"><span class="pre">.</span></code> separator.</p></li>
+<li><p><strong>Read-only targets</strong> — warns if a connection writes to a CSV or
+signal simulator (which are inherently read-only).</p></li>
+<li><p><strong>Variable name checking</strong> — warns if a variable name does not match
+the adapter’s known variables (when introspection is available).</p></li>
+</ul>
+<p>After validation, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> builds a <strong>dependency graph</strong> from the
+connections and computes a <strong>topological execution order</strong>.  If the graph
+contains cycles (algebraic loops), a warning is issued and the cyclic
+simulators are grouped using strongly-connected-component analysis.</p>
+<section id="fan-out-and-fan-in">
+<h4>Fan-out and fan-in<a class="headerlink" href="#fan-out-and-fan-in" title="Link to this heading">¶</a></h4>
+<p>A single output can drive multiple inputs (fan-out):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">connections</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;source.y&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;sim_a.x&#39;</span><span class="p">,</span> <span class="s1">&#39;sim_b.x&#39;</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
 </div>
-<div class="section" id="executing-simulation">
-<h3>Executing simulation<a class="headerlink" href="#executing-simulation" title="Permalink to this headline">¶</a></h3>
-<p>Finally, the <code class="docutils literal notranslate"><span class="pre">simulate()</span></code> function can be called to simulate the world.
-This returns a dictionary with simulator name as keys and the results of
-the simulator as pandas dataframe. <code class="docutils literal notranslate"><span class="pre">pbar</span></code> can be used to toggle the progress bar for the simulation:</p>
+<p>Multiple outputs can feed a single input (fan-in); the last value wins:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">connections</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="s1">&#39;source_a.y&#39;</span><span class="p">,</span> <span class="s1">&#39;source_b.y&#39;</span><span class="p">):</span> <span class="s1">&#39;sim_c.x&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="initializing-simulator-variables">
+<h3>Initializing simulator variables<a class="headerlink" href="#initializing-simulator-variables" title="Link to this heading">¶</a></h3>
+<p>To set initial values before the first time-step, provide an <code class="docutils literal notranslate"><span class="pre">init</span></code>
+dictionary via <code class="docutils literal notranslate"><span class="pre">options()</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">initializations</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;plant&#39;</span><span class="p">:</span>   <span class="p">([</span><span class="s1">&#39;temperature&#39;</span><span class="p">],</span> <span class="p">[</span><span class="mf">293.15</span><span class="p">]),</span>
+    <span class="s1">&#39;battery&#39;</span><span class="p">:</span> <span class="p">([</span><span class="s1">&#39;SoC&#39;</span><span class="p">],</span>         <span class="p">[</span><span class="mf">0.5</span><span class="p">]),</span>
+<span class="p">}</span>
+<span class="n">my_world</span><span class="o">.</span><span class="n">options</span><span class="p">({</span><span class="s1">&#39;init&#39;</span><span class="p">:</span> <span class="n">initializations</span><span class="p">})</span>
+</pre></div>
+</div>
+</section>
+<section id="executing-simulation">
+<h3>Executing simulation<a class="headerlink" href="#executing-simulation" title="Link to this heading">¶</a></h3>
+<p>Run the co-simulation by calling <code class="docutils literal notranslate"><span class="pre">simulate()</span></code>:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">pbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="extracting-results">
-<h3>Extracting Results<a class="headerlink" href="#extracting-results" title="Permalink to this headline">¶</a></h3>
-<p>Results can be extracted by calling <code class="docutils literal notranslate"><span class="pre">results()</span></code> function on <code class="docutils literal notranslate"><span class="pre">my_world</span></code> object. Additionally, <code class="docutils literal notranslate"><span class="pre">to_csv</span></code> flag can be toggled to export results to csv files. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, the function returns a dictionary object with each simulators’ results as pandas dataframe:</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">pbar</span></code> flag toggles the <code class="docutils literal notranslate"><span class="pre">tqdm</span></code> progress bar.</p>
+<p>During simulation, <code class="docutils literal notranslate"><span class="pre">energysim</span></code>:</p>
+<ol class="arabic simple">
+<li><p>Initialises all adapters (<code class="docutils literal notranslate"><span class="pre">adapter.init()</span></code>).</p></li>
+<li><p>For each macro time-step:</p>
+<ol class="loweralpha simple">
+<li><p>Exchanges variables according to the coupling strategy.</p></li>
+<li><p>Steps each simulator from <em>t</em> to <em>t + t_macro</em>.</p></li>
+<li><p>Records outputs to the HDF5 file.</p></li>
+</ol>
+</li>
+<li><p>Cleans up all adapters (<code class="docutils literal notranslate"><span class="pre">adapter.cleanup()</span></code>).</p></li>
+</ol>
+</section>
+<section id="extracting-results">
+<h3>Extracting results<a class="headerlink" href="#extracting-results" title="Link to this heading">¶</a></h3>
+<p>After simulation, retrieve results as a dictionary of DataFrames:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">results</span><span class="p">(</span><span class="n">to_csv</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">to_csv=True</span></code> — also export each simulator’s results to a CSV file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dashboard=True</span></code> — open an interactive HTML dashboard in the
+browser.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dashboard_path='my_dashboard.html'</span></code> — save the dashboard to a
+custom path.</p></li>
+</ul>
+</section>
+<section id="error-handling">
+<h3>Error handling<a class="headerlink" href="#error-handling" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">energysim</span></code> uses a structured exception hierarchy instead of
+<code class="docutils literal notranslate"><span class="pre">sys.exit()</span></code> calls:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">EnergysimError</span></code> — base class for all energysim exceptions.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SimulatorVariableError</span></code> — invalid variable name or type.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SimulatorElementNotFoundError</span></code> — element not found in a network.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ConnectionError</span></code> — malformed or invalid connection specification.</p></li>
+</ul>
+<p>All exceptions can be imported from <code class="docutils literal notranslate"><span class="pre">energysim.base</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">energysim.base</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EnergysimError</span><span class="p">,</span>
+    <span class="n">SimulatorVariableError</span><span class="p">,</span>
+    <span class="n">SimulatorElementNotFoundError</span><span class="p">,</span>
+    <span class="ne">ConnectionError</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
 <div class="toctree-wrapper compound">
-<p class="caption"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#additional-arguments">Additional arguments</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#variable-naming-convention">Variable naming convention</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#powerflow-networks">Powerflow networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#csv-files">CSV files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#common-parameters">Common parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#fmu-simulators">FMU simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#powerflow-simulators">Powerflow simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#csv-simulators">CSV simulators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="add_simulator.html#external-simulators">External simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#powerfactory-simulators">PowerFactory simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_simulator.html#matlab-octave-simulators">MATLAB / Octave simulators</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#init-method">init() method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#step-time-method">step(time) method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#get-value-variable-time-method">get_value(variable, time) method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#set-value-variable-value-method">set_value(variable, value) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#quick-start">Quick start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#template">Template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#the-simulatoradapter-interface">The <code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code> interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#supporting-iterative-coupling">Supporting iterative coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#example-a-simple-battery-model">Example: a simple battery model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="working_external_sims.html#example-recording-intermediate-results">Example: recording intermediate results</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#coupling-modes">Coupling modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#extrapolation">Extrapolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#connection-validation">Connection validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#dependency-graph-algebraic-loops">Dependency graph &amp; algebraic loops</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#variable-introspection">Variable introspection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="energysim_features.html#adding-signals">Adding signals</a></li>
 <li class="toctree-l2"><a class="reference internal" href="energysim_features.html#modify-signals-before-exchange">Modify signals before exchange</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#enabling-sensitivity-analysis">Enabling sensitivity analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="energysim_features.html#optimal-power-flow">Optimal Power Flow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="energysim_features.html#validation-of-fmus">Validation of FMUs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#system-topology-plot">System Topology Plot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#recording-all-time-steps">Recording all time-steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#sensitivity-analysis">Sensitivity analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#powerfactory-integration">PowerFactory integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#matlab-octave-integration">MATLAB / Octave integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#interactive-dashboard">Interactive dashboard</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#system-topology-plot">System topology plot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#error-handling">Error handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="energysim_features.html#accessing-simulator-internals">Accessing simulator internals</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#exception-hierarchy">Exception hierarchy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#simulatoradapter-abc">SimulatorAdapter ABC</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#built-in-adapters">Built-in adapters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#simentry-dataclass">SimEntry dataclass</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#connection-validation">Connection validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#dependency-graph">Dependency graph</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#coupling-modes">Coupling modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#extrapolation">Extrapolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#simulation-loop">Simulation loop</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#lazy-imports">Lazy imports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#pre-parsed-connections">Pre-parsed connections</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#data-flow-summary">Data flow summary</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="faq.html#opfnotconvergederror">OPFNotConvergedError</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#fmu-initialization-error">FMU Initialization Error</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#fmu-initialisation-error">FMU initialisation error</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#simulatorvariableerror-simulatorelementnotfounderror">SimulatorVariableError / SimulatorElementNotFoundError</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#connectionerror">ConnectionError</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#simulation-hangs-runs-very-slowly">Simulation hangs / runs very slowly</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#typeerror-simentry-object-is-not-subscriptable"><code class="docutils literal notranslate"><span class="pre">TypeError:</span> <span class="pre">'SimEntry'</span> <span class="pre">object</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">subscriptable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#read-only-simulator-warnings">Read-only simulator warnings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#algebraic-loop-warnings">Algebraic loop warnings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#iterative-coupling-does-not-converge">Iterative coupling does not converge</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#missing-optional-dependencies">Missing optional dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#powerfactory-sim-name-must-match-the-project-name">PowerFactory: <code class="docutils literal notranslate"><span class="pre">sim_name</span></code> must match the project name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#octave-nargin-invalid-function-name">Octave: <code class="docutils literal notranslate"><span class="pre">nargin:</span> <span class="pre">invalid</span> <span class="pre">function</span> <span class="pre">name</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#which-coupling-mode-should-i-use">Which coupling mode should I use?</a></li>
 </ul>
 </li>
 </ul>
 </div>
-<div class="section" id="indices-and-tables">
-<h4>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h4>
+</section>
+</section>
+<section id="indices-and-tables">
+<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
 <li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
 <li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
 </ul>
-</div>
-</div>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
           
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper">
 <h1 class="logo"><a href="#">energysim</a></h1>
 
@@ -216,12 +421,22 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
 
 
 
-<h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents</span></p>
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a></li>
 <li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
 <li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
 
@@ -233,16 +448,6 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
   </ul></li>
 </ul>
 </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" />
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
 
 
 
@@ -256,11 +461,11 @@ the simulator as pandas dataframe. <code class="docutils literal notranslate"><s
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2020, Digvijay Gusain.
+      &#169;2020-2026, Digvijay Gusain.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
       
       |
       <a href="_sources/index.rst.txt"

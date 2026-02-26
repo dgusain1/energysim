@@ -1,17 +1,17 @@
-
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
-    <title>Working with external simulators &#8212; energysim 2.0 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Working with external simulators &#8212; energysim 2.1.9.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=0ae25b9e"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="energysim features" href="energysim_features.html" />
@@ -19,8 +19,9 @@
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
+
   
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+  
 
   </head><body>
   
@@ -32,79 +33,258 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="working-with-external-simulators">
-<h1>Working with external simulators<a class="headerlink" href="#working-with-external-simulators" title="Permalink to this headline">¶</a></h1>
-<p>One of the USPs of <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is that it can be coupled to external simulators fairly easily. However, it is expected that the users are familiar with intermediate level of python programming. In this section, we show how users can interface their own simulators with <code class="docutils literal notranslate"><span class="pre">energysim</span></code> very easily.</p>
-<p>In the main code, users can add their simulators to <code class="docutils literal notranslate"><span class="pre">my_world</span></code> by using:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="n">sim_name</span> <span class="o">=</span> <span class="s1">&#39;my_external_simulator&#39;</span><span class="p">,</span> <span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;var1&#39;</span><span class="p">,</span> <span class="s1">&#39;var2&#39;</span><span class="p">],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+  <section id="working-with-external-simulators">
+<h1>Working with external simulators<a class="headerlink" href="#working-with-external-simulators" title="Link to this heading">¶</a></h1>
+<p>One of the key features of <code class="docutils literal notranslate"><span class="pre">energysim</span></code> is easy integration of custom
+Python simulators.  Any simulator that implements the
+<code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code> interface can participate in a co-simulation.</p>
+<section id="quick-start">
+<h2>Quick start<a class="headerlink" href="#quick-start" title="Link to this heading">¶</a></h2>
+<ol class="arabic">
+<li><p>Create a Python file (e.g. <code class="docutils literal notranslate"><span class="pre">my_sim.py</span></code>) containing a class called
+<code class="docutils literal notranslate"><span class="pre">external_simulator</span></code> that inherits from <code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code>.</p></li>
+<li><p>Add it to the world:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;external&#39;</span><span class="p">,</span>
+    <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;my_sim&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;/path/to/directory/containing/my_sim.py&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;cmd&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Here the <code class="docutils literal notranslate"><span class="pre">sim_name</span></code> is the file name of the interfaced simulator <em>my_external_simulator.py</em>. This file has the following template:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#make necessary imports</span>
+<p>The <code class="docutils literal notranslate"><span class="pre">sim_name</span></code> must match the filename (without <code class="docutils literal notranslate"><span class="pre">.py</span></code>).</p>
+</li>
+</ol>
+</section>
+<section id="template">
+<h2>Template<a class="headerlink" href="#template" title="Link to this heading">¶</a></h2>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">external_simulator.py</span><a class="headerlink" href="#id1" title="Link to this code">¶</a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Template for user-defined external simulators.</span>
+<span class="c1">#</span>
+<span class="c1"># Copy this file, rename it to match your sim_name, and implement the</span>
+<span class="c1"># abstract methods.  The ``world`` orchestrator will call:</span>
+<span class="c1">#   init() -&gt; advance() (which loops step()) -&gt; cleanup()</span>
+<span class="c1"># automatically.</span>
+<span class="c1">#</span>
+<span class="c1"># Optional methods for advanced features:</span>
+<span class="c1">#   save_state() / restore_state()  -- for iterative coupling</span>
+<span class="c1">#   advance_with_recording()        -- for record_all=True</span>
+<span class="c1">#   get_available_variables()       -- for connection validation</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energysim.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulatorAdapter</span>
 
 
-<span class="k">class</span> <span class="nc">external_simulator</span><span class="p">():</span>
-    
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sim_name</span><span class="p">,</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">outputs</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sim_name</span> <span class="o">=</span> <span class="n">sim_name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span> <span class="o">=</span> <span class="n">step_size</span>
-            
-    <span class="k">def</span> <span class="nf">init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1">#specify simulator initialization command</span>
-        
-        <span class="c1">#remove pass after initialization has been set</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">external_simulator</span><span class="p">(</span><span class="n">SimulatorAdapter</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimal external simulator template.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="c1"># Initialise your model state here</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Called once before the first time step.</span>
+        <span class="c1"># Establish connections, load data, start up model.</span>
         <span class="k">pass</span>
-    
-    <span class="k">def</span> <span class="nf">set_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-        <span class="c1">#this should set the simulator paramaters as values. Return cmd not reqd</span>
-        
-        <span class="c1">#remove the pass after specifying set_value</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="c1"># Advance the model by one micro-step at ``time``.</span>
         <span class="k">pass</span>
-    
-    <span class="k">def</span> <span class="nf">get_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variable</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
-        <span class="c1">#this should return a list of values from simulator as a list corresponding to parameters</span>
-        
-        <span class="o">**</span><span class="n">Return</span> <span class="n">reqd</span><span class="o">**</span>
-        
-        <span class="c1">#remove the pass after specifying get_value. </span>
-        <span class="k">pass</span>    
-    
-    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
-        <span class="c1">#use the time variable (if needed) to step the simulator to t=time</span>
-        
-        <span class="c1">#return is not required. remove the pass command afterwards.</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="c1"># Return a list of values corresponding to ``parameters``.</span>
+        <span class="c1"># Example: return [self.var1, self.var2]</span>
         <span class="k">pass</span>
-    
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="c1"># Set the variables named in ``parameters`` to ``values``.</span>
+        <span class="c1"># Both are lists of equal length.</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">cleanup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Release any resources.</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># --- Optional: support iterative coupling ---</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Return a snapshot of your model&#39;s state.</span>
+        <span class="c1"># Example: return {&#39;var1&#39;: self.var1, &#39;var2&#39;: self.var2}</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">restore_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Restore a previously saved state.</span>
+        <span class="c1"># Example:</span>
+        <span class="c1">#   self.var1 = state[&#39;var1&#39;]</span>
+        <span class="c1">#   self.var2 = state[&#39;var2&#39;]</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># --- Optional: support connection validation ---</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_available_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Return known variable names for validation.</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;inputs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+            <span class="s1">&#39;outputs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span>
+        <span class="p">}</span>
 </pre></div>
 </div>
-<p>The four functions inside <code class="docutils literal notranslate"><span class="pre">class</span> <span class="pre">external_simulator()</span></code> are all that <code class="docutils literal notranslate"><span class="pre">energysim</span></code> requires to interface with the simulator. Users are free to make imports, and create other functions which can be called within this file. Let us go through each function and their definitions.</p>
-<div class="section" id="init-method">
-<h2>init() method<a class="headerlink" href="#init-method" title="Permalink to this headline">¶</a></h2>
-<p>Note that this is different from the <code class="docutils literal notranslate"><span class="pre">__init__()</span></code> class. This method is needed to initialize the simulator. You can use it to, for example, establish connection to another software, or package. Basically, start-up the simulator.</p>
 </div>
-<div class="section" id="step-time-method">
-<h2>step(time) method<a class="headerlink" href="#step-time-method" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">step</span></code> method is used by <code class="docutils literal notranslate"><span class="pre">energysim</span></code> coordinator to perform time stepping for each simulator. The coordinator steps the simulator by deltaT = <code class="docutils literal notranslate"><span class="pre">step_size</span></code> defined while adding the simulator to <code class="docutils literal notranslate"><span class="pre">world</span></code>. The step method is useful when the model consists consists of time-dependent equations and exibits dynamics behavior.</p>
+</section>
+<section id="the-simulatoradapter-interface">
+<h2>The <code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code> interface<a class="headerlink" href="#the-simulatoradapter-interface" title="Link to this heading">¶</a></h2>
+<p>Every external simulator must implement these <strong>abstract methods</strong>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">step(time)</span></code></dt><dd><p>Advance the model by one micro-step at the given <code class="docutils literal notranslate"><span class="pre">time</span></code>.  This is
+called repeatedly by <code class="docutils literal notranslate"><span class="pre">advance()</span></code> at intervals of <code class="docutils literal notranslate"><span class="pre">step_size</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">get_value(parameters,</span> <span class="pre">time)</span></code></dt><dd><p>Return a <strong>list</strong> of values corresponding to the variable names in
+<code class="docutils literal notranslate"><span class="pre">parameters</span></code>.  The <code class="docutils literal notranslate"><span class="pre">world</span></code> calls this to read outputs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">set_value(parameters,</span> <span class="pre">values)</span></code></dt><dd><p>Set the variables named in <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the given <code class="docutils literal notranslate"><span class="pre">values</span></code>.
+Both arguments are lists of equal length.  The <code class="docutils literal notranslate"><span class="pre">world</span></code> calls this
+to push inputs before each macro step.</p>
+</dd>
+</dl>
+<p>The following methods have sensible <strong>defaults</strong> but can be overridden:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">init()</span></code></dt><dd><p>Called once before the first time step.  Use it to establish
+connections, load data, or start up the model.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cleanup()</span></code></dt><dd><p>Called once after the last time step.  Release resources here.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">advance(start_time,</span> <span class="pre">stop_time)</span></code></dt><dd><p>The default implementation loops <code class="docutils literal notranslate"><span class="pre">step()</span></code> from <em>start_time</em> to
+<em>stop_time</em> at <code class="docutils literal notranslate"><span class="pre">step_size</span></code> intervals using index-based time
+computation to avoid floating-point drift.  Override this only if
+your simulator has its own internal solver that should handle the
+full interval in one call.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">set_parameters(params)</span></code></dt><dd><p>Apply a <code class="docutils literal notranslate"><span class="pre">{name:</span> <span class="pre">value}</span></code> dictionary of initial values.  The default
+delegates to <code class="docutils literal notranslate"><span class="pre">set_value()</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">advance_with_recording(start_time,</span> <span class="pre">stop_time,</span> <span class="pre">outputs)</span></code></dt><dd><p>Advance the model <em>and</em> collect intermediate results at each
+micro-step.  Returns a dictionary <code class="docutils literal notranslate"><span class="pre">{var_name:</span> <span class="pre">[values...]}</span></code>.  The
+default calls <code class="docutils literal notranslate"><span class="pre">advance()</span></code> then <code class="docutils literal notranslate"><span class="pre">get_value()</span></code>.  Override this if
+your simulator can provide higher-fidelity intermediate results
+(e.g. from an adaptive solver).  Used when <code class="docutils literal notranslate"><span class="pre">record_all=True</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">save_state()</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code></dt><dd><p>Save a snapshot of the model state.  Used by iterative coupling to
+roll back if convergence is not achieved.  Return any picklable
+object that captures the full state.  Default returns <code class="docutils literal notranslate"><span class="pre">None</span></code>
+(no-op).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">restore_state(state)</span></code></dt><dd><p>Restore a previously saved state.  <code class="docutils literal notranslate"><span class="pre">state</span></code> is whatever was
+returned by <code class="docutils literal notranslate"><span class="pre">save_state()</span></code>.  Default is a no-op.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">get_available_variables()</span> <span class="pre">-&gt;</span> <span class="pre">dict</span></code></dt><dd><p>Return a dictionary of known variable names grouped by category
+(e.g. <code class="docutils literal notranslate"><span class="pre">{'inputs':</span> <span class="pre">[...],</span> <span class="pre">'outputs':</span> <span class="pre">[...]}</span></code>) for connection
+validation.  Default returns an empty dict.</p>
+</dd>
+</dl>
+</section>
+<section id="supporting-iterative-coupling">
+<h2>Supporting iterative coupling<a class="headerlink" href="#supporting-iterative-coupling" title="Link to this heading">¶</a></h2>
+<p>If your external simulator will be used with <code class="docutils literal notranslate"><span class="pre">coupling='iterative'</span></code>,
+you <strong>should</strong> implement <code class="docutils literal notranslate"><span class="pre">save_state()</span></code> and <code class="docutils literal notranslate"><span class="pre">restore_state()</span></code> so
+the coordinator can roll back the simulator when convergence is not
+achieved:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">external_simulator</span><span class="p">(</span><span class="n">SimulatorAdapter</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="mf">20.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pressure</span> <span class="o">=</span> <span class="mf">101325.0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;temperature&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
+            <span class="s1">&#39;pressure&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pressure</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">restore_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;temperature&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pressure</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;pressure&#39;</span><span class="p">]</span>
+
+    <span class="c1"># ... step, get_value, set_value as usual</span>
+</pre></div>
 </div>
-<div class="section" id="get-value-variable-time-method">
-<h2>get_value(variable, time) method<a class="headerlink" href="#get-value-variable-time-method" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">get_value</span></code> method is used by the simulator to query <code class="docutils literal notranslate"><span class="pre">variable</span></code> value from the simulator. The coordinator queries the simulator by asking the value of <code class="docutils literal notranslate"><span class="pre">variable</span></code> at time=``time``. The <code class="docutils literal notranslate"><span class="pre">variable</span></code> is enclosed in a python list. The user must define in this method, how to obtain the value of that <code class="docutils literal notranslate"><span class="pre">variable</span></code> from its simulator.</p>
+</section>
+<section id="example-a-simple-battery-model">
+<h2>Example: a simple battery model<a class="headerlink" href="#example-a-simple-battery-model" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">energysim.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulatorAdapter</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">external_simulator</span><span class="p">(</span><span class="n">SimulatorAdapter</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soc</span> <span class="o">=</span> <span class="mf">0.5</span>      <span class="c1"># initial state of charge</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="mi">100</span> <span class="c1"># kWh</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">=</span> <span class="mf">0.0</span>    <span class="c1"># kW (positive = charging)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span>  <span class="c1"># set by energysim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soc</span> <span class="o">+=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="mi">3600</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soc</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">soc</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;soc&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">soc</span><span class="p">,</span> <span class="s1">&#39;power&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">mapping</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="s1">&#39;power&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">=</span> <span class="n">v</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">cleanup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># Optional: support iterative coupling</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;soc&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">soc</span><span class="p">,</span> <span class="s1">&#39;power&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span><span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">restore_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soc</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;soc&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s1">&#39;power&#39;</span><span class="p">]</span>
+
+    <span class="c1"># Optional: support variable introspection</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_available_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;inputs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+            <span class="s1">&#39;outputs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span>
+        <span class="p">}</span>
+</pre></div>
 </div>
-<div class="section" id="set-value-variable-value-method">
-<h2>set_value(variable, value) method<a class="headerlink" href="#set-value-variable-value-method" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">set_value</span></code> method is used by the simulator to set the variable to a particular value at the time instance when message are exchanged between simulators. In this method, users must specify how to set the <code class="docutils literal notranslate"><span class="pre">variable</span></code> to the specified <code class="docutils literal notranslate"><span class="pre">value</span></code>. Both the <code class="docutils literal notranslate"><span class="pre">variable</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> are enclosed within a list.</p>
+</section>
+<section id="example-recording-intermediate-results">
+<h2>Example: recording intermediate results<a class="headerlink" href="#example-recording-intermediate-results" title="Link to this heading">¶</a></h2>
+<p>If your simulator has an internal adaptive solver and you want to
+capture its intermediate time points when <code class="docutils literal notranslate"><span class="pre">record_all=True</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">advance_with_recording</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start_time</span><span class="p">,</span> <span class="n">stop_time</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">}</span>
+    <span class="n">times</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">stop_time</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">:</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">vals</span><span class="p">):</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">results</span>
+</pre></div>
 </div>
-</div>
+</section>
+</section>
 
 
           </div>
           
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper">
 <h1 class="logo"><a href="index.html">energysim</a></h1>
 
@@ -115,18 +295,30 @@
 
 
 
-<h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents</span></p>
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="add_simulator.html">Adding simulators</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Working with external simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#init-method">init() method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#step-time-method">step(time) method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#get-value-variable-time-method">get_value(variable, time) method</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#set-value-variable-value-method">set_value(variable, value) method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#template">Template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-simulatoradapter-interface">The <code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code> interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#supporting-iterative-coupling">Supporting iterative coupling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-a-simple-battery-model">Example: a simple battery model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-recording-intermediate-results">Example: recording intermediate results</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
 
@@ -139,16 +331,6 @@
   </ul></li>
 </ul>
 </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" />
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
 
 
 
@@ -162,11 +344,11 @@
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2020, Digvijay Gusain.
+      &#169;2020-2026, Digvijay Gusain.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
       
       |
       <a href="_sources/working_external_sims.rst.txt"

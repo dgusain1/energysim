@@ -1,17 +1,17 @@
-
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
-    <title>Adding simulators &#8212; energysim 2.0 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Adding simulators &#8212; energysim 2.1.9.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=0ae25b9e"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Working with external simulators" href="working_external_sims.html" />
@@ -19,8 +19,9 @@
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
+
   
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+  
 
   </head><body>
   
@@ -32,107 +33,341 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="adding-simulators">
-<h1>Adding simulators<a class="headerlink" href="#adding-simulators" title="Permalink to this headline">¶</a></h1>
-<p>Adding simulators in energysim is done by calling the method <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code>.
-As mentioned, four main types of simulators can be added: FMU, powerflow networks, CSV, and external simulators.</p>
-<p>The add_simulator requires <strong>six</strong> main arguments for all simulators. Optional arguments for FMUs, powerflows, and external simulators can be added if needed. These are:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> : Specifies simulator type. Can be either of ‘fmu’, ‘powerflow’, ‘csv’, ‘external’</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> : Each simulator must have a unique name. This is later required when specifying connections.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> : A raw string address of simulator location.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> : Variables that need to be recorded from the simulator during simulation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> : Input variables to the simulator that are to be used while defining the connections.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> : Internal step size for simulator (1e-3 by default). Also known as micro-time steps. This is the time integration step required for solvers for the simulators. For example, some FMUs require integration time steps of 1e-3 secs, while for powerflow networks, the time step can be 15 mins (900s).</p></li>
+  <section id="adding-simulators">
+<h1>Adding simulators<a class="headerlink" href="#adding-simulators" title="Link to this heading">¶</a></h1>
+<p>Simulators are added to the <code class="docutils literal notranslate"><span class="pre">world</span></code> object using <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code>.
+Seven simulator types are supported: <strong>FMU</strong>, <strong>powerflow</strong>, <strong>CSV</strong>,
+<strong>external</strong>, <strong>PowerFactory</strong>, <strong>MATLAB/Octave</strong>, and <strong>script</strong>.
+All of them are accessed through the same method.</p>
+<section id="common-parameters">
+<h2>Common parameters<a class="headerlink" href="#common-parameters" title="Link to this heading">¶</a></h2>
+<p>Every call to <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> accepts these arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_type</span></code> – one of <code class="docutils literal notranslate"><span class="pre">'fmu'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerflow'</span></code>, <code class="docutils literal notranslate"><span class="pre">'csv'</span></code>, <code class="docutils literal notranslate"><span class="pre">'external'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'powerfactory'</span></code>, <code class="docutils literal notranslate"><span class="pre">'matlab'</span></code>, or <code class="docutils literal notranslate"><span class="pre">'script'</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> – a unique name used to identify the simulator in connections and results.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sim_loc</span></code> – path to the model or data file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inputs</span></code> – list of input variable names (used in the connections dictionary).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">outputs</span></code> – list of output variable names to record.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">step_size</span></code> – micro time-step in seconds.  This is the internal integration step for
+solvers.  For example, an FMU might use <code class="docutils literal notranslate"><span class="pre">1</span></code> while a power-flow network uses <code class="docutils literal notranslate"><span class="pre">900</span></code>.</p></li>
 </ul>
-</div></blockquote>
-<p>The <code class="docutils literal notranslate"><span class="pre">add_simulator()</span></code> works as follows:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span><span class="n">sim_type</span> <span class="o">=</span> <span class="n">sim_type</span><span class="p">,</span> <span class="n">sim_name</span> <span class="o">=</span> <span class="n">sim_name</span><span class="p">,</span>
-                    <span class="n">sim_loc</span> <span class="o">=</span> <span class="n">sim_loc</span><span class="p">,</span> <span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span><span class="p">,</span>
-                        <span class="n">step_size</span> <span class="o">=</span> <span class="n">step_size</span><span class="p">)</span>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;plant&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;/path/to/model.fmu&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;power_cmd&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;temperature&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="section" id="additional-arguments">
-<h2>Additional arguments<a class="headerlink" href="#additional-arguments" title="Permalink to this headline">¶</a></h2>
-<p>Apart from the six required arguments, users can also specify additional arguments for each simulator. These are:</p>
-<blockquote>
-<div><ol class="arabic simple">
-<li><p>For FMUs: FMPy generally validates the FMUs before initialization process. Users can skip this validation by specifyng the argument <cite>validate = False</cite>. Generally, it has been observed, the FMUs packaged with OpenModelica fail validation. However, they can be simulated by setting the <code class="docutils literal notranslate"><span class="pre">validate</span> <span class="pre">=</span> <span class="pre">False</span></code>.</p></li>
-<li><p>For powerflow: For powerflow simulators, users can specify whether to execute a AC powerflow or an optimal power flow, or a DCpowerflow. This can be done by providing the specifying the value of argument <code class="docutils literal notranslate"><span class="pre">pf</span></code>. It can be set to “pf”, “dcpf”, “opf”, or “dcopf”. Please note, this is only available for pandapower networks currently.</p></li>
-<li><p>For csv: For csv files, the users can specify the delimiter by providing the argument <code class="docutils literal notranslate"><span class="pre">delimiter=','</span></code> or whatever the delimiter is.</p></li>
+</section>
+<section id="fmu-simulators">
+<h2>FMU simulators<a class="headerlink" href="#fmu-simulators" title="Link to this heading">¶</a></h2>
+<p>FMUs conforming to FMI 1.0 or 2.0 are supported.  <code class="docutils literal notranslate"><span class="pre">energysim</span></code>
+auto-detects whether the FMU is <strong>Co-Simulation</strong> or <strong>Model Exchange</strong>
+and loads the appropriate adapter.</p>
+<p>Additional keyword arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">validate</span></code> <em>(bool, default True)</em> – let FMPy validate the FMU before initialisation.
+Set to <code class="docutils literal notranslate"><span class="pre">False</span></code> for FMUs that fail validation but simulate correctly (common with
+OpenModelica exports).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">variable</span></code> <em>(bool, default False)</em> – enable variable-step integration
+(Co-Simulation only).</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;fmu&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;electrolyser&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;electrolyser.fmu&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;P_order&#39;</span><span class="p">,</span> <span class="s1">&#39;T_ambient&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;H2_production&#39;</span><span class="p">,</span> <span class="s1">&#39;efficiency&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">validate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>FMPy is only imported when the first FMU is added, so <code class="docutils literal notranslate"><span class="pre">energysim</span></code>
+works without FMPy installed as long as no FMU simulators are used.</p>
+</div>
+<section id="variable-naming-convention-fmu">
+<h3>Variable naming convention (FMU)<a class="headerlink" href="#variable-naming-convention-fmu" title="Link to this heading">¶</a></h3>
+<p>FMU variables follow the Modelica dot-notation:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span><span class="o">.</span><span class="n">Component</span><span class="o">.</span><span class="n">SubComponent</span><span class="o">.</span><span class="n">Variable</span>
+</pre></div>
+</div>
+<p>For example: <code class="docutils literal notranslate"><span class="pre">electrolyser.stack.voltage</span></code>.</p>
+</section>
+</section>
+<section id="powerflow-simulators">
+<h2>Powerflow simulators<a class="headerlink" href="#powerflow-simulators" title="Link to this heading">¶</a></h2>
+<p>Pandapower networks (saved as <code class="docutils literal notranslate"><span class="pre">.p</span></code> pickle files) can be added directly.
+PyPSA networks are also supported experimentally.</p>
+<p>Additional keyword arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pf</span></code> <em>(str, default ‘pf’)</em> – power-flow mode.  One of:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'pf'</span></code> – AC power flow</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'dcpf'</span></code> – DC power flow</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'opf'</span></code> – optimal power flow</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'dcopf'</span></code> – DC optimal power flow</p></li>
+</ul>
+</li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;powerflow&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;network.p&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;WF.p_mw&#39;</span><span class="p">,</span> <span class="s1">&#39;Load1.p_mw&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Bus 0.vm_pu&#39;</span><span class="p">,</span> <span class="s1">&#39;WF.p_mw&#39;</span><span class="p">,</span> <span class="s1">&#39;Load1.p_mw&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">pf</span><span class="o">=</span><span class="s1">&#39;opf&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>All load, generator, sgen, bus, and external-grid elements in the
+pandapower network <strong>must have names</strong>.  <code class="docutils literal notranslate"><span class="pre">energysim</span></code> matches
+variables by element name, not by index.  If a named element is not
+found, a <code class="docutils literal notranslate"><span class="pre">SimulatorElementNotFoundError</span></code> is raised.  If a variable
+attribute is invalid, a <code class="docutils literal notranslate"><span class="pre">SimulatorVariableError</span></code> is raised.</p>
+</div>
+<p>The pandapower adapter implements <code class="docutils literal notranslate"><span class="pre">get_available_variables()</span></code> for
+connection validation — see <a class="reference internal" href="energysim_features.html"><span class="doc">energysim features</span></a>.</p>
+<section id="variable-naming-convention-powerflow">
+<h3>Variable naming convention (powerflow)<a class="headerlink" href="#variable-naming-convention-powerflow" title="Link to this heading">¶</a></h3>
+<p>Variables are specified as <code class="docutils literal notranslate"><span class="pre">ElementName.variable</span></code>:</p>
+<p><strong>Inputs</strong> (values that can be set):</p>
+<ul class="simple">
+<li><p>Generators: <code class="docutils literal notranslate"><span class="pre">Gen1.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">Gen1.q_mvar</span></code></p></li>
+<li><p>Loads: <code class="docutils literal notranslate"><span class="pre">Load1.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">Load1.q_mvar</span></code></p></li>
+<li><p>Sgens: <code class="docutils literal notranslate"><span class="pre">PV.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">WF.p_mw</span></code></p></li>
+<li><p>Cost: <code class="docutils literal notranslate"><span class="pre">Load1.cp1_eur_per_mw</span></code> (for OPF)</p></li>
+<li><p>Controllability bounds: <code class="docutils literal notranslate"><span class="pre">Load1.max_p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">Load1.min_p_mw</span></code></p></li>
+</ul>
+<p><strong>Outputs</strong> (values that can be recorded):</p>
+<ul class="simple">
+<li><p>Bus voltages: <code class="docutils literal notranslate"><span class="pre">Bus1.vm_pu</span></code>, <code class="docutils literal notranslate"><span class="pre">Bus1.va_degree</span></code></p></li>
+<li><p>Generator results: <code class="docutils literal notranslate"><span class="pre">Gen1.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">Gen1.q_mvar</span></code></p></li>
+<li><p>Load results: <code class="docutils literal notranslate"><span class="pre">Load1.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">Load1.q_mvar</span></code></p></li>
+<li><p>Sgen results: <code class="docutils literal notranslate"><span class="pre">PV.p_mw</span></code></p></li>
+<li><p>External grid: <code class="docutils literal notranslate"><span class="pre">grid.p_mw</span></code>, <code class="docutils literal notranslate"><span class="pre">grid.q_mvar</span></code></p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For OPF, loads that should be dispatchable must have
+<code class="docutils literal notranslate"><span class="pre">controllable=True</span></code> set in the pandapower network.  You can do
+this after adding the simulator:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">net</span> <span class="o">=</span> <span class="n">my_world</span><span class="o">.</span><span class="n">simulator_dict</span><span class="p">[</span><span class="s2">&quot;grid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">adapter</span><span class="o">.</span><span class="n">network</span>
+<span class="n">idx</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">load</span><span class="p">[</span><span class="n">net</span><span class="o">.</span><span class="n">load</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;FlexLoad&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span>
+<span class="n">net</span><span class="o">.</span><span class="n">load</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="s2">&quot;controllable&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="csv-simulators">
+<h2>CSV simulators<a class="headerlink" href="#csv-simulators" title="Link to this heading">¶</a></h2>
+<p>CSV files provide time-indexed data profiles (e.g. weather, demand).</p>
+<p>Additional keyword arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">delimiter</span></code> <em>(str, default ‘,’)</em> – column delimiter.</p></li>
+</ul>
+<p>Requirements:</p>
+<ul class="simple">
+<li><p>The CSV <strong>must</strong> have a <code class="docutils literal notranslate"><span class="pre">time</span></code> column.</p></li>
+<li><p>Time values must be at fixed intervals.</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;csv&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;profiles&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;data.csv&#39;</span><span class="p">,</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">900</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Variables are accessed by column name: <code class="docutils literal notranslate"><span class="pre">profiles.wind_power</span></code>,
+<code class="docutils literal notranslate"><span class="pre">profiles.temperature</span></code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CSV simulators are <strong>read-only</strong>.  If a connection writes to a CSV
+simulator, <code class="docutils literal notranslate"><span class="pre">set_value()</span></code> emits a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> and discards the
+value.  The CSV adapter implements <code class="docutils literal notranslate"><span class="pre">get_available_variables()</span></code> to
+return all column names for connection validation.</p>
+</div>
+</section>
+<section id="external-simulators">
+<h2>External simulators<a class="headerlink" href="#external-simulators" title="Link to this heading">¶</a></h2>
+<p>User-defined Python simulators can be integrated by subclassing
+<code class="docutils literal notranslate"><span class="pre">SimulatorAdapter</span></code> from <code class="docutils literal notranslate"><span class="pre">energysim.base</span></code>.  See
+<a class="reference internal" href="working_external_sims.html"><span class="doc">Working with external simulators</span></a> for the full guide.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;my_sim&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;/path/to/directory&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;cmd&#39;</span><span class="p">],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">sim_name</span></code> must match the Python filename (without <code class="docutils literal notranslate"><span class="pre">.py</span></code>), and
+the file must contain a class called <code class="docutils literal notranslate"><span class="pre">external_simulator</span></code>.</p>
+</section>
+<section id="powerfactory-simulators">
+<h2>PowerFactory simulators<a class="headerlink" href="#powerfactory-simulators" title="Link to this heading">¶</a></h2>
+<p>DIgSILENT PowerFactory models can be integrated using the
+<code class="docutils literal notranslate"><span class="pre">'powerfactory'</span></code> sim type.  This requires PowerFactory 2020+ with
+the Python API and a valid licence.</p>
+<p>Additional keyword arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pf</span></code> <em>(str, default ‘ldf’)</em> – calculation type:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'ldf'</span></code> – load flow (<code class="docutils literal notranslate"><span class="pre">ComLdf</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'shc'</span></code> – short circuit (<code class="docutils literal notranslate"><span class="pre">ComShc</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'rms'</span></code> – RMS transient simulation (<code class="docutils literal notranslate"><span class="pre">ComInc</span></code> + <code class="docutils literal notranslate"><span class="pre">ComSim</span></code>)</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pf_path</span></code> <em>(str or None)</em> – path to the PowerFactory Python
+directory, e.g. <code class="docutils literal notranslate"><span class="pre">r&quot;C:\DIgSILENT\PowerFactory</span> <span class="pre">2024\Python\3.11&quot;</span></code>.
+Only needed when running outside the PF embedded interpreter.</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;powerfactory&#39;</span><span class="p">,</span>
+    <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;grid_pf&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Load1.plini&#39;</span><span class="p">,</span> <span class="s1">&#39;Gen1.pgini&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Bus1.m:u&#39;</span><span class="p">,</span> <span class="s1">&#39;Bus2.m:u&#39;</span><span class="p">,</span> <span class="s1">&#39;Line1.m:I:bus1&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span>
+    <span class="n">pf</span><span class="o">=</span><span class="s1">&#39;ldf&#39;</span><span class="p">,</span>
+    <span class="n">pf_path</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;C:\DIgSILENT\PowerFactory 2024\Python\3.11&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> must match your PowerFactory <strong>project name</strong>.
+The adapter calls <code class="docutils literal notranslate"><span class="pre">ActivateProject(sim_name)</span></code> internally.</p>
+</div>
+<section id="variable-naming-convention-powerfactory">
+<h3>Variable naming convention (PowerFactory)<a class="headerlink" href="#variable-naming-convention-powerfactory" title="Link to this heading">¶</a></h3>
+<p>Variables are specified as <code class="docutils literal notranslate"><span class="pre">ElementName.attribute</span></code>:</p>
+<p><strong>Inputs</strong> (written via <code class="docutils literal notranslate"><span class="pre">SetAttribute</span></code>):</p>
+<ul class="simple">
+<li><p>Load active power: <code class="docutils literal notranslate"><span class="pre">Load1.plini</span></code> (auto-prefixed to <code class="docutils literal notranslate"><span class="pre">e:plini</span></code>)</p></li>
+<li><p>Generator active power: <code class="docutils literal notranslate"><span class="pre">Gen1.pgini</span></code></p></li>
+<li><p>Any editable attribute: <code class="docutils literal notranslate"><span class="pre">Element.e:attributeName</span></code></p></li>
+</ul>
+<p><strong>Outputs</strong> (read via <code class="docutils literal notranslate"><span class="pre">GetAttribute</span></code>):</p>
+<ul class="simple">
+<li><p>Bus voltage magnitude: <code class="docutils literal notranslate"><span class="pre">Bus1.m:u</span></code></p></li>
+<li><p>Bus voltage angle: <code class="docutils literal notranslate"><span class="pre">Bus1.m:phiu</span></code></p></li>
+<li><p>Line current: <code class="docutils literal notranslate"><span class="pre">Line1.m:I:bus1</span></code></p></li>
+<li><p>Generator output: <code class="docutils literal notranslate"><span class="pre">Gen1.m:P:bus1</span></code></p></li>
+</ul>
+<p>Result attributes start with <code class="docutils literal notranslate"><span class="pre">m:</span></code>.  For inputs, the <code class="docutils literal notranslate"><span class="pre">e:</span></code> prefix is
+added automatically if omitted.</p>
+</section>
+</section>
+<section id="matlab-octave-simulators">
+<h2>MATLAB / Octave simulators<a class="headerlink" href="#matlab-octave-simulators" title="Link to this heading">¶</a></h2>
+<p>MATLAB <code class="docutils literal notranslate"><span class="pre">.m</span></code> <strong>functions</strong> (not scripts) can be integrated using the
+<code class="docutils literal notranslate"><span class="pre">'matlab'</span></code> sim type.  The adapter auto-detects whether to use the
+MATLAB Engine for Python or GNU Octave (via <code class="docutils literal notranslate"><span class="pre">oct2py</span></code>).</p>
+<p>Additional keyword arguments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">engine</span></code> <em>(str, default ‘auto’)</em> – which backend to use:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'auto'</span></code> – try MATLAB first, fall back to Octave</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'matlab'</span></code> – MATLAB Engine only</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'octave'</span></code> – Oct2Py (GNU Octave) only</p></li>
+</ul>
+</li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">my_world</span><span class="o">.</span><span class="n">add_simulator</span><span class="p">(</span>
+    <span class="n">sim_type</span><span class="o">=</span><span class="s1">&#39;matlab&#39;</span><span class="p">,</span>
+    <span class="n">sim_name</span><span class="o">=</span><span class="s1">&#39;heatpump&#39;</span><span class="p">,</span>
+    <span class="n">sim_loc</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;/path/to/m_files&#39;</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;P_cmd&#39;</span><span class="p">,</span> <span class="s1">&#39;T_source&#39;</span><span class="p">,</span> <span class="s1">&#39;T_sink&#39;</span><span class="p">],</span>
+    <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Q_thermal&#39;</span><span class="p">,</span> <span class="s1">&#39;COP&#39;</span><span class="p">],</span>
+    <span class="n">step_size</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+    <span class="n">engine</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">sim_name</span></code> must match the <code class="docutils literal notranslate"><span class="pre">.m</span></code> filename (without extension).
+The file must define a <strong>function</strong> (not a script).</p>
+</div>
+<section id="writing-m-functions-for-energysim">
+<h3>Writing .m functions for energysim<a class="headerlink" href="#writing-m-functions-for-energysim" title="Link to this heading">¶</a></h3>
+<p>Your <code class="docutils literal notranslate"><span class="pre">.m</span></code> function must follow this signature:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">function</span> <span class="p">[</span><span class="n">out1</span><span class="p">,</span> <span class="n">out2</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">func_name</span><span class="p">(</span><span class="n">in1</span><span class="p">,</span> <span class="n">in2</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><strong>Input arguments</strong> map to the <code class="docutils literal notranslate"><span class="pre">inputs</span></code> list <strong>in order</strong>, plus
+<code class="docutils literal notranslate"><span class="pre">time</span></code> (appended automatically by the adapter).</p></li>
+<li><p><strong>Output arguments</strong> map to the <code class="docutils literal notranslate"><span class="pre">outputs</span></code> list <strong>in order</strong>.</p></li>
+</ul>
+<p>The adapter validates at init time that:</p>
+<ol class="arabic simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">.m</span></code> file is a function (not a script).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nargin</span></code> matches <code class="docutils literal notranslate"><span class="pre">len(inputs)</span> <span class="pre">+</span> <span class="pre">1</span></code> (the +1 is for <code class="docutils literal notranslate"><span class="pre">time</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nargout</span></code> matches <code class="docutils literal notranslate"><span class="pre">len(outputs)</span></code>.</p></li>
 </ol>
-</div></blockquote>
-</div>
-<div class="section" id="variable-naming-convention">
-<h2>Variable naming convention<a class="headerlink" href="#variable-naming-convention" title="Permalink to this headline">¶</a></h2>
-<p>Since variable extraction is an important part of cosimulation, it is important to become aware of the variable naming convention used for the simulators in <code class="docutils literal notranslate"><span class="pre">energysim</span></code>.</p>
-<div class="section" id="fmus">
-<h3>FMUs<a class="headerlink" href="#fmus" title="Permalink to this headline">¶</a></h3>
-<p>For FMUs, the variable naming convention is similar to how it is generally accessed within Modelica based environments. For example a variable_k nested within the FMU model can be accessed using:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span><span class="o">.</span><span class="n">Component_1</span><span class="o">.</span><span class="n">SubComponent_i</span><span class="o">.</span><span class="n">Variable_k</span>
+<p>Example <code class="docutils literal notranslate"><span class="pre">.m</span></code> function (<code class="docutils literal notranslate"><span class="pre">heatpump.m</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">function</span> <span class="p">[</span><span class="n">Q_thermal</span><span class="p">,</span> <span class="n">COP</span><span class="p">]</span> <span class="o">=</span> <span class="n">heatpump</span><span class="p">(</span><span class="n">P_cmd</span><span class="p">,</span> <span class="n">T_source</span><span class="p">,</span> <span class="n">T_sink</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+<span class="o">%</span> <span class="n">HEATPUMP</span>  <span class="n">Simple</span> <span class="n">Carnot</span> <span class="n">heat</span><span class="o">-</span><span class="n">pump</span> <span class="n">model</span> <span class="k">for</span> <span class="n">energysim</span><span class="o">.</span>
+<span class="o">%</span>
+<span class="o">%</span>   <span class="n">Inputs</span><span class="p">:</span>
+<span class="o">%</span>     <span class="n">P_cmd</span>    <span class="o">-</span> <span class="n">commanded</span> <span class="n">electrical</span> <span class="n">power</span> <span class="p">[</span><span class="n">kW</span><span class="p">]</span>
+<span class="o">%</span>     <span class="n">T_source</span> <span class="o">-</span> <span class="n">source</span> <span class="n">temperature</span> <span class="p">[</span><span class="n">deg</span> <span class="n">C</span><span class="p">]</span>
+<span class="o">%</span>     <span class="n">T_sink</span>   <span class="o">-</span> <span class="n">sink</span> <span class="n">temperature</span> <span class="p">[</span><span class="n">deg</span> <span class="n">C</span><span class="p">]</span>
+<span class="o">%</span>     <span class="n">time</span>     <span class="o">-</span> <span class="n">simulation</span> <span class="n">time</span> <span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="p">(</span><span class="n">unused</span> <span class="n">here</span><span class="p">)</span>
+<span class="o">%</span>
+<span class="o">%</span>   <span class="n">Outputs</span><span class="p">:</span>
+<span class="o">%</span>     <span class="n">Q_thermal</span> <span class="o">-</span> <span class="n">thermal</span> <span class="n">output</span> <span class="p">[</span><span class="n">kW</span><span class="p">]</span>
+<span class="o">%</span>     <span class="n">COP</span>       <span class="o">-</span> <span class="n">coefficient</span> <span class="n">of</span> <span class="n">performance</span> <span class="p">[</span><span class="o">-</span><span class="p">]</span>
+
+    <span class="n">COP_carnot</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_sink</span> <span class="o">+</span> <span class="mf">273.15</span><span class="p">)</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">T_sink</span> <span class="o">-</span> <span class="n">T_source</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">);</span>
+    <span class="n">COP</span> <span class="o">=</span> <span class="mf">0.45</span> <span class="o">*</span> <span class="n">COP_carnot</span><span class="p">;</span>
+    <span class="n">Q_thermal</span> <span class="o">=</span> <span class="n">P_cmd</span> <span class="o">*</span> <span class="n">COP</span><span class="p">;</span>
+<span class="n">end</span>
 </pre></div>
 </div>
-<p>This is to be followed when specifying connections, initializations, or signal modifications.</p>
-</div>
-</div>
-<div class="section" id="powerflow-networks">
-<h2>Powerflow networks<a class="headerlink" href="#powerflow-networks" title="Permalink to this headline">¶</a></h2>
-<p>Currently, <code class="docutils literal notranslate"><span class="pre">energysim</span></code> can only record bus voltages magnitude (V) and bus voltage angles (VA), along with active (P) and reactive power (Q) values for loads, static generators, external grid, generators. For inputs, it can set the active (P) and reactive power (Q) setpoints for loads, static generators, generators. All the elements within the network must have a valid name. This has to be ensured before importing the pandapower network within <code class="docutils literal notranslate"><span class="pre">energysim</span></code> environment.</p>
-<p>Consider a network ‘grid’ with 3 buses named ‘Bus1’, ‘Bus2’, ‘Bus3’. It has three loads named ‘Load1’, ‘Load2’, and ‘Load3’. Similarly, a generator ‘Gen1’ is connected to one of the buses.</p>
-<p>The following quantities can be specified to receive inputs in the connections dictionary:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Gen1.P</p></li>
-<li><p>Gen1.Q</p></li>
-<li><p>Load1.P, Load2.P, Load3.P</p></li>
-<li><p>Load1.Q, Load2.Q, Load3.Q</p></li>
-</ul>
-</div></blockquote>
-<p>The following quantities can be speified as outputs in <code class="docutils literal notranslate"><span class="pre">add_simulator</span></code> to be recorded:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Bus1.V, Bus2.V, Bus3.V</p></li>
-<li><p>Bus1.Va, Bus2.Va, Bus3.Va</p></li>
-<li><p>Gen1.P</p></li>
-<li><p>Gen1.Q</p></li>
-<li><p>Load1.P, Load2.P, Load3.P</p></li>
-<li><p>Load1.Q, Load2.Q, Load3.Q</p></li>
-</ul>
-</div></blockquote>
-<p>It must be clarified that energysim can only retreive or set variables in simulators when the simulators name are an exact match. Please make sure that component names and variable names such as P, Q are exactly how they are specified here.</p>
-</div>
-<div class="section" id="csv-files">
-<h2>CSV files<a class="headerlink" href="#csv-files" title="Permalink to this headline">¶</a></h2>
-<p>CSV simulators are used to attach csv data files to <code class="docutils literal notranslate"><span class="pre">world</span></code>. The csv file must have clearly specified columns. One of the columns must be ‘time’.</p>
-<p>The output variables for CSV simulators are the column names. Consider a csv file given by:</p>
-<div class="line-block">
-<div class="line">time,power</div>
-<div class="line">0,18</div>
-<div class="line">1,18</div>
-<div class="line">2,20</div>
-<div class="line">3,50</div>
-<div class="line">4,25</div>
-<div class="line">5,15</div>
-</div>
-<p>The “power” variable can be accessed using <code class="docutils literal notranslate"><span class="pre">sim_name.power</span></code>. <code class="docutils literal notranslate"><span class="pre">energysim</span></code> can then automatically read the power variable from csv files corresponding to simulation time. If the current simulation time is between two time values,   <code class="docutils literal notranslate"><span class="pre">energysim</span></code> will read the value at time given by <code class="docutils literal notranslate"><span class="pre">index</span> <span class="pre">=</span> <span class="pre">int(np.argwhere(time_array&gt;current_time)[0]</span> <span class="pre">-</span> <span class="pre">1)</span></code> where <code class="docutils literal notranslate"><span class="pre">time_array</span></code> is the list of time values in the csv.</p>
-</div>
-<div class="section" id="external-simulators">
-<h2>External simulators<a class="headerlink" href="#external-simulators" title="Permalink to this headline">¶</a></h2>
-<p>Variables in external simulators can be accessed similar to other simulators:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sim_name</span><span class="o">.</span><span class="n">var1</span>
+<p>Another example (<code class="docutils literal notranslate"><span class="pre">battery.m</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">function</span> <span class="p">[</span><span class="n">SoC</span><span class="p">,</span> <span class="n">P_actual</span><span class="p">]</span> <span class="o">=</span> <span class="n">battery</span><span class="p">(</span><span class="n">P_cmd</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span>
+<span class="o">%</span> <span class="n">BATTERY</span>  <span class="n">Simple</span> <span class="n">Li</span><span class="o">-</span><span class="n">ion</span> <span class="n">battery</span> <span class="k">with</span> <span class="n">Coulomb</span> <span class="n">counting</span><span class="o">.</span>
+
+    <span class="n">persistent</span> <span class="n">soc_state</span><span class="p">;</span>
+    <span class="k">if</span> <span class="n">isempty</span><span class="p">(</span><span class="n">soc_state</span><span class="p">)</span>
+        <span class="n">soc_state</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">;</span>  <span class="o">%</span> <span class="n">start</span> <span class="n">at</span> <span class="mi">50</span><span class="o">%</span>
+    <span class="n">end</span>
+
+    <span class="n">capacity_kwh</span> <span class="o">=</span> <span class="mf">13.5</span><span class="p">;</span>
+    <span class="n">max_power</span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">;</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="mi">30</span><span class="p">;</span>
+
+    <span class="n">P_actual</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="o">-</span><span class="n">max_power</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">max_power</span><span class="p">,</span> <span class="n">P_cmd</span><span class="p">));</span>
+    <span class="n">soc_state</span> <span class="o">=</span> <span class="n">soc_state</span> <span class="o">-</span> <span class="p">(</span><span class="n">P_actual</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="mi">3600</span><span class="p">)</span> <span class="o">/</span> <span class="n">capacity_kwh</span><span class="p">;</span>
+    <span class="n">soc_state</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.05</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">soc_state</span><span class="p">));</span>
+    <span class="n">SoC</span> <span class="o">=</span> <span class="n">soc_state</span><span class="p">;</span>
+<span class="n">end</span>
 </pre></div>
 </div>
-<p>Users must make sure that the variable names within the simulator and that defined in <code class="docutils literal notranslate"><span class="pre">energysim</span></code> connections dict are the same.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Functions can use <code class="docutils literal notranslate"><span class="pre">persistent</span></code> variables to maintain state between
+steps — the MATLAB/Octave equivalent of Python instance variables.</p>
 </div>
-</div>
+</section>
+</section>
+</section>
 
 
           </div>
           
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper">
 <h1 class="logo"><a href="index.html">energysim</a></h1>
 
@@ -143,19 +378,31 @@ As mentioned, four main types of simulators can be added: FMU, powerflow network
 
 
 
-<h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents</span></p>
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Adding simulators</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#additional-arguments">Additional arguments</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#variable-naming-convention">Variable naming convention</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#powerflow-networks">Powerflow networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#csv-files">CSV files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-parameters">Common parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#fmu-simulators">FMU simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#powerflow-simulators">Powerflow simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#csv-simulators">CSV simulators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#external-simulators">External simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#powerfactory-simulators">PowerFactory simulators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#matlab-octave-simulators">MATLAB / Octave simulators</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="working_external_sims.html">Working with external simulators</a></li>
 <li class="toctree-l1"><a class="reference internal" href="energysim_features.html">energysim features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
 
@@ -168,16 +415,6 @@ As mentioned, four main types of simulators can be added: FMU, powerflow network
   </ul></li>
 </ul>
 </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" />
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
 
 
 
@@ -191,11 +428,11 @@ As mentioned, four main types of simulators can be added: FMU, powerflow network
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2020, Digvijay Gusain.
+      &#169;2020-2026, Digvijay Gusain.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
       
       |
       <a href="_sources/add_simulator.rst.txt"

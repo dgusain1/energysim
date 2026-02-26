@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# HDF5 result files
+*.h5
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Sphinx build output
+docs/build/
+
+# MkDocs build output
+site/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Compiled models / data artifacts
+*.pyc
+*.npz
+*.fmu

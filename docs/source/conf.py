@@ -18,11 +18,11 @@
 # -- Project information -----------------------------------------------------
 
 project = 'energysim'
-copyright = '2020, Digvijay Gusain'
+copyright = '2020-2026, Digvijay Gusain'
 author = 'Digvijay Gusain'
 
 # The full version, including alpha/beta/rc tags
-release = '2.0'
+release = '2.1.9.1'
 
 
 # -- General configuration ---------------------------------------------------

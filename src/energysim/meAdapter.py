@@ -3,40 +3,56 @@
 Created on Mon Sep 10 15:32:24 2018
 
 @author: digvijaygusain
-"""
-from fmpy import read_model_description, extract, dump
-from fmpy.fmi1 import *
-from fmpy.fmi1 import _FMU1
-from fmpy.util import plot_result, download_test_file, auto_interval
-import shutil, sys
-from fmpy.simulation import Recorder, Input, apply_start_values
-from random import random
-from fmpy.fmi2 import *
-import numpy as np, os
 
-class FmuMeAdapter():
+FMU Model Exchange adapter for energysim.
+"""
+from ctypes import POINTER, c_double
+
+from fmpy import read_model_description, extract, dump
+from fmpy.fmi1 import (
+    FMU1Model,
+    fmi1CallbackFunctions, fmi1CallbackLoggerTYPE,
+    fmi1CallbackAllocateMemoryTYPE, fmi1CallbackFreeMemoryTYPE,
+    fmi1False,
+)
+from fmpy.fmi2 import (
+    FMU2Model,
+    fmi2CallbackFunctions, fmi2CallbackLoggerTYPE,
+    fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE,
+    fmi2True, fmi2False,
+    printLogMessage, calloc, free,
+)
+from fmpy.simulation import Input, apply_start_values
+from random import random
+import numpy as np
+import os
+
+from .base import SimulatorAdapter
+
+
+class FmuMeAdapter(SimulatorAdapter):
     '''
     FMU Model Exchange adapter for energysim
     '''
-    
-    def __init__(self, fmu_location, 
-                 instanceName=None, 
-                 start_time=0, 
-                 tolerance=1e-06, 
-                 stop_time = 100, 
-                 step_size = 1.0e-3, 
-                 inputs = [], 
-                 outputs = [],
-                 solver_name = 'Cvode',
-                 show_fmu_info = False,
+
+    def __init__(self, fmu_location,
+                 instanceName=None,
+                 start_time=0,
+                 tolerance=1e-06,
+                 stop_time=100,
+                 step_size=1.0e-3,
+                 inputs=[],
+                 outputs=[],
+                 solver_name='Cvode',
+                 show_fmu_info=False,
                  exist=False,
                  validate=True):
 
         assert (fmu_location is not None), "Must specify FMU location"
         self.fmu_location = fmu_location
         if instanceName is None:
-            instanceID = int(random()*1000)
-            self.instanceName = 'fmu'+str(instanceID)
+            instanceID = int(random() * 1000)
+            self.instanceName = 'fmu' + str(instanceID)
             print('FMU instance created as: ' + self.instanceName)
         else:
             self.instanceName = instanceName
@@ -47,16 +63,14 @@ class FmuMeAdapter():
         self.inputs = inputs
         self.outputs = outputs
         self.solver_name = solver_name
-        self.validate=validate
+        self.validate = validate
         if show_fmu_info:
             dump(self.fmu_location)
         self.exist = exist
         self.setup()
-        
 
-        
     def setup(self):
-        fmi_call_logger=None
+        fmi_call_logger = None
         self.t_next = self.start_time
         self.unzipDir = extract(self.fmu_location)
         self.modelDescription = read_model_description(self.fmu_location, validate=self.validate)
@@ -64,61 +78,65 @@ class FmuMeAdapter():
         logger = printLogMessage
         # common FMU constructor arguments
         self.fmu_args = {'guid': self.modelDescription.guid,
-                    'unzipDirectory': self.unzipDir,
-                    'instanceName': self.instanceName,
-                    'fmiCallLogger': fmi_call_logger}
-        
+                         'unzipDirectory': self.unzipDir,
+                         'instanceName': self.instanceName,
+                         'fmiCallLogger': fmi_call_logger}
+
         if self.exist:
 
             from fmpy.util import compile_dll
-        
+
             # compile the shared library from the C sources
             self.fmu_args['libraryPath'] = compile_dll(model_description=self.modelDescription,
-                                                  sources_dir=os.path.join(self.unzipDir, 'sources'))
-        
+                                                       sources_dir=os.path.join(self.unzipDir, 'sources'))
+
         self.fmu_args['modelIdentifier'] = self.modelDescription.modelExchange.modelIdentifier
-        
+
         if self.is_fmi1:
             callbacks = fmi1CallbackFunctions()
             callbacks.logger = fmi1CallbackLoggerTYPE(logger)
-            callbacks.allocateMemory = fmi1CallbackAllocateMemoryTYPE(allocateMemory)
-            callbacks.freeMemory = fmi1CallbackFreeMemoryTYPE(freeMemory)
+            callbacks.allocateMemory = fmi1CallbackAllocateMemoryTYPE(calloc)
+            callbacks.freeMemory = fmi1CallbackFreeMemoryTYPE(free)
             callbacks.stepFinished = None
         else:
             callbacks = fmi2CallbackFunctions()
             callbacks.logger = fmi2CallbackLoggerTYPE(logger)
-            callbacks.allocateMemory = fmi2CallbackAllocateMemoryTYPE(allocateMemory)
-            callbacks.freeMemory = fmi2CallbackFreeMemoryTYPE(freeMemory)
-        
-        #define var values for input and output variables
+            callbacks.allocateMemory = fmi2CallbackAllocateMemoryTYPE(calloc)
+            callbacks.freeMemory = fmi2CallbackFreeMemoryTYPE(free)
+
+        # define var values for input and output variables
         self.vrs = {}
         for variable in self.modelDescription.modelVariables:
             self.vrs[variable.name] = [variable.valueReference, variable.type]
-        
+
         if self.is_fmi1:
-            self.fmu = FMU1Model(guid = self.modelDescription.guid,
+            self.fmu = FMU1Model(guid=self.modelDescription.guid,
                                  unzipDirectory=self.unzipDir,
                                  modelIdentifier=self.modelDescription.modelExchange.modelIdentifier,
                                  instanceName=self.instanceName)
-            #instantiate FMU
+            # instantiate FMU
             self.fmu.instantiate(functions=callbacks)
             self.fmu.setTime(self.start_time)
-            
+
         else:
-            self.fmu = FMU2Model(guid = self.modelDescription.guid,
-                     unzipDirectory=self.unzipDir,
-                     modelIdentifier=self.modelDescription.modelExchange.modelIdentifier,
-                     instanceName=self.instanceName)
-            #instantiate FMU
+            self.fmu = FMU2Model(guid=self.modelDescription.guid,
+                                 unzipDirectory=self.unzipDir,
+                                 modelIdentifier=self.modelDescription.modelExchange.modelIdentifier,
+                                 instanceName=self.instanceName)
+            # instantiate FMU
             self.fmu.instantiate(callbacks=callbacks)
             self.fmu.setupExperiment(startTime=self.start_time)
 
-        self.input = Input(self.fmu, self.modelDescription, None) 
-    
+        self.input = Input(self.fmu, self.modelDescription, None)
+
     def set_start_values(self, init_dict):
         apply_start_values(self.fmu, self.modelDescription, init_dict, apply_default_start_values=False)
-    
-    def set_value(self,parameterName,Value):
+
+    def set_parameters(self, params):
+        """Override ABC: FMU uses apply_start_values."""
+        self.set_start_values(params)
+
+    def set_value(self, parameterName, Value):
         '''
         Must specify parameters and values in list format
         '''
@@ -137,9 +155,8 @@ class FmuMeAdapter():
                 self.fmu.setBoolean([self.vrs[i][0]], [bool(j)])
             elif self.vrs[i][1] == 'String':
                 self.fmu.setString([self.vrs[i][0]], [j])
-    
 
-    def get_value(self,parameterName, time):
+    def get_value(self, parameterName, time):
         '''
         Must specify parameter in a list format.
         '''
@@ -153,87 +170,88 @@ class FmuMeAdapter():
                 temp = self.fmu.getBoolean([self.vrs[i][0]])
             elif self.vrs[i][1] == 'String':
                 temp = self.fmu.getString([self.vrs[i][0]])
-            
+
             values_.append(temp[0])
 #        values_ = self.fmu.getReal(list(self.parameterVar))
         return values_
-        
+
     def reset(self):
         self.fmu.reset()
-        
+
     def init(self):
-        #self.set_inital_inputs({})
+        # self.set_inital_inputs({})
         self.input = Input(self.fmu, self.modelDescription, None)
         if self.is_fmi1:
-#            self.fmu.setTime(self.start_time)
+            #            self.fmu.setTime(self.start_time)
             self.input.apply(0)
             self.fmu.initialize()
         else:
-#            self.fmu.setupExperiment(startTime=self.start_time)
+            #            self.fmu.setupExperiment(startTime=self.start_time)
             self.fmu.enterInitializationMode()
             self.input.apply(0)
             self.fmu.exitInitializationMode()
-    
+
             # event iteration
             self.fmu.eventInfo.newDiscreteStatesNeeded = fmi2True
             self.fmu.eventInfo.terminateSimulation = fmi2False
-    
-            while self.fmu.eventInfo.newDiscreteStatesNeeded == fmi2True and self.fmu.eventInfo.terminateSimulation == fmi2False:
+
+            while (self.fmu.eventInfo.newDiscreteStatesNeeded == fmi2True
+                    and self.fmu.eventInfo.terminateSimulation == fmi2False):
                 # update discrete states
                 self.fmu.newDiscreteStates()
-    
-            self.fmu.enterContinuousTimeMode()        
-        #self.fmu.initialize()
+
+            self.fmu.enterContinuousTimeMode()
+        # self.fmu.initialize()
         self.set_solver()
         self.t_next = self.start_time
-    
+
     def set_solver(self):
         solver_args = {
-        'nx': self.modelDescription.numberOfContinuousStates,
-        'nz': self.modelDescription.numberOfEventIndicators,
-        'get_x': self.fmu.getContinuousStates,
-        'set_x': self.fmu.setContinuousStates,
-        'get_dx': self.fmu.getDerivatives,
-        'get_z': self.fmu.getEventIndicators
+            'nx': self.modelDescription.numberOfContinuousStates,
+            'nz': self.modelDescription.numberOfEventIndicators,
+            'get_x': self.fmu.getContinuousStates,
+            'set_x': self.fmu.setContinuousStates,
+            'get_dx': self.fmu.getDerivatives,
+            'get_z': self.fmu.getEventIndicators
         }
-        
+
         if self.solver_name == 'Cvode':
             from fmpy.sundials import CVodeSolver
             self.solver = CVodeSolver(set_time=self.fmu.setTime,
-                                 startTime=self.start_time,
-                                 maxStep=(self.stop_time - self.start_time) / 50.,
-                                 relativeTolerance=0.001,
-                                 **solver_args)
-            
+                                      startTime=self.start_time,
+                                      maxStep=(self.stop_time - self.start_time) / 50.,
+                                      relativeTolerance=0.001,
+                                      **solver_args)
+
             self.fixed_step = False
-        
+
         if self.solver_name == 'Euler':
             self.solver = ForwardEuler(**solver_args)
             self.fixed_step = True
 
-        
     def setInput(self, inputValues):
         self.inputVariables = []
         for i in self.inputs:
             self.inputVariables.append(self.vrs[i][0])
         self.fmu.setReal(list(self.inputVariables), list(inputValues))
-    
+
     def getOutput(self):
         self.outputVariables = []
         for i in self.outputs:
             self.outputVariables.append(self.vrs[i][0])
-        
+
         return self.fmu.getReal(list(self.outputVariables))
-            
-    
-    def step(self, time, csStep=False):  
-        
+
+    def step(self, time, csStep=False):
+
         if csStep:
-            print('Variable step is only supported in cosimulation FMUs. Exiting simulation.')
-            sys.exit()
-        
+            from .base import EnergysimError
+            raise EnergysimError(
+                'Variable step is only supported in cosimulation FMUs, not Model Exchange.'
+            )
+
         eps = 1.0e-13
-        #step ahead in time
+        # step ahead in time
         if self.fixed_step:
             if time + self.step_size < self.stop_time + eps:
                 self.t_next = time + self.step_size
@@ -242,31 +260,38 @@ class FmuMeAdapter():
         else:
             if time + eps >= self.t_next:  # t_next has been reached
                 # integrate to the next grid point
-#                self.t_next = round(time / self.step_size) * self.step_size + self.step_size
+                #                self.t_next = round(time / self.step_size) * self.step_size + self.step_size
                 self.t_next = np.floor(time / self.step_size) * self.step_size + self.step_size
                 if self.t_next < time + eps:
                     self.t_next += self.step_size
-        
-        #gets the time of input event
+
+        # gets the time of input event
         t_input_event = self.input.nextEvent(time)
-    
+
         # check for input event
         input_event = t_input_event <= self.t_next
-    
+
         if input_event:
             self.t_next = t_input_event
-        
-        #check the time of next event.
+
+        # check the time of next event.
         if self.is_fmi1:
-            time_event = self.fmu.eventInfo.upcomingTimeEvent != fmi1False and self.fmu.eventInfo.nextEventTime <= self.t_next
+            time_event = (
+                self.fmu.eventInfo.upcomingTimeEvent != fmi1False
+                and self.fmu.eventInfo.nextEventTime <= self.t_next
+            )
         else:
-            time_event = self.fmu.eventInfo.nextEventTimeDefined != fmi2False and self.fmu.eventInfo.nextEventTime <= self.t_next
-            
-#        time_event = self.fmu.eventInfo.upcomingTimeEvent != fmi1False and self.fmu.eventInfo.nextEventTime <= self.t_next
-    
+            time_event = (
+                self.fmu.eventInfo.nextEventTimeDefined != fmi2False
+                and self.fmu.eventInfo.nextEventTime <= self.t_next
+            )
+
+#        time_event = (self.fmu.eventInfo.upcomingTimeEvent != fmi1False
+#            and self.fmu.eventInfo.nextEventTime <= self.t_next)
+
         if time_event and not self.fixed_step:
             self.t_next = self.fmu.eventInfo.nextEventTime
-    
+
         if self.t_next - time > eps:
             # do one step
             state_event, time = self.solver.step(time, self.t_next)
@@ -274,25 +299,25 @@ class FmuMeAdapter():
             # skip
             time = self.t_next
             state_event = False
-    
+
         # set the time
         self.fmu.setTime(time)
-    
+
         # check for step event, e.g.dynamic state selection
         if self.is_fmi1:
             step_event = self.fmu.completedIntegratorStep()
         else:
             step_event, _ = self.fmu.completedIntegratorStep()
             step_event = step_event != fmi2False
-            
+
         # handle events
         if input_event or time_event or state_event or step_event:
-    
-            #recorder.sample(time, force=True)
-    
+
+            # recorder.sample(time, force=True)
+
             if input_event:
-                input.apply(time=time, after_event=True)
-    
+                self.input.apply(time=time, after_event=True)  # was: input.apply (called Python builtin)
+
             # handle events
             if self.is_fmi1:
                 self.fmu.eventUpdate()
@@ -304,32 +329,71 @@ class FmuMeAdapter():
                 self.fmu.eventInfo.terminateSimulation = fmi2False
 
                 # update discrete states
-                while self.fmu.eventInfo.newDiscreteStatesNeeded != fmi2False and self.fmu.eventInfo.terminateSimulation == fmi2False:
+                while (self.fmu.eventInfo.newDiscreteStatesNeeded != fmi2False
+                        and self.fmu.eventInfo.terminateSimulation == fmi2False):
                     self.fmu.newDiscreteStates()
 
                 self.fmu.enterContinuousTimeMode()
-    
+
             self.solver.reset(time)
-    
+
     def terminate(self):
         self.fmu.terminate()
-    
-    def cleanUp(self):
+
+    def cleanup(self):
         self.fmu.terminate()
         self.fmu.freeInstance()
         del self.solver
-#        shutil.rmtree(self.unzipDir)
-    
+
+    # Backward compatibility alias
+    cleanUp = cleanup
+
+    # ------------------------------------------------------------------
+    # advance() — override: hand the full interval to the ODE solver
+    # ------------------------------------------------------------------
+    def advance(self, start_time: float, stop_time: float) -> None:
+        """Advance the ME FMU through [start_time, stop_time).
+
+        Delegates to ``step(time)`` in a loop; step() drives the
+        internal CVode / ForwardEuler solver, handles events, and
+        manages ``self.t_next`` internally.
+        """
+        t = start_time
+        eps = 1e-13
+        while t < stop_time - eps:
+            self.step(t)
+            t = self.t_next
+
+    def advance_with_recording(self, start_time, stop_time, outputs):
+        """Advance ME FMU while recording at each solver step.
+
+        Unlike the default implementation that uses fixed micro-steps,
+        this respects the ODE solver's adaptive time points (self.t_next).
+        """
+        rows = []
+        t = start_time
+        eps = 1e-13
+        while t < stop_time - eps:
+            if outputs:
+                row = [t] + list(self.get_value(outputs, t))
+            else:
+                row = [t]
+            rows.append(row)
+            self.step(t)
+            t = self.t_next
+        return rows
+
     def simulate(self, timeout=180):
         from fmpy import simulate_fmu
-            
-        result = simulate_fmu(self.fmu_location, 
-                              start_time = self.start_time, 
-                              stop_time =self.stop_time, 
-                              timeout = timeout, 
-                              step_size = self.step_size, 
-                              output = self.outputs)
+
+        result = simulate_fmu(self.fmu_location,
+                              start_time=self.start_time,
+                              stop_time=self.stop_time,
+                              timeout=timeout,
+                              step_size=self.step_size,
+                              output=self.outputs)
         return result
+
 
 class ForwardEuler(object):
 

@@ -1,0 +1,71 @@
+site_name: energysim
+site_description: Python-based co-simulation tool for multi-energy systems
+site_url: https://energysim.readthedocs.io
+repo_url: https://github.com/dgusain1/energysim
+repo_name: dgusain1/energysim
+
+copyright: "Copyright &copy; 2020–2026 Digvijay Gusain"
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/energysim.png
+  favicon: assets/energysim.png
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Adding Simulators: add-simulator.md
+      - External Simulators: external-simulators.md
+  - Reference:
+      - Features: features.md
+      - Architecture: architecture.md
+  - FAQ: faq.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+plugins:
+  - search

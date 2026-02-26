@@ -1,124 +1,179 @@
-
+﻿
 .. image:: logo.png
 
-Compatible with Python 3.6 and above.
-Documentation available `here <https://energysim.readthedocs.io/en/latest/>`_.
+Compatible with Python 3.8 and above.
+Documentation available here <https://energysim.readthedocs.io/en/latest/>_.
 
 What is energysim?
 ##################
 
-``energysim`` is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called ``FMUWorld``, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
+`energysim` is a Python-based co-simulation tool designed to simplify
+multi-energy co-simulations.  It lets you couple heterogeneous energy-system
+models -- FMUs, power-flow networks, CSV data sources, PowerFactory models,
+MATLAB/Octave functions, and custom Python simulators -- through a single
+`world` object that handles time progression, variable exchange, and results
+collection automatically.
 
-The idea behind development of ``energysim`` is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc.
+Currently, `energysim` supports:
 
-Currently, ``energysim`` allows users to combine:
+1. Dynamic models packaged as **Functional Mockup Units** (FMI 1.0 / 2.0,
+   Co-Simulation *and* Model Exchange).
+2. **Pandapower** networks (pickle files) -- AC/DC power flow and OPF.
+3. **PyPSA** networks (experimental).
+4. **CSV** data files with time-indexed columns.
+5. User-defined **external simulators** via a simple Python class.
+6. **DIgSILENT PowerFactory** models via the Python API (load flow,
+   short circuit, RMS simulation).
+7. **MATLAB / GNU Octave** `.m` functions (auto-detects engine).
 
-	1. Dynamic models packaged as *Functional Mockup Units*.
-	2. Pandapower networks packaged as *pickle files*.
-	3. PyPSA models (still under testing) as *Excel files*.
-	4. User-defined external simulators interfaced with *.py functions*.
-	5. CSV data files
+Architecture
+############
 
+All simulator adapters inherit from the `SimulatorAdapter` abstract base
+class (in `energysim.base`).  The `world` orchestrator interacts *only*
+through this interface:
+
+- `init()` -- called once before the first time step.
+- `step(time)` -- advance the model by one micro-step.
+- `advance(start, stop)` -- advance from *start* to *stop* (default
+  implementation loops `step()` at `step_size` intervals).
+- `get_value(parameters, time)` -- query output variables.
+- `set_value(parameters, values)` -- set input variables.
+- `cleanup()` -- release resources after the simulation.
 
 Installation
 ############
-``energysim`` can be installed with ``pip`` using::
+Install the core package with `pip`::
 
-	pip install energysim
+    pip install energysim
 
-Dependencies
-^^^^^^^^^^^^
-``energysim`` requires the following packages to work:
+Only **numpy**, **pandas**, **matplotlib**, **tqdm**, and **PyTables** are
+required.  Simulator-specific packages are optional::
 
-	1. FMPy
-	2. Pandapower
-	3. PyPSA
-	4. NumPy
-	5. Pandas
-	6. Matplotlib
-	7. NetworkX
-	8. tqdm
-	9. PyTables
+    pip install energysim[fmu]         # adds FMPy
+    pip install energysim[powerflow]   # adds pandapower
+    pip install energysim[pypsa]       # adds PyPSA
+    pip install energysim[all]         # all of the above
 
-Usage
-#####
+For the new adapters:
 
-``energysim`` cosimulation is designed for an easy-plug-and-play approach. The main component is the ``world()`` object. This is the "playground" where all simulators, and connections are added and the options for simulation are specified. ``world()`` can be imported by implementing::
-
-	from energysim import world
+- **PowerFactory**: requires DIgSILENT PowerFactory 2020+ with the Python API
+  enabled.  No extra pip install needed.
+- **MATLAB**: requires the MATLAB Engine for Python
+  (``cd /path/to/matlab/extern/engines/python && python setup.py install``).
+- **Octave**: ``pip install oct2py`` + GNU Octave on PATH.
 
 
-Initialization
-^^^^^^^^^^^^^^
-Once ``world`` is imported, it can be initialized with basic simulation parameters using::
+Quick Start
+###########
+
+.. code-block:: python
+
+    from energysim import world
+
+    # 1. Create co-simulation world
+    my_world = world(start_time=0, stop_time=86400,
+                     logging=True, t_macro=900)
+
+    # 2. Add simulators
+    my_world.add_simulator(
+        sim_type='fmu', sim_name='plant',
+        sim_loc='plant.fmu',
+        inputs=['power_cmd'], outputs=['temperature'],
+        step_size=1, validate=False)
+
+    my_world.add_simulator(
+        sim_type='powerflow', sim_name='grid',
+        sim_loc='network.p',
+        inputs=['Load1.p_mw'], outputs=['Bus1.vm_pu'],
+        step_size=300, pf='opf')
+
+    my_world.add_simulator(
+        sim_type='csv', sim_name='profiles',
+        sim_loc='data.csv', step_size=900)
+
+    # PowerFactory model  (requires PF licence)
+    my_world.add_simulator(
+        sim_type='powerfactory', sim_name='MyProject',
+        sim_loc='MyProject',
+        inputs=['Load.plini'],
+        outputs=['Bus1.m:u'],
+        step_size=900, pf='ldf',
+        pf_path=r'C:\DIgSILENT\PowerFactory 2024\Python\3.11')
+
+    # MATLAB / Octave function
+    my_world.add_simulator(
+        sim_type='matlab', sim_name='heatpump',
+        sim_loc=r'models\heatpump.m',
+        inputs=['P_electric', 'T_source', 'T_sink'],
+        outputs=['Q_thermal', 'COP'],
+        step_size=900, engine='auto')
+
+    # 3. Connect simulators
+    connections = {
+        'plant.temperature': 'grid.Load1.p_mw',
+        'profiles.wind':     'plant.power_cmd',
+    }
+    my_world.add_connections(connections)
+
+    # 4. Run
+    my_world.simulate(pbar=True, record_all=False)
+
+    # 5. Results  (opens interactive HTML dashboard)
+    results = my_world.results(to_csv=False, dashboard=True)
 
 
-	my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
+Parameters
+##########
 
-``world`` accepts the following parameters :
+`world()` parameters
+^^^^^^^^^^^^^^^^^^^^^^
 
-	- ``start_time`` : simulation start time (0 by default).
-	- ``stop_time`` : simulation end time (1000 by default).
-	- ``logging`` : Flag to toggle update on simulation progress (True by default).
-	- ``t_macro`` : Time steps at which information between simulators needs to be exchanged. (60 by default).
+- `start_time` -- simulation start time in seconds (default `0`).
+- `stop_time` -- simulation end time in seconds (default `1000`).
+- `logging` -- print progress messages (default `True`).
+- `t_macro` -- macro time-step: interval at which variables are
+  exchanged between simulators (default `60`).
 
-Adding Simulators
-^^^^^^^^^^^^^^^^^
-After initializing the world cosimulation object, simulators can be added to the world using the ``add_simulator()`` method::
-
-	my_world.add_simulator(sim_type='fmu', sim_name='FMU1',
-	sim_loc=/path/to/sim, inputs=['v1', 'v2'], outputs=['var1','var2'], step_size=1)
-
-where:
-
-	- ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external'
-	- ``sim_name`` : Unique simulator name.
-	- ``sim_loc`` : A raw string address of simulator location.
-	- ``outputs`` : Variables that need to be recorded from the simulator during simulation.
-	- ``inputs`` : Input variables to the simulator.
-	- ``step_size`` : Internal step size for simulator (1e-3 by default).
-
-Please see documentation on ``add_simulator`` to properly add simulators to ``energysim``.
-The values to simulator input are kept constant for the duration between two macro time steps.
-
-Connections between simulators
+`add_simulator()` parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Once all the required simulators are added, the connections between them can be specified with a dictionary as follows ::
 
-	connections = {'sim1.output_variable1' : 'sim2.input_variable1',
-	   'sim3.output_variable2' : 'sim4.input_variable2',
-	   'sim1.output_variable3' : 'sim2.input_variable3',}
+- `sim_type` -- `'fmu'`, `'powerflow'`, `'csv'`, `'external'`,
+  `'powerfactory'`, or `'matlab'`.
+- `sim_name` -- unique identifier for this simulator.
+- `sim_loc` -- path to the model / data file.
+- `inputs` -- list of input variable names.
+- `outputs` -- list of output variable names to record.
+- `step_size` -- micro time-step (default `1e-3`).
+- `**kwargs` -- type-specific options:
 
-This dictionary can be passed onto the world object::
-
-	my_world.add_connections(connections)
-
-
-Initializing simulator variables
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Initialization is important to start-up simulator in a cosimulation. If the simulators are not internally initialized, or of users want to use different initial conditions for the simulators, it can easily be done in ``energysim``. To provide initial values to the simulators, an ``init`` dictionary can be specified and given to the ``world`` object ::
-
-	initializations = {'sim_name1' : (['sim_variables'], [values]),
-	                   'sim_name2' : (['sim_variables'], [values])}
-	options = {'init' : initializations}
-	my_world.options(options)
+  - **FMU**: `validate` (bool), `variable` (bool).
+  - **Powerflow**: `pf` -- `'pf'`, `'dcpf'`, `'opf'`, or `'dcopf'`.
+  - **CSV**: `delimiter` (str).
+  - **PowerFactory**: `pf` -- `'ldf'`, `'shc'`, or `'rms'`;
+    `pf_path` (str) -- path to the PF Python directory.
+  - **MATLAB/Octave**: `engine` -- `'auto'`, `'matlab'`, or `'octave'`.
 
 
-Executing simulation
-^^^^^^^^^^^^^^^^^^^^
-The ``simulate()`` function can be called to simulate the world.
-When ``record_all`` is True, ``energysim`` records the value of variables not only at macro time steps, but also at micro time steps specified by the user when adding the simulators. This allows the users to get a better understanding of simulators in between macro time steps. When set to False, variables are only recorded at macro time step. This is useful in case a long term simulation (for ex. a day) is performed, but one of the simulators has a time step in milli-seconds. ``pbar`` can be used to toggle the progress bar for the simulation::
+Results & Dashboard
+^^^^^^^^^^^^^^^^^^^
 
-	my_world.simulate(pbar=True, record_all=False)
+`my_world.results()` returns a `dict[str, DataFrame]` keyed by
+simulator name.  By default it also opens an interactive HTML dashboard
+in the browser::
 
-Extracting Results
-^^^^^^^^^^^^^^^^^^
-Results can be extracted by calling ``results()`` function on ``my_world`` object. This returns a dictionary object with each simulators' results as pandas dataframe. Additionally, ``to_csv`` flag can be toggled to export results to csv files.
+    results = my_world.results(
+        to_csv=False,       # export CSVs alongside
+        dashboard=True,     # open interactive dashboard
+        dashboard_path=None # optional explicit path for the HTML file
+    )
 
-	results = my_world.results(to_csv=True)
 
-More information is provided on the documentation page.
+Citing
+######
 
-## Citing
 Please cite the following paper if you use **energysim**:
-Gusain, D, Cvetković, M & Palensky, P 2019, Energy flexibility analysis using FMUWorld. in 2019 IEEE Milan PowerTech., 8810433, IEEE, 2019 IEEE Milan PowerTech, PowerTech 2019, Milan, Italy, 23/06/19. https://doi.org/10.1109/PTC.2019.8810433
+
+    Gusain, D., Cvetkovic, M. & Palensky, P. (2019). *Energy flexibility
+    analysis using FMUWorld.* 2019 IEEE Milan PowerTech.
+    https://doi.org/10.1109/PTC.2019.8810433

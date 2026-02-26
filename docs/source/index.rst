@@ -2,136 +2,311 @@
 energysim documentation
 #######################
 
-Compatible with Python 3.6 and above.
+Compatible with Python 3.8 and above.
 
 What is energysim?
 ##################
 
-``energysim`` is a python based cosimulation tool designed to simplify multi-energy cosimulations. The tool was initially called ``FMUWorld``, since it focussed exclusively on combining models developed and packaged as Functional Mockup Units (FMUs). However, it has since been majorly updated to become a more generalisable cosimulation tool to include a more variety of energy system simulators.
+``energysim`` is a Python-based co-simulation tool designed to simplify
+multi-energy co-simulations.  The tool was originally called ``FMUWorld``,
+since it focussed exclusively on combining Functional Mockup Units (FMUs).
+It has since evolved into a general-purpose co-simulation coordinator that
+supports a wide variety of energy-system simulators.
 
-The idea behind development of ``energysim`` is to simplify cosimulation to focus on the high-level applications, such as energy system planning, evaluation of control strategies, etc., rather than low-level cosimulation tasks such as message exchange, time progression coordination, etc.
+The idea behind ``energysim`` is to let users focus on high-level
+applications — energy-system planning, control-strategy evaluation,
+sector coupling — while the framework handles low-level tasks such as
+message exchange, time-step coordination, dependency ordering, and
+algebraic-loop detection.
 
 Currently, ``energysim`` allows users to combine:
 
-	1. Dynamic models packaged as *Functional Mockup Units*.
-	2. Pandapower networks packaged as *pickle files*.
-	3. PyPSA models (still under testing) as *Excel files*.
-	4. User-defined external simulators interfaced with *.py functions*.
-	5. CSV data files
+1. Dynamic models packaged as **Functional Mockup Units** (FMI 1.0 & 2.0,
+   Co-Simulation and Model Exchange).
+2. **Pandapower** networks (PF, DCPF, OPF, DCOPF).
+3. **PyPSA** networks *(experimental)*.
+4. User-defined **external simulators** written in Python.
+5. **CSV** data files (time-indexed profiles).
+6. **DIgSILENT PowerFactory** models via the Python API.
+7. **MATLAB / GNU Octave** models as ``.m`` functions.
+8. **Signal generators** (Python lambda / function).
+9. Standalone **Python scripts**.
 
 .. image:: images/energysim.png
 
+
 Installation
 ############
-``energysim`` can be installed with ``pip`` using::
 
-	pip install energysim
+``energysim`` can be installed with ``pip``::
+
+    pip install energysim
+
+To install with all optional dependencies::
+
+    pip install energysim[all]
+
 
 Dependencies
 ^^^^^^^^^^^^
-``energysim`` requires the following packages to work:
 
-	1. FMPy
-	2. Pandapower
-	3. PyPSA
-	4. NumPy
-	5. Pandas
-	6. Matplotlib
-	7. NetworkX
-	8. tqdm
+**Core** (always required):
+
+- NumPy
+- Pandas
+- Matplotlib
+- NetworkX
+- tqdm
+- PyTables (``tables``)
+
+**Optional** (installed lazily when the first simulator of that type is
+added):
+
++---------------------+----------------------------------------------+
+| Package             | When needed                                  |
++=====================+==============================================+
+| FMPy                | FMU simulators                               |
++---------------------+----------------------------------------------+
+| pandapower          | Powerflow simulators                         |
++---------------------+----------------------------------------------+
+| PyPSA               | PyPSA network simulators                     |
++---------------------+----------------------------------------------+
+| oct2py              | MATLAB/Octave models (Octave backend)        |
++---------------------+----------------------------------------------+
+| MATLAB Engine       | MATLAB/Octave models (MATLAB backend)        |
++---------------------+----------------------------------------------+
+| Plotly              | Interactive HTML dashboards                  |
++---------------------+----------------------------------------------+
+
+Install adapter-specific extras with::
+
+    pip install energysim[fmu]          # FMPy
+    pip install energysim[powerflow]    # pandapower
+    pip install energysim[pypsa]        # PyPSA
 
 
 Usage
 #####
 
-``energysim`` cosimulation is designed for an easy-plug-and-play approach. The main component is the ``world()`` object. This is the "playground" where all simulators, and connections are added and the options for simulation are specified. ``world()`` can be imported by implementing::
+``energysim`` is designed for a plug-and-play workflow.  The main
+component is the ``world`` object — the coordinator where all simulators,
+connections, and options are registered::
 
-	from energysim import world
+    from energysim import world
 
 
 Initialization
 ^^^^^^^^^^^^^^
-Once ``world`` is imported, it can be initialized with basic simulation parameters using::
+
+Create a ``world`` with the basic simulation parameters::
+
+    my_world = world(
+        start_time=0,
+        stop_time=86400,
+        t_macro=900,
+        logging=True,
+        coupling='jacobi',
+        extrapolation='zero-order',
+    )
+
+``world()`` accepts the following parameters:
+
+- ``start_time`` — simulation start time in seconds (default ``0``).
+- ``stop_time`` — simulation stop time in seconds (default ``1000``).
+- ``t_macro`` — macro time-step at which variables are exchanged
+  between simulators (default ``60``).
+- ``logging`` — toggle simulation progress updates (default ``False``).
+- ``res_filename`` — HDF5 results file name (default ``'es_res.h5'``).
+- ``coupling`` — coupling strategy (default ``'jacobi'``):
+
+  - ``'jacobi'`` — exchange all variables, then step all simulators
+    (one-step delay in feedback loops).
+  - ``'gauss-seidel'`` — step simulators in topological order;
+    each simulator's outputs are immediately available to downstream
+    simulators.
+  - ``'iterative'`` — fixed-point iteration with convergence check
+    within each macro step (most accurate for tightly coupled systems).
+
+- ``extrapolation`` — how exchanged values are estimated between
+  exchange points (default ``'zero-order'``):
+
+  - ``'zero-order'`` — hold the last exchanged value constant.
+  - ``'linear'`` — linearly extrapolate from the two most recent values.
+
+- ``max_iterations`` — maximum fixed-point iterations per macro step
+  when ``coupling='iterative'`` (default ``10``).
+- ``convergence_tolerance`` — relative tolerance for convergence check
+  in iterative coupling (default ``1e-6``).
+
+See :doc:`architecture` for a detailed explanation of each coupling mode.
 
 
-	my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
-
-``world`` accepts the following parameters :
-
-	- ``start_time`` : simulation start time (0 by default).
-	- ``stop_time`` : simulation end time (1000 by default).
-	- ``logging`` : Flag to toggle update on simulation progress (True by default).
-	- ``t_macro`` : Time steps at which information between simulators needs to be exchanged. (60 by default).
-
-Adding Simulators
+Adding simulators
 ^^^^^^^^^^^^^^^^^
-After initializing the world cosimulation object, simulators can be added to the world using the ``add_simulator()`` method::
 
-	my_world.add_simulator(sim_type='fmu', sim_name='FMU1',
-	sim_loc=/path/to/sim, inputs=['v1', 'v2'], outputs=['var1','var2'], step_size=1)
+Simulators are added using ``add_simulator()``::
 
-where:
+    my_world.add_simulator(
+        sim_type='fmu',
+        sim_name='plant',
+        sim_loc='model.fmu',
+        inputs=['power_cmd'],
+        outputs=['temperature'],
+        step_size=1,
+    )
 
-	- ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external'
-	- ``sim_name`` : Unique simulator name.
-	- ``sim_loc`` : A raw string address of simulator location.
-	- ``outputs`` : Variables that need to be recorded from the simulator during simulation.
-	- ``inputs`` : Input variables to the simulator.
-	- ``step_size`` : Internal step size for simulator (1e-3 by default).
+Parameters:
 
-Please see documentation on ``add_simulator`` to properly add simulators to ``energysim``.
-The values to simulator input are kept constant for the duration between two macro time steps.
+- ``sim_type`` — one of ``'fmu'``, ``'powerflow'``, ``'csv'``,
+  ``'external'``, ``'powerfactory'``, ``'matlab'``, ``'script'``.
+- ``sim_name`` — unique identifier used in connections and results.
+- ``sim_loc`` — path to the model or data file.
+- ``inputs`` — list of input variable names (populated via connections).
+- ``outputs`` — list of output variable names to record.
+- ``step_size`` — micro time-step in seconds (default ``1``).
+
+See :doc:`add_simulator` for the full reference for each simulator type.
+
+Signals can be added with a dedicated method::
+
+    my_world.add_signal(
+        sim_name='setpoint',
+        signal=lambda t: [42.0],
+        step_size=1,
+    )
+
 
 Connections between simulators
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Once all the required simulators are added, the connections between them can be specified with a dictionary as follows ::
 
-	connections = {'sim1.output_variable1' : 'sim2.input_variable1',
-	   'sim3.output_variable2' : 'sim4.input_variable2',
-	   'sim1.output_variable3' : 'sim2.input_variable3',}
+Once all simulators are added, their connections are specified with a
+dictionary mapping source outputs to destination inputs::
 
-This dictionary can be passed onto the world object::
+    connections = {
+        'weather.temperature':  'building.T_ambient',
+        'weather.irradiance':   'pv.G_solar',
+        'pv.P_dc':              'grid.PV.p_mw',
+        'controller.p_cmd':     ('battery.P_cmd', 'grid.Battery.p_mw'),
+    }
+    my_world.add_connections(connections)
 
-	my_world.add_connections(connections)
+``add_connections()`` performs **automatic validation**:
+
+- **Simulator existence** — raises ``ConnectionError`` if a referenced
+  simulator name is not registered.
+- **Malformed variable strings** — raises ``ConnectionError`` if a
+  variable string does not contain a ``.`` separator.
+- **Read-only targets** — warns if a connection writes to a CSV or
+  signal simulator (which are inherently read-only).
+- **Variable name checking** — warns if a variable name does not match
+  the adapter's known variables (when introspection is available).
+
+After validation, ``energysim`` builds a **dependency graph** from the
+connections and computes a **topological execution order**.  If the graph
+contains cycles (algebraic loops), a warning is issued and the cyclic
+simulators are grouped using strongly-connected-component analysis.
+
+
+Fan-out and fan-in
+""""""""""""""""""
+
+A single output can drive multiple inputs (fan-out)::
+
+    connections = {
+        'source.y': ('sim_a.x', 'sim_b.x'),
+    }
+
+Multiple outputs can feed a single input (fan-in); the last value wins::
+
+    connections = {
+        ('source_a.y', 'source_b.y'): 'sim_c.x',
+    }
 
 
 Initializing simulator variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Initialization is important to start-up simulator in a cosimulation. If the simulators are not internally initialized, or of users want to use different initial conditions for the simulators, it can easily be done in ``energysim``. To provide initial values to the simulators, an ``init`` dictionary can be specified and given to the ``world`` object ::
 
-	initializations = {'sim_name1' : (['sim_variables'], [values]),
-	                   'sim_name2' : (['sim_variables'], [values])}
-	options = {'init' : initializations}
-	my_world.options(options)
+To set initial values before the first time-step, provide an ``init``
+dictionary via ``options()``::
+
+    initializations = {
+        'plant':   (['temperature'], [293.15]),
+        'battery': (['SoC'],         [0.5]),
+    }
+    my_world.options({'init': initializations})
 
 
 Executing simulation
 ^^^^^^^^^^^^^^^^^^^^
-Finally, the ``simulate()`` function can be called to simulate the world.
-This returns a dictionary with simulator name as keys and the results of
-the simulator as pandas dataframe. ``pbar`` can be used to toggle the progress bar for the simulation::
 
-	my_world.simulate(pbar=True)
+Run the co-simulation by calling ``simulate()``::
 
-Extracting Results
+    my_world.simulate(pbar=True)
+
+The ``pbar`` flag toggles the ``tqdm`` progress bar.
+
+During simulation, ``energysim``:
+
+1. Initialises all adapters (``adapter.init()``).
+2. For each macro time-step:
+
+   a. Exchanges variables according to the coupling strategy.
+   b. Steps each simulator from *t* to *t + t_macro*.
+   c. Records outputs to the HDF5 file.
+
+3. Cleans up all adapters (``adapter.cleanup()``).
+
+
+Extracting results
 ^^^^^^^^^^^^^^^^^^
-Results can be extracted by calling ``results()`` function on ``my_world`` object. Additionally, ``to_csv`` flag can be toggled to export results to csv files. If ``False``, the function returns a dictionary object with each simulators' results as pandas dataframe::
 
-	results = my_world.results(to_csv=True)
+After simulation, retrieve results as a dictionary of DataFrames::
+
+    results = my_world.results(to_csv=True)
+
+Options:
+
+- ``to_csv=True`` — also export each simulator's results to a CSV file.
+- ``dashboard=True`` — open an interactive HTML dashboard in the
+  browser.
+- ``dashboard_path='my_dashboard.html'`` — save the dashboard to a
+  custom path.
+
+
+Error handling
+^^^^^^^^^^^^^^
+
+``energysim`` uses a structured exception hierarchy instead of
+``sys.exit()`` calls:
+
+- ``EnergysimError`` — base class for all energysim exceptions.
+- ``SimulatorVariableError`` — invalid variable name or type.
+- ``SimulatorElementNotFoundError`` — element not found in a network.
+- ``ConnectionError`` — malformed or invalid connection specification.
+
+All exceptions can be imported from ``energysim.base``::
+
+    from energysim.base import (
+        EnergysimError,
+        SimulatorVariableError,
+        SimulatorElementNotFoundError,
+        ConnectionError,
+    )
 
 
 .. toctree::
-	:maxdepth: 2
-	:caption: Contents
+   :maxdepth: 2
+   :caption: Contents
 
-	add_simulator
-	working_external_sims
-	energysim_features
-	faq
+   add_simulator
+   working_external_sims
+   energysim_features
+   architecture
+   faq
 
 
 Indices and tables
-==================
+##################
 
 * :ref:`genindex`
 * :ref:`modindex`

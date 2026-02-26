@@ -1,9 +1,13 @@
 from setuptools import setup
 
+import os
+
 def readme():
-    with open('README.rst', encoding='utf-8') as f:
-        README = f.read()
-    return README
+    readme_path = os.path.join(os.path.dirname(__file__), '..', 'README.rst')
+    if os.path.exists(readme_path):
+        with open(readme_path, encoding='utf-8') as f:
+            return f.read()
+    return 'Python package for cosimulation of multi-energy systems'
 
 
 setup(
@@ -19,11 +23,21 @@ setup(
       classifiers=[
               'License :: OSI Approved :: MIT License',
               'Programming Language :: Python :: 3',
-              'Programming Language :: Python :: 3.6'],
+              'Programming Language :: Python :: 3.8',
+              'Programming Language :: Python :: 3.9',
+              'Programming Language :: Python :: 3.10',
+              'Programming Language :: Python :: 3.11',
+              'Programming Language :: Python :: 3.12',
+              'Programming Language :: Python :: 3.13'],
       packages=['energysim'],
       include_package_data=True,
-      install_requires=['numpy', 'pandas', 'tqdm',
-                        'fmpy==0.2.14', 'pandapower',
-                        'pypsa', 'networkx', 'matplotlib',
-                        'tables', 'h5py']
+      install_requires=['numpy', 'pandas', 'tqdm', 'tables', 'networkx'],
+      extras_require={
+          'fmu': ['fmpy>=0.3'],
+          'powerflow': ['pandapower'],
+          'pypsa': ['pypsa'],
+          'plotting': ['matplotlib'],
+          'all': ['fmpy>=0.3', 'pandapower', 'pypsa', 'matplotlib'],
+      },
+      python_requires='>=3.8',
       )
