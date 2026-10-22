@@ -11,14 +11,15 @@ Tests cover:
   - Uniform advance() / cleanup() calls
 """
 
-from energysim.base import SimulatorAdapter, SimEntry
 import sys
 import os
-import numpy as np
-import pytest
 
 # Ensure the source tree is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from energysim.base import SimulatorAdapter, SimEntry
+import numpy as np
+import pytest
 
 
 # =====================================================================
@@ -334,6 +335,98 @@ def test_setup_optional_deps():
     assert 'h5py' not in content
     assert "extras_require" in content
     assert "'fmu'" in content or '"fmu"' in content
+
+
+# =====================================================================
+# 10. Review improvements and bug fixes tests
+# =====================================================================
+
+def test_setup_license_matches_pyproject():
+    """Verify setup.py specifies GPL-3.0-or-later matching pyproject.toml."""
+    setup_path = os.path.join(os.path.dirname(__file__), 'src', 'setup.py')
+    with open(setup_path) as f:
+        content = f.read()
+    assert "license='GPL-3.0-or-later'" in content
+
+
+def test_csv_adapter_short_file(tmp_path):
+    """Short CSV files (<=3 rows) should validate without autocorr NaN errors."""
+    from energysim.csv_adapter import csv_simulator
+    csv_path = tmp_path / 'short.csv'
+    csv_path.write_text('time,temp\n0,10\n1,15\n')
+    c = csv_simulator('short_csv', str(csv_path), step_size=1, outputs=['temp'])
+    assert c.get_value(['temp'], 0) == [10]
+    assert c.get_value(['temp'], 1) == [15]
+
+
+def test_pyscript_adapter_parameter_filtering(tmp_path):
+    """py_adapter should return only requested parameters and raise on missing vars."""
+    from energysim.pyScriptAdapter import py_adapter
+    from energysim.base import SimulatorVariableError
+
+    mod_dir = tmp_path / 'multi_scripts'
+    mod_dir.mkdir()
+    (mod_dir / 'calc.py').write_text(
+        'def run(inputs):\n'
+        '    return [10.0, 20.0]\n'
+    )
+    pa = py_adapter(
+        script_name='calc.run',
+        script_loc=str(mod_dir),
+        inputs=[],
+        outputs=['out1', 'out2']
+    )
+    pa.step(0)
+    assert pa.get_value(['out2'], 0) == [20.0]
+    assert pa.get_value(['out1', 'out2'], 0) == [10.0, 20.0]
+    with pytest.raises(SimulatorVariableError):
+        pa.get_value(['nonexistent'], 0)
+
+
+def test_convert_hdf_to_dict_to_csv_returns_dict(tmp_path):
+    """convert_hdf_to_dict with to_csv=True must return the dictionary of DataFrames."""
+    from energysim.utils import convert_hdf_to_dict, create_results_recorder, record_data
+    res_h5 = str(tmp_path / 'test_export.h5')
+    sim_dict = {'sim1': ['val']}
+    create_results_recorder(res_h5, sim_dict)
+    record_data(res_h5, {'sim1': np.array([[0.0, 42.0]])})
+
+    export_dir = str(tmp_path / 'my_res')
+    res = convert_hdf_to_dict(res_h5, sim_dict=sim_dict, to_csv=True, res_folder_name=export_dir)
+    assert isinstance(res, dict)
+    assert 'sim1' in res
+    assert 'val' in res['sim1'].columns
+    assert os.path.exists(os.path.join(export_dir, 'res_sim1.csv'))
+
+
+def test_dashboard_escapes_html_title():
+    """_generate_html should escape special characters in the title."""
+    from energysim.dashboard import _generate_html
+    malicious_title = 'energysim</title><script>alert("xss")</script>'
+    html_text = _generate_html([], title=malicious_title)
+    assert '<script>alert("xss")</script>' not in html_text
+    assert '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;' in html_text
+
+
+def test_world_pep8_alias():
+    """Verify World alias is available and identical to world."""
+    from energysim import World, world
+    assert World is world
+
+
+def test_parameter_sweep_sim_entry_compatibility():
+    """Verify Sweep works with modern SimEntry dataclasses."""
+    from energysim import world, Sweep
+    w = world(start_time=0, stop_time=100, t_macro=10)
+    w.add_signal('sig1', signal=lambda t: t, step_size=10)
+    sweep_info = {
+        'parameters': ['sig1.y'],
+        'bounds': [[0, 10, 2]],
+        'output_parameter': 'sig1.y'
+    }
+    s = Sweep(w, sweep_info, kind='single')
+    assert s.powerflow_exists is False
+    assert s.simulators_dict['sig1'].sim_type == 'signal'
 
 
 if __name__ == '__main__':

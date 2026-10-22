@@ -1117,31 +1117,42 @@ class world():
             print('Function must return list. Signal function will not be added.')
             return False
 
-    def plot_results(self, xlab='Time(s)', ylab='', y=[], scientific=False):
+    def plot_results(self, xlab='Time(s)', ylab='', y=None, scientific=False):
+        """Plot simulation results using matplotlib.
+
+        Parameters
+        ----------
+        xlab : str
+            X-axis label.
+        ylab : str
+            Y-axis label.
+        y : list[str] or None
+            Variables to plot, specified as 'sim_name.var_name' or 'var_name'.
+            If empty/None, plots all recorded variables.
+        scientific : bool
+            Whether to use scientific notation for ticks.
+        """
         import matplotlib.pyplot as plt
-        locol = [x for x in self.list_of_columns if x != 'time']
-        plt.figure(2)
-        if self.interpolate_results:
-            time_vector = self.results_dataframe.time
-            if len(y) == 0:
-                for item in locol:
-                    plt.plot(time_vector, self.results_dataframe.loc[:, item], label=item)
-            else:
-                for item in y:
-                    try:
-                        plt.plot(time_vector, self.results_dataframe.loc[:, item], label=item)
-                    except BaseException:
-                        print("Could not find the variable %s in results dataframe. Make sure you have \
-                              specified the variables as 'fmu.variable'. Skipping." % (item))
-                        continue
-            plt.ticklabel_format(useOffset=scientific)
-            plt.xlabel(xlab)
-            plt.ylabel(ylab)
-            plt.legend()
-            plt.show()
-        else:
-            print(
-                'Results can only be plotted natively if'
-                ' interpolate_results option is set to True'
-                ' in World() options.'
-            )
+        if y is None:
+            y = []
+        res = self.results(dashboard=False)
+        plt.figure(figsize=(10, 6))
+        for sim_name, df in res.items():
+            if not hasattr(df, 'columns') or 'time' not in df.columns:
+                continue
+            time_vector = df['time']
+            vars_to_plot = [c for c in df.columns if c != 'time']
+            if y:
+                vars_to_plot = [c for c in vars_to_plot if f"{sim_name}.{c}" in y or c in y]
+            for var in vars_to_plot:
+                plt.plot(time_vector, df[var], label=f"{sim_name}.{var}")
+        plt.ticklabel_format(useOffset=scientific)
+        plt.xlabel(xlab)
+        plt.ylabel(ylab)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+# PEP 8 alias
+World = world

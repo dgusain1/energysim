@@ -72,31 +72,32 @@ class Sweep():
 
     def __init__(self, _cosimulation_world, _sensitivity_data, kind='single'):
         self.world = _cosimulation_world
-        # Use the unified simulator_dict (fmu_dict / powerflow_dict no longer exist)
+        # Use the unified simulator_dict (values are SimEntry instances)
         self.simulators_dict = dict(self.world.simulator_dict)
         self.powerflow_exists = any(
-            v[0] == 'pf' for v in self.simulators_dict.values()
+            getattr(v, 'sim_type', None) == 'pf' for v in self.simulators_dict.values()
         )
         self.info = _sensitivity_data
         self.kind = kind
 
     def sweep(self):
         if self.kind == 'single':
-            res = self.single_parameter_sweep()
+            return self.single_parameter_sweep()
         elif self.kind == 'parametric':
-            self.parametric_sweep()
+            return self.parametric_sweep()
         else:
-            print('FMUWorld.Sweep currently supports only single and parametric sweeps.')
-        return res
+            raise ValueError(
+                f"Unsupported sweep kind '{self.kind}'. Choose 'single' or 'parametric'."
+            )
 
     def single_parameter_sweep(self):
         self.parameters_list = self.info['parameters']
-#        print(f'param list = {self.parameters_list}')
         self.bounds_matrix = self.info['bounds']
         self.op_param = self.info['output_parameter']
 
         # process output parameter
         op_sim_name = self.op_param.split('.')[0]
+        op_var = self.op_param.split('.', 1)[1] if '.' in self.op_param else self.op_param
 
         # re-order bounds matrix
         new_matrix = []
@@ -106,7 +107,7 @@ class Sweep():
             elif len(item) == 3:
                 new_item = np.linspace(item[0], item[1], item[2])
             else:
-                print(
+                raise ValueError(
                     'Bounds matrix should have elements with either'
                     ' two or three values to define lower, upper'
                     ' bounds and number of values.'
@@ -115,16 +116,12 @@ class Sweep():
 
         new_matrix = np.array(new_matrix)
 
-        # store original parameters before changing anything
-#        if self.powerflow_exists:
-#            self.world.simulate()
-
         self.original_values = {}
         for parameter in self.parameters_list:
             sim_name = parameter.split('.')[0]
             sim_p = parameter.replace(sim_name, '')[1:]
-            # simulator_dict values are [type, adapter_obj, step_size, outputs, ...]
-            sim_adapter = self.simulators_dict[sim_name][1]
+            entry = self.simulators_dict[sim_name]
+            sim_adapter = entry.adapter if hasattr(entry, 'adapter') else entry[1]
             tmp = sim_adapter.get_value([sim_p], 0)
             self.original_values[parameter] = tmp[0]
 
@@ -137,7 +134,6 @@ class Sweep():
             self.sweep_res[sim_name] = {'data': [],
                                         'value': [],
                                         'y-axis': sim_name}
-#            print(f"Simulation {round(count/len(self.parameters_list),1)}% complete.")
             cc = 0
             for value in list(value_list) + [self.original_values[parameter]]:
 
@@ -148,19 +144,20 @@ class Sweep():
                 self.my_options['init'][sim_name][1].append(value)
                 self.world.options(self.my_options)
                 self.world.simulate()
-                results = self.world.results()  # simulate() returns 'Done'; results via results()
+                results = self.world.results(dashboard=False)
 
-                a1 = results[op_sim_name].loc[:, ['time', self.op_param]]
+                a1 = results[op_sim_name].loc[:, ['time', op_var]]
                 self.sweep_res[sim_name]['data'].append(a1)
                 self.sweep_res[sim_name]['value'].append(value)
 
                 cc += 1
                 if cc != len(list(value_list) + [self.original_values[parameter]]):
                     plt.figure(count)
-                    plt.plot(a1['time'], a1[self.op_param], label=f'{parameter}: {value}')
+                    plt.plot(a1['time'], a1[op_var], label=f'{parameter}: {value}')
                     plt.title(f"Sensitivity of {self.op_param} to {parameter}")
                     legend = plt.legend()
-                    legend.draggable(state=True)
+                    if hasattr(legend, 'draggable'):
+                        legend.draggable(state=True)
 
             count += 1
         plt.show()
@@ -168,8 +165,7 @@ class Sweep():
         return self.sweep_res
 
     def evaluation_function(self):
-
         pass
 
     def parametric_sweep(self):
-        pass
+        raise NotImplementedError("Parametric sweep is not yet implemented.")

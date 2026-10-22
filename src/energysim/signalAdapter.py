@@ -38,11 +38,5 @@ class signal_adapter(SimulatorAdapter):
             return list(result)
         return [result]
 
-#        if len(self.signal) == 1:
-#            return [self.signal[0]]
-#        elif len(self.signal) == 3:
-#            return [self.signal[0] if time < self.signal[1] else self.signal[2]]
-#        elif len(self.signal) == 4:
-#            return [self.signal[0] if time < self.signal[1] or time > self.signal[2] else self.signal[3]]
-#        else:
-#            return [0]
+    def get_available_variables(self):
+        return {'inputs': [], 'outputs': ['y']}

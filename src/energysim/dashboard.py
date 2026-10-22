@@ -13,6 +13,7 @@ Generates a self-contained HTML file (Plotly.js via CDN) that lets users:
     * Quick-view: auto-plot everything ("Overview" button)
 """
 
+import html
 import json
 import os
 import tempfile
@@ -49,14 +50,15 @@ def _build_traces_json(results_dict):
 def _generate_html(sims_json, title="energysim Result Explorer", time_label="Time (h)"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sims_js = json.dumps(sims_json)
+    escaped_title = html.escape(title)
 
     # The entire dashboard is a single HTML string with embedded CSS + JS.
-    html = r"""<!DOCTYPE html>
+    html_content = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>""" + title + r"""</title>
+<title>""" + escaped_title + r"""</title>
 <script src="https://cdn.plot.ly/plotly-2.35.0.min.js" charset="utf-8"></script>
 <style>
 :root {
@@ -670,7 +672,7 @@ document.getElementById('spList').addEventListener('drop', function(e) {
 </script>
 </body>
 </html>"""
-    return html
+    return html_content
 
 
 # ---------------------------------------------------------------------------

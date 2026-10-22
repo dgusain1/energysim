@@ -20,6 +20,8 @@ from fmpy.fmi2 import (
 )
 from fmpy.simulation import Input, apply_start_values
 from random import random
+import os
+import shutil
 
 from .base import SimulatorAdapter
 
@@ -37,8 +39,8 @@ class FmuCsAdapter(SimulatorAdapter):
                  tolerance=1e-06,
                  stop_time=100,
                  step_size=1.0e-3,
-                 inputs=[],
-                 outputs=[],
+                 inputs=None,
+                 outputs=None,
                  show_fmu_info=False,
                  exist=False,
                  validate=True):
@@ -47,7 +49,6 @@ class FmuCsAdapter(SimulatorAdapter):
         if instanceName is None:
             instanceID = int(random() * 1000)
             self.instanceName = 'fmu' + str(instanceID)
-            print(self.instanceName)
         else:
             self.instanceName = instanceName
         self.exist = exist
@@ -55,8 +56,8 @@ class FmuCsAdapter(SimulatorAdapter):
         self.start_time = start_time
         self.stop_time = stop_time
         self.output_interval = step_size
-        self.inputs = inputs
-        self.outputs = outputs
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.validate = validate
         if show_fmu_info:
             dump(self.fmu_location)
@@ -211,8 +212,13 @@ class FmuCsAdapter(SimulatorAdapter):
         return self.fmu.doStep(currentCommunicationPoint=time, communicationStepSize=self.output_interval)
 
     def cleanup(self):
-        self.fmu.terminate()
-        self.fmu.freeInstance()
+        try:
+            self.fmu.terminate()
+            self.fmu.freeInstance()
+        except Exception:
+            pass
+        if not self.exist and hasattr(self, 'unzipDir') and os.path.isdir(self.unzipDir):
+            shutil.rmtree(self.unzipDir, ignore_errors=True)
 
     # Backward compatibility alias
     cleanUp = cleanup
@@ -277,13 +283,17 @@ class FmuCsAdapter(SimulatorAdapter):
         macro = self.output_interval  # fallback to micro-step
         if hasattr(self, '_macro_step'):
             macro = self._macro_step
+        remaining = local_stop_time - current_time
+        if remaining <= 1e-12:
+            return 0.001
         # Near boundaries use a tiny step; otherwise use macro - small margin
         margin = 0.01
-        if current_time < margin or local_stop_time - current_time < margin:
-            return 0.001
-        return macro - margin
-
-#        shutil.rmtree(self.unzipDir)
+        if current_time < margin or remaining < margin:
+            return min(0.001, remaining)
+        step = macro - margin
+        if step <= 0:
+            step = min(macro, remaining)
+        return min(max(step, 1e-6), remaining)
 
     def simulate(self, timeout=180):
         from fmpy import simulate_fmu

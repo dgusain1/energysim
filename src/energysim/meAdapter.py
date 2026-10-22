@@ -26,6 +26,7 @@ from fmpy.simulation import Input, apply_start_values
 from random import random
 import numpy as np
 import os
+import shutil
 
 from .base import SimulatorAdapter
 
@@ -41,8 +42,8 @@ class FmuMeAdapter(SimulatorAdapter):
                  tolerance=1e-06,
                  stop_time=100,
                  step_size=1.0e-3,
-                 inputs=[],
-                 outputs=[],
+                 inputs=None,
+                 outputs=None,
                  solver_name='Cvode',
                  show_fmu_info=False,
                  exist=False,
@@ -53,15 +54,14 @@ class FmuMeAdapter(SimulatorAdapter):
         if instanceName is None:
             instanceID = int(random() * 1000)
             self.instanceName = 'fmu' + str(instanceID)
-            print('FMU instance created as: ' + self.instanceName)
         else:
             self.instanceName = instanceName
         self.tolerance = tolerance
         self.start_time = start_time
         self.stop_time = stop_time
         self.step_size = step_size
-        self.inputs = inputs
-        self.outputs = outputs
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.solver_name = solver_name
         self.validate = validate
         if show_fmu_info:
@@ -253,14 +253,10 @@ class FmuMeAdapter(SimulatorAdapter):
         eps = 1.0e-13
         # step ahead in time
         if self.fixed_step:
-            if time + self.step_size < self.stop_time + eps:
-                self.t_next = time + self.step_size
-#            else:
-#                break
+            self.t_next = min(time + self.step_size, self.stop_time)
         else:
             if time + eps >= self.t_next:  # t_next has been reached
                 # integrate to the next grid point
-                #                self.t_next = round(time / self.step_size) * self.step_size + self.step_size
                 self.t_next = np.floor(time / self.step_size) * self.step_size + self.step_size
                 if self.t_next < time + eps:
                     self.t_next += self.step_size
@@ -341,9 +337,18 @@ class FmuMeAdapter(SimulatorAdapter):
         self.fmu.terminate()
 
     def cleanup(self):
-        self.fmu.terminate()
-        self.fmu.freeInstance()
-        del self.solver
+        try:
+            self.fmu.terminate()
+            self.fmu.freeInstance()
+        except Exception:
+            pass
+        if hasattr(self, 'solver'):
+            try:
+                del self.solver
+            except Exception:
+                pass
+        if not self.exist and hasattr(self, 'unzipDir') and os.path.isdir(self.unzipDir):
+            shutil.rmtree(self.unzipDir, ignore_errors=True)
 
     # Backward compatibility alias
     cleanUp = cleanup
@@ -362,7 +367,10 @@ class FmuMeAdapter(SimulatorAdapter):
         eps = 1e-13
         while t < stop_time - eps:
             self.step(t)
-            t = self.t_next
+            if self.t_next <= t:
+                t = min(t + self.step_size, stop_time)
+            else:
+                t = self.t_next
 
     def advance_with_recording(self, start_time, stop_time, outputs):
         """Advance ME FMU while recording at each solver step.
@@ -380,7 +388,10 @@ class FmuMeAdapter(SimulatorAdapter):
                 row = [t]
             rows.append(row)
             self.step(t)
-            t = self.t_next
+            if self.t_next <= t:
+                t = min(t + self.step_size, stop_time)
+            else:
+                t = self.t_next
         return rows
 
     def simulate(self, timeout=180):
@@ -412,7 +423,7 @@ class ForwardEuler(object):
         self._px = self.x.ctypes.data_as(POINTER(c_double))
         self._pdx = self.dx.ctypes.data_as(POINTER(c_double))
         self._pz = self.z.ctypes.data_as(POINTER(c_double))
-        self._pprez = self.z.ctypes.data_as(POINTER(c_double))
+        self._pprez = self.prez.ctypes.data_as(POINTER(c_double))
 
         # initialize the event indicators
         self.get_z(self._pz, self.z.size)

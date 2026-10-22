@@ -17,7 +17,7 @@ and must return a list of output values.
 import sys
 import importlib
 
-from .base import SimulatorAdapter
+from .base import SimulatorAdapter, SimulatorVariableError
 
 
 class py_adapter(SimulatorAdapter):
@@ -39,7 +39,7 @@ class py_adapter(SimulatorAdapter):
 
         # Internal state
         self._input_dict = {}
-        self._output_values = []
+        self._output_values = [0.0] * len(self.outputs)
 
     # ------------------------------------------------------------------
     # SimulatorAdapter interface
@@ -53,7 +53,19 @@ class py_adapter(SimulatorAdapter):
             self._input_dict[p] = v
 
     def get_value(self, parameters, time=None):
-        return self._output_values
+        vals = []
+        for p in parameters:
+            if p in self.outputs:
+                idx = self.outputs.index(p)
+                if idx < len(self._output_values):
+                    vals.append(self._output_values[idx])
+                else:
+                    vals.append(0.0)
+            else:
+                raise SimulatorVariableError(
+                    f"Variable '{p}' not found in script outputs {self.outputs}."
+                )
+        return vals
 
     def step(self, time):
         result = self._func(self._input_dict)
@@ -65,6 +77,8 @@ class py_adapter(SimulatorAdapter):
     def cleanup(self):
         self._module = None
         self._func = None
-#
+
+    def get_available_variables(self):
+        return {'inputs': list(self.inputs), 'outputs': list(self.outputs)}
 #    def setInput(self, inputValues):
 #        pass

@@ -19,9 +19,9 @@ setup(
       url='https://github.com/dgusain1/energysim',
       author='Digvijay Gusain',
       author_email='digvijay.gusain29@gmail.com',
-      license='MIT',
+      license='GPL-3.0-or-later',
       classifiers=[
-              'License :: OSI Approved :: MIT License',
+              'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
               'Programming Language :: Python :: 3',
               'Programming Language :: Python :: 3.8',
               'Programming Language :: Python :: 3.9',
