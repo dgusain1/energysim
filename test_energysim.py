@@ -429,5 +429,21 @@ def test_parameter_sweep_sim_entry_compatibility():
     assert s.simulators_dict['sig1'].sim_type == 'signal'
 
 
+def test_package_public_api_and_modular_imports():
+    """Verify clean modular exports and backwards compatibility."""
+    import energysim
+    assert hasattr(energysim, '__version__')
+    assert energysim.__version__ == '2.1.9.1'
+    assert hasattr(energysim, 'world')
+    assert hasattr(energysim, 'World')
+    assert hasattr(energysim, 'Sweep')
+    assert hasattr(energysim, 'SimulatorAdapter')
+    assert hasattr(energysim, 'SimEntry')
+
+    from energysim.world import world as world_mod, World as World_mod
+    assert world_mod is energysim.world
+    assert World_mod is energysim.World
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
