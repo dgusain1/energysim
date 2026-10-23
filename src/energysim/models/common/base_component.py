@@ -285,6 +285,33 @@ class ModelComponent(SimulatorAdapter):
             self.step_model(step_dt, t)
             t += step_dt
 
+    def step_partial(self, time: float, dt: float) -> None:
+        """Shorter final micro-step (event-driven macro steps): ``step_model(dt, time)``."""
+        self.step_model(dt, time)
+
+    # ------------------------------------------------------------------
+    # Event hints
+    # ------------------------------------------------------------------
+    def time_to_event(self) -> float:
+        """Seconds until the next predictable internal event, from the current state and inputs.
+
+        Override in models with timers or limits (start-up sequence finished,
+        storage full/empty at the current power, ramp completed, ...).  The
+        world uses it (via :meth:`next_event_time`) to end a macro step exactly
+        at the event when ``t_macro_min < t_macro``.  Default: ``inf``.
+        """
+        return float("inf")
+
+    def next_event_time(self, time: float) -> float:
+        """``time + time_to_event()`` (``inf`` when no event is ahead)."""
+        try:
+            dt = float(self.time_to_event())
+        except Exception:
+            return float("inf")
+        if not (dt > 0.0) or dt == float("inf") or dt != dt:
+            return float("inf")
+        return time + dt
+
     def step_model(self, dt: float, time: float) -> None:
         """
         Subclasses implement this method with their physical/empirical logic.

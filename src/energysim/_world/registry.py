@@ -125,13 +125,17 @@ class RegistryMixin:
     # add_* API
     # ------------------------------------------------------------------
 
-    def add_signal(self, sim_name, signal=None, step_size=1, power_unit=None, units=None):
+    def add_signal(self, sim_name, signal=None, step_size=1, power_unit=None, units=None, breakpoints=None):
         """Add a signal source with a single output ``y``.
 
         ``signal`` may be a callable ``f(t)``, a number (constant), a safe
         expression string (``"5*sin(t/60)"``, optionally prefixed with
         ``lambda t:``) or a structured spec dict (``{type: sine, ...}``,
         see :mod:`energysim._safeexpr`).  Strings are never ``eval``-ed.
+
+        ``breakpoints`` (times where the signal jumps) - together with the
+        breakpoints of ``step`` / ``ramp`` / ``piecewise`` specs - are event
+        hints: with ``t_macro_min < t_macro`` macro steps land exactly on them.
         """
         self._check_new_name(sim_name, 'signal')
         if signal is None:
@@ -141,7 +145,7 @@ class RegistryMixin:
             )
         self._check_units(units, power_unit)
         func = build_signal(signal)
-        signal_obj = signal_adapter(signal_name=sim_name, signal=func)
+        signal_obj = signal_adapter(signal_name=sim_name, signal=func, breakpoints=breakpoints)
         signal_obj.step_size = step_size   # record_all samples at the declared step, not 1 s
         self._register(sim_name, SimEntry(
             sim_type='signal', adapter=signal_obj, step_size=step_size,
@@ -210,12 +214,13 @@ class RegistryMixin:
         elif st == 'signal':
             signal_spec = target if target is not None else kwargs.pop('signal', None)
             self.add_signal(sim_name, signal_spec, step_size=step_size,
-                            power_unit=power_unit, units=units)
+                            power_unit=power_unit, units=units, breakpoints=kwargs.pop('breakpoints', None))
 
         elif st == 'csv':
             self.add_csv(
                 csv_name=sim_name, model=target, step_size=step_size, outputs=outputs,
-                delimiter=kwargs.pop('delimiter', ','), power_unit=power_unit, units=units)
+                delimiter=kwargs.pop('delimiter', ','), power_unit=power_unit, units=units,
+                align_to_rows=kwargs.pop('align_to_rows', False))
 
         elif st == 'external':
             self.add_external_simulator(sim_name=sim_name, model=target, **common, **kwargs)
@@ -722,7 +727,12 @@ class RegistryMixin:
         ), 'FMU')
 
     def add_csv(self, csv_name=None, csv_location=None, step_size=1, outputs=None, delimiter=',',
-                power_unit=None, units=None, csv_path=None, model=None, **kwargs):
+                power_unit=None, units=None, csv_path=None, model=None, align_to_rows=False, **kwargs):
+        """Add a CSV profile (``time`` column + value columns).
+
+        ``align_to_rows=True`` reports the next row time as an event hint, so
+        that with ``t_macro_min < t_macro`` macro steps land on CSV rows.
+        """
         csv_name = csv_name or kwargs.pop('sim_name', None)
         target = self._pick_model(csv_name, model=model, csv_path=csv_path, csv_location=csv_location,
                                   sim_loc=kwargs.pop('sim_loc', None))
@@ -731,7 +741,7 @@ class RegistryMixin:
             raise ValueError(f"No CSV path or model specified for CSV simulator '{csv_name}'.")
         self._check_units(units, power_unit)
         outputs = list(outputs or [])
-        csv_obj = csv_simulator(csv_name, target, step_size, outputs, delimiter)
+        csv_obj = csv_simulator(csv_name, target, step_size, outputs, delimiter, align_to_rows=align_to_rows)
         csv_obj.step_size = step_size
         self._register(csv_name, SimEntry(
             sim_type='csv', adapter=csv_obj, step_size=step_size,

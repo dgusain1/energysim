@@ -269,6 +269,22 @@ class BatteryBESS(ModelComponent):
         self._outputs_val["I_current"] = self.i_current
         self._outputs_val["Q_heat_kW"] = self.q_heat_kw
 
+    def time_to_event(self) -> float:
+        """Event hint: time (s) until SoC reaches ``soc_max`` / ``soc_min`` at the current command."""
+        p_cmd = float(self._inputs_val.get("P_cmd", self.p_cmd))
+        p_req = max(-self.p_max_mw, min(self.p_max_mw, p_cmd))
+        if not ((p_req > 0 and self.soc < self.soc_max) or (p_req < 0 and self.soc > self.soc_min)):
+            return math.inf
+        voc = float(self.ocv_curve(self.soc))
+        rin = float(self.rin_curve(self.soc))
+        _, i_cell, _ = self._solve_dc(p_req, voc, rin)
+        rate = (voc * i_cell / 1e6) / (self.capacity_mwh * self.soh * 3600.0)   # SoC per second
+        if rate > 0:
+            return (self.soc_max - self.soc) / rate
+        if rate < 0:
+            return (self.soc_min - self.soc) / rate
+        return math.inf
+
 
 class FlowBattery(ModelComponent):
     """
@@ -355,6 +371,18 @@ class FlowBattery(ModelComponent):
         self._outputs_val["P_actual"] = self.p_actual
         self._outputs_val["SoC"] = self.soc
         self._outputs_val["P_parasitic_kW"] = self.p_parasitic_kw
+
+    def time_to_event(self) -> float:
+        """Event hint: time (s) until SoC reaches its window bound at the current command."""
+        p_cmd = float(self._inputs_val.get("P_cmd", 0.0))
+        p_req = max(-self.stack_p_max_mw, min(self.stack_p_max_mw, p_cmd))
+        sqrt_eff = math.sqrt(self.stack_eff)
+        soc_per_mw_s = 1.0 / (self.tank_capacity_mwh * 3600.0)
+        if p_req > 0 and self.soc < self.soc_max:
+            return (self.soc_max - self.soc) / (p_req * sqrt_eff * soc_per_mw_s)
+        if p_req < 0 and self.soc > self.soc_min:
+            return (self.soc - self.soc_min) / (-p_req / sqrt_eff * soc_per_mw_s)
+        return math.inf
 
 
 class Flywheel(ModelComponent):

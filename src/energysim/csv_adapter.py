@@ -9,8 +9,11 @@ from .base import SimulatorAdapter, SimulatorVariableError
 
 class csv_simulator(SimulatorAdapter):
 
-    def __init__(self, sim_name, sim_loc, step_size=900, outputs=None, delimiter=','):
+    def __init__(self, sim_name, sim_loc, step_size=900, outputs=None, delimiter=',', align_to_rows=False):
         self.sim_name = sim_name
+        #: when True, ``next_event_time`` reports the next row time so that
+        #: event-driven macro steps land on CSV rows
+        self.align_to_rows = bool(align_to_rows)
         self.df = pd.read_csv(sim_loc, delimiter=delimiter)
         self.step_size = step_size
         self.outputs = outputs or []
@@ -61,6 +64,13 @@ class csv_simulator(SimulatorAdapter):
 
     def step(self, time):
         pass
+
+    def next_event_time(self, time):
+        """Next row time after *time* when ``align_to_rows`` is set, else ``inf``."""
+        if not self.align_to_rows or not len(self.time_array):
+            return float('inf')
+        idx = int(np.searchsorted(self.time_array, time + 1e-9, side='right'))
+        return float(self.time_array[idx]) if idx < len(self.time_array) else float('inf')
 
     def get_available_variables(self):
         """Return CSV column names as available output variables."""

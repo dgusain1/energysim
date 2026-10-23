@@ -91,6 +91,7 @@ class RunnerMixin:
         self._exchange_history = {}
         self.macro_tstep = None
         self._total_steps = None
+        self._current_dt = None
 
     @staticmethod
     def _normalize_params(params, sim_name):
@@ -127,7 +128,16 @@ class RunnerMixin:
         self.reset()
 
         self.macro_tstep = self._macro_step()
-        self._total_steps = self._compute_total_steps(self.macro_tstep)
+        if self.t_macro_min is not None and self.t_macro_min <= 0:
+            raise ValueError(f"t_macro_min ({self.t_macro_min}) must be > 0.")
+        if self.variable_step:
+            span = self.stop_time - self.start_time
+            if span <= 0:
+                raise ValueError(f"stop_time - start_time ({span}) must be > 0.")
+            self._total_steps = max(1, math.ceil(span / self.macro_tstep - 1e-9))
+        else:
+            self._total_steps = self._compute_total_steps(self.macro_tstep)
+        self._reset_events()
         params = self._collect_parameters()
 
         self.sim_dict = {name: list(entry.outputs) for name, entry in self.simulator_dict.items()}
@@ -213,7 +223,10 @@ class RunnerMixin:
 
         Every simulator gets one row per macro step (taken before stepping;
         with ``record_all`` one row per micro step) plus a final row at
-        ``stop_time`` holding the state at the end of the run.
+        ``stop_time`` holding the state at the end of the run.  Rows may be
+        irregular when events / hints shorten macro steps (``t_macro_min``,
+        :meth:`schedule`, :meth:`add_trigger`); fired events are listed in
+        ``Results.meta['events']``.
 
         ``record_all`` defaults to the value given via ``options({'record_all': ...})``
         or True.  ``out_dir`` (default: the world's ``out_dir``) persists the run
@@ -252,19 +265,7 @@ class RunnerMixin:
             with warnings.catch_warnings(record=True) as caught:
                 try:
                     self.init()
-                    exec_order = self._execution_order or list(self.simulator_dict.keys())
-                    startTime = self.start_time
-                    for time_idx in tqdm(range(self._total_steps), disable=not pbar):
-                        time = startTime + time_idx * self.macro_tstep
-                        local_stop_time = time + self.macro_tstep
-
-                        if self.coupling == 'jacobi':
-                            tmp_dict = self._step_jacobi(exec_order, time, local_stop_time, record_all)
-                        else:
-                            tmp_dict = self._step_gauss_seidel(exec_order, time, local_stop_time, record_all)
-
-                        for sim_name, rows in tmp_dict.items():
-                            recorder.add_rows(sim_name, rows)
+                    self._run_loop(recorder, record_all, pbar)
                     self._record_final_state(recorder)
                 finally:
                     self._cleanup_all()
@@ -280,6 +281,51 @@ class RunnerMixin:
 
         self.last_results = self._finish_results(recorder, run_info, 'completed', caught)
         return self.last_results
+
+    def _run_loop(self, recorder, record_all, pbar):
+        """Macro-step loop: ``while t < stop: fire events, plan the step, couple, record``.
+
+        Fixed-step (default ``t_macro_min == t_macro``): steps follow the grid
+        ``start_time + k * t_macro`` exactly as before 3.0; scheduled events
+        insert extra boundaries and the next step re-aligns with the grid.
+        Variable step: see :meth:`_next_step` / :mod:`energysim._world.events`.
+        """
+        exec_order = self._execution_order or list(self.simulator_dict.keys())
+        start, stop, macro = self.start_time, self.stop_time, self.macro_tstep
+        eps = 1e-9 * max(1.0, abs(stop), abs(macro))
+        t, k = start, 0
+        first = True
+        self._n_steps = 0
+        with tqdm(total=self._total_steps, disable=not pbar) as bar:
+            while t < stop - eps:
+                self._evaluate_triggers(t, initial=first)
+                first = False
+                self._fire_due_events(t)
+                t_end, regular = self._plan_step(t, k)
+                self._current_dt = macro if regular else t_end - t
+
+                if self.coupling == 'jacobi':
+                    tmp_dict = self._step_jacobi(exec_order, t, t_end, record_all)
+                else:
+                    tmp_dict = self._step_gauss_seidel(exec_order, t, t_end, record_all)
+                for sim_name, rows in tmp_dict.items():
+                    recorder.add_rows(sim_name, rows)
+                self._n_steps += 1
+
+                if regular:
+                    k += 1
+                    t_next = start + k * macro      # same grid arithmetic as the fixed-step loop
+                else:
+                    t_next = t_end
+                    idx = round((t_end - start) / macro)
+                    if not self.variable_step and abs(start + idx * macro - t_end) <= eps:
+                        k, t_next = idx, start + idx * macro
+                    else:
+                        k = None
+                bar.update(min(max((t_next - t) / macro, 0.0), bar.total - bar.n) if bar.total else 0)
+                t = t_next
+        self._evaluate_triggers(stop, initial=first)
+        self._finish_events()
 
     # ------------------------------------------------------------------
     # Results assembly
@@ -347,6 +393,9 @@ class RunnerMixin:
             'start_time': self.start_time,
             'stop_time': self.stop_time,
             't_macro': self.macro_tstep,
+            't_macro_min': self._t_macro_min_eff() if self.macro_tstep is not None else self.t_macro_min,
+            'n_macro_steps': getattr(self, '_n_steps', None),
+            'events': [dict(e) for e in getattr(self, '_event_log', [])],
             'coupling': self.coupling,
             'extrapolation': self.extrapolation,
             'record_all': info['record_all'],

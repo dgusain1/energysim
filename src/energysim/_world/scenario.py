@@ -58,6 +58,13 @@ class ScenarioMixin:
 
             if entry.mode:
                 sim_info['mode'] = entry.mode
+            opts = {}
+            if getattr(entry.adapter, 'user_breakpoints', None):
+                opts['breakpoints'] = list(entry.adapter.user_breakpoints)
+            if getattr(entry.adapter, 'align_to_rows', False):
+                opts['align_to_rows'] = True
+            if opts:
+                sim_info['options'] = opts
             sims_list.append(sim_info)
 
         conns_list = []
@@ -88,11 +95,12 @@ class ScenarioMixin:
                 conn_dict['to_unit'] = to_unit
             conns_list.append(conn_dict)
 
-        return {
+        out = {
             'world': {
                 'start_time': self.start_time,
                 'stop_time': self.stop_time,
                 't_macro': self.exchange,
+                **({'t_macro_min': self.t_macro_min} if self.t_macro_min is not None else {}),
                 'coupling': self.coupling,
                 'extrapolation': self.extrapolation,
                 **({'power_unit': self.power_unit} if self.power_unit else {}),
@@ -106,6 +114,13 @@ class ScenarioMixin:
             'simulators': sims_list,
             'connections': conns_list,
         }
+        events = self._events_to_list()
+        if events:
+            out['events'] = events
+        triggers = self._triggers_to_list()
+        if triggers:
+            out['triggers'] = triggers
+        return out
 
     def to_yaml(self, filepath=None):
         """Export world scenario configuration to YAML string or file."""
@@ -171,6 +186,7 @@ class ScenarioMixin:
             start_time=w_cfg.get('start_time', 0),
             stop_time=w_cfg.get('stop_time', 1000),
             t_macro=w_cfg.get('t_macro', 60),
+            t_macro_min=w_cfg.get('t_macro_min'),
             coupling=w_cfg.get('coupling', 'jacobi'),
             extrapolation=w_cfg.get('extrapolation', 'zero-order'),
             start_datetime=w_cfg.get('start_datetime'),
@@ -220,6 +236,9 @@ class ScenarioMixin:
         if conns:
             w.add_connections(conns)
 
+        # events / triggers: only the declarative 'set' action exists in scenario
+        # files, so they are safe-mode compatible by construction
+        w._load_events(data.get('events'), data.get('triggers'))
         return w
 
     @classmethod

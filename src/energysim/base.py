@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+import math
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -208,18 +209,59 @@ class SimulatorAdapter(ABC):
     # Default advance() — loops step() over [start_time, stop_time)
     # ------------------------------------------------------------------
 
+    def micro_steps(self, start_time: float, stop_time: float) -> List[Tuple[float, float, bool]]:
+        """Micro-step plan ``[(t, dt, full), ...]`` covering ``[start_time, stop_time)``.
+
+        When the interval is an integer multiple of ``step_size`` (relative
+        tolerance 1e-9) this is ``n`` full steps at ``start + i*step_size``.
+        Otherwise (the world shortened the macro step for an event) the full
+        steps that fit are followed by one shorter final step with
+        ``full=False`` and ``dt = stop_time - t``.
+        """
+        h = self.step_size
+        span = stop_time - start_time
+        if span <= 0:
+            return []
+        n = round(span / h)
+        if n >= 1 and abs(n * h - span) <= 1e-9 * max(1.0, abs(span)):
+            return [(start_time + i * h, h, True) for i in range(n)]
+        n_full = int(math.floor(span / h + 1e-9))
+        plan = [(start_time + i * h, h, True) for i in range(n_full)]
+        t = start_time + n_full * h
+        rem = stop_time - t
+        if rem > 1e-12 * max(1.0, abs(stop_time)):
+            plan.append((t, rem, False))
+        return plan
+
+    def step_partial(self, time: float, dt: float) -> None:
+        """Advance by a *shorter* micro-step ``dt < step_size`` starting at ``time``.
+
+        Called for the final micro-step when a macro interval is not a
+        multiple of ``step_size`` (event-driven macro steps).  The default
+        calls :meth:`step` (a full step - adapters whose ``step`` has no
+        notion of ``dt``, e.g. power flows, are unaffected); adapters that
+        integrate in time should override it (``ModelComponent`` uses
+        ``step_model(dt, time)``, FMU co-simulation ``doStep(time, dt)``).
+        """
+        self.step(time)
+
+    def _do_micro_step(self, t: float, dt: float, full: bool) -> None:
+        if full:
+            self.step(t)
+        else:
+            self.step_partial(t, dt)
+
     def advance(self, start_time: float, stop_time: float) -> None:
         """Advance the simulator from *start_time* to *stop_time*.
 
         The default implementation loops ``step()`` at intervals of
-        ``self.step_size``.  Adapters with an internal solver (e.g. FMU
-        Model Exchange with CVode) should override this to hand the full
-        interval to their solver in one call.
+        ``self.step_size`` and finishes with :meth:`step_partial` when the
+        interval is not a multiple of the step size (see :meth:`micro_steps`).
+        Adapters with an internal solver (e.g. FMU Model Exchange with CVode)
+        should override this to hand the full interval to their solver in one call.
         """
-        n_steps = round((stop_time - start_time) / self.step_size)
-        for i in range(n_steps):
-            t = start_time + i * self.step_size
-            self.step(t)
+        for t, dt, full in self.micro_steps(start_time, stop_time):
+            self._do_micro_step(t, dt, full)
 
     # ------------------------------------------------------------------
     # advance_with_recording() — step + collect intermediate results
@@ -229,22 +271,41 @@ class SimulatorAdapter(ABC):
                                outputs: List[str]) -> List[List[Any]]:
         """Advance while recording output values at every micro-step.
 
-        Returns a list of ``[time, val1, val2, …]`` rows.  The default
-        implementation mirrors the old ``record_all`` manual loop.
-        Adapters with internal solvers (e.g. FMU ME) should override
-        this so that the solver's adaptive stepping is honoured.
+        Returns a list of ``[time, val1, val2, …]`` rows (one per micro-step,
+        taken before it, including a shorter final step).  Adapters with
+        internal solvers (e.g. FMU ME) should override this so that the
+        solver's adaptive stepping is honoured.
         """
         rows: List[List[Any]] = []
-        n_steps = round((stop_time - start_time) / self.step_size)
-        for i in range(n_steps):
-            t = start_time + i * self.step_size
+        for t, dt, full in self.micro_steps(start_time, stop_time):
             if outputs:
                 row = [t] + list(self.get_value(outputs, t))
             else:
                 row = [t]
             rows.append(row)
-            self.step(t)
+            self._do_micro_step(t, dt, full)
         return rows
+
+    # ------------------------------------------------------------------
+    # Event / step-size hints for the event-driven macro step (optional)
+    # ------------------------------------------------------------------
+
+    def max_step(self, time: float) -> float:
+        """Largest macro step (s) this simulator accepts from ``time`` (default ``inf``).
+
+        The world takes the minimum over all simulators, clamped to
+        ``[t_macro_min, t_macro]``; hints only matter when ``t_macro_min < t_macro``.
+        """
+        return math.inf
+
+    def next_event_time(self, time: float) -> float:
+        """Absolute time of the next known internal event after ``time`` (default ``inf``).
+
+        Examples: a signal breakpoint, an FMU time event, a storage that will be
+        full at the current power.  The world tries to end a macro step exactly
+        there (within ``[t_macro_min, t_macro]``).
+        """
+        return math.inf
 
     # ------------------------------------------------------------------
     # Introspection helpers

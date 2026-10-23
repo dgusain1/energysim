@@ -39,7 +39,7 @@ _CONTAINER_TYPES = ('container', 'fleet', 'vectorized', 'battery_fleet', 'buildi
 
 _WORLD_KEYS = frozenset({'start_time', 'stop_time', 't_macro', 'coupling', 'extrapolation',
                          'power_unit', 'logging', 'start_datetime', 'seed', 'out_dir',
-                         'unit_system', 'unit_policy'})
+                         'unit_system', 'unit_policy', 't_macro_min'})
 RES_FILENAME_REMOVED_MSG = (
     "'res_filename' was removed in 3.0: simulate() returns a Results object (no HDF5 file is "
     "written). Use 'out_dir' to persist runs (Parquet/CSV + meta.json) or Results.save()/to_hdf()."

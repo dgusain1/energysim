@@ -9,6 +9,7 @@ from .coupling import CouplingMixin
 from .runner import RunnerMixin
 from .validation import ValidationMixin
 from .scenario import ScenarioMixin
+from .events import EventsMixin
 
 __all__ = ['RegistryMixin', 'ConnectionsMixin', 'UnitsMixin', 'CouplingMixin', 'RunnerMixin', 'ValidationMixin',
-           'ScenarioMixin']
+           'ScenarioMixin', 'EventsMixin']

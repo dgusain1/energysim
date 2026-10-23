@@ -232,6 +232,10 @@ class VectorizedContainerAdapter(SimulatorAdapter):
             f"Available: {self._variable_names()}"
         )
 
+    def step_partial(self, time: float, dt: float) -> None:
+        """Shorter final micro-step: ``step(time, step_size=dt)``."""
+        self.step(time, step_size=dt)
+
     def get_available_variables(self) -> Dict[str, List[str]]:
         """Return declared variable names including ``total_/mean_/min_/max_`` aggregations."""
         var_names = list(self.states.keys()) + list(self.input_values.keys()) + list(self.aliases.keys())

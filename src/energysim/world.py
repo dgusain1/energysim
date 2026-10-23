@@ -17,12 +17,14 @@ from ._world._common import (  # noqa: F401  (re-exported for backwards compatib
 )
 from ._world import (
     RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMixin, ValidationMixin, ScenarioMixin,
+    EventsMixin,
 )
+from ._world.events import _init_event_state
 from ._world.unit_resolution import coerce_unit_system, UNIT_POLICIES
 
 
-class world(RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMixin, ValidationMixin,
-            ScenarioMixin):
+class world(RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, EventsMixin, RunnerMixin,
+            ValidationMixin, ScenarioMixin):
     r"""
     Initialization
     ---------------
@@ -36,7 +38,12 @@ class world(RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMi
         3. ``logging`` : (False by default). When True, INFO messages of the
            ``'energysim'`` logger are printed to stderr.
         4. ``t_macro`` : (60 by default). Users can specify instance of information exchange.
-           ``0`` means "least common multiple of all simulator step sizes".
+           ``0`` means "least common multiple of all simulator step sizes".  It is the
+           maximum (and default) macro step.
+           ``t_macro_min`` : (default ``t_macro``: fixed step).  Set it smaller to let
+           event hints of the simulators shrink the macro step to ``[t_macro_min, t_macro]``
+           (event-driven / variable macro step, see :meth:`schedule`, :meth:`add_trigger`).
+           With a variable step, ``stop_time - start_time`` need not be a multiple of ``t_macro``.
         5. ``coupling`` : ``'jacobi'`` (default) or ``'gauss-seidel'``.
         6. ``start_datetime`` : optional wall-clock start (str / datetime); results are
            then indexed by datetime instead of seconds.
@@ -125,13 +132,18 @@ class world(RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMi
     def __init__(self, start_time=0, stop_time=1000, logging=False, t_macro=60,
                  coupling='jacobi', extrapolation='zero-order',
                  power_unit=None, start_datetime=None, seed=None, out_dir=None, unit_system=None,
-                 unit_policy='lenient'):
+                 unit_policy='lenient', t_macro_min=None):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
         if logging:
             _enable_verbose_logging()
         self.exchange = t_macro
+        if t_macro_min is not None and not (float(t_macro_min) > 0):
+            raise ValueError(f"t_macro_min must be > 0, got {t_macro_min!r}")
+        self.t_macro_min = t_macro_min
+        self._current_dt = None
+        _init_event_state(self)
         if power_unit:
             parse_unit(power_unit)
         self.power_unit = power_unit

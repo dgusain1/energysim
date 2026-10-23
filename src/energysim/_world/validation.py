@@ -80,11 +80,30 @@ class ValidationMixin:
                         f"macro step t_macro ({macro}s) evenly (ratio={ratio:.4f}). "
                         f"This may lead to time misalignment."
                     )
-            if self.stop_time >= self.start_time:
+            if self.t_macro_min is not None and not (self.t_macro_min > 0):
+                errors.append(f"t_macro_min ({self.t_macro_min}) must be > 0.")
+            elif self.stop_time > self.start_time and self.variable_step:
+                pass   # variable macro step: the last step is shortened to land on stop_time
+            elif self.stop_time >= self.start_time:
                 try:
                     self._compute_total_steps(macro)
                 except ValueError as exc:
                     errors.append(str(exc))
+
+        # Events / triggers reference existing simulators
+        for ev in self._scheduled:
+            if isinstance(ev['action'], dict):
+                for key in ev['action']['set']:
+                    if key.split('.', 1)[0] not in self.simulator_dict:
+                        errors.append(f"Event '{ev['name']}' sets '{key}' of an unknown simulator.")
+        for tr in self._triggers:
+            for key in tr['variables']:
+                if key.split('.', 1)[0] not in self.simulator_dict:
+                    errors.append(f"Trigger '{tr['name']}' reads '{key}' of an unknown simulator.")
+            if isinstance(tr['action'], dict):
+                for key in tr['action']['set']:
+                    if key.split('.', 1)[0] not in self.simulator_dict:
+                        errors.append(f"Trigger '{tr['name']}' sets '{key}' of an unknown simulator.")
 
         # 2. Connection checks
         read_only_types = {'csv', 'signal'}

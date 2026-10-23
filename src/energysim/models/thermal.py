@@ -25,6 +25,17 @@ from .common.curve import Curve1D
 from .common.state_machine import OperatingStateMachine, OperatingState
 
 
+def _state_machine_time_to_event(sm) -> float:
+    """Seconds until the next timer-driven change of an :class:`OperatingStateMachine`."""
+    if sm.state == OperatingState.STARTING and sm.startup_timer_sec > 0:
+        return float(sm.startup_timer_sec)
+    if sm.state == OperatingState.RUNNING and sm.min_uptime_sec > sm.time_in_state_sec:
+        return float(sm.min_uptime_sec - sm.time_in_state_sec)
+    if sm.state == OperatingState.OFF and sm.min_downtime_sec > sm.time_offline_sec:
+        return float(sm.min_downtime_sec - sm.time_offline_sec)
+    return math.inf
+
+
 class GasTurbine_OCGT(ModelComponent):
     """
     Open-Cycle Gas Turbine (OCGT) peaker plant.
@@ -189,6 +200,10 @@ class GasTurbine_OCGT(ModelComponent):
         self._outputs_val["Q_exhaust_MW"] = self.q_exhaust_mw
         self._outputs_val["state"] = self.state_str
 
+    def time_to_event(self) -> float:
+        """Event hint: remaining start-up time, else remaining minimum up / down time (s)."""
+        return _state_machine_time_to_event(self.sm)
+
 
 class CombinedCycle_CCGT(ModelComponent):
     """
@@ -341,6 +356,10 @@ class CombinedCycle_CCGT(ModelComponent):
         self._outputs_val["CO2_emissions_t_hr"] = self.co2_emissions_t_hr
         self._outputs_val["Q_condenser_MW"] = self.q_condenser_mw
         self._outputs_val["state"] = sm.state.value
+
+    def time_to_event(self) -> float:
+        """Event hint: remaining start-up time, else remaining minimum up / down time (s)."""
+        return _state_machine_time_to_event(self.sm)
 
 
 class ReciprocatingGenset(ModelComponent):

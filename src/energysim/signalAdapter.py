@@ -14,7 +14,14 @@ import warnings
 
 
 class signal_adapter(SimulatorAdapter):
-    def __init__(self, signal_name, signal):
+    """Output-only signal ``y = f(t)``.
+
+    ``breakpoints`` (and the breakpoints of structured ``step`` / ``ramp`` /
+    ``piecewise`` specs) are reported through :meth:`next_event_time`, so
+    event-driven macro steps can land exactly on them.
+    """
+
+    def __init__(self, signal_name, signal, breakpoints=None):
         if not callable(signal):
             raise TypeError(
                 f"Signal '{signal_name}' must be callable f(t); build string / dict specs with "
@@ -22,6 +29,9 @@ class signal_adapter(SimulatorAdapter):
             )
         self.signal_name = signal_name
         self.signal = signal
+        self.user_breakpoints = sorted(float(b) for b in (breakpoints or []))
+        bps = self.user_breakpoints + list(getattr(signal, 'breakpoints', None) or [])
+        self.breakpoints = sorted({float(b) for b in bps})
 
     def init(self, *args, **kwargs):
         pass
@@ -46,6 +56,13 @@ class signal_adapter(SimulatorAdapter):
         if isinstance(result, (list, tuple)):
             return list(result)
         return [result]
+
+    def next_event_time(self, time):
+        """First breakpoint strictly after *time* (``inf`` if none)."""
+        for b in self.breakpoints:
+            if b > time + 1e-9:
+                return b
+        return float('inf')
 
     def get_available_variables(self):
         return {'inputs': [], 'outputs': ['y']}

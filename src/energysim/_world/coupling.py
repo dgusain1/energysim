@@ -181,7 +181,8 @@ class CouplingMixin:
             if abs(dt) > 1e-15:
                 slope = (v_curr - v_prev) / dt
                 # Extrapolate forward by one macro-step
-                v_extrap = v_curr + slope * self.macro_tstep
+                dt_next = getattr(self, '_current_dt', None) or self.macro_tstep
+                v_extrap = v_curr + slope * dt_next
                 return [v_extrap]
         # Fall back to zero-order hold if not enough history
         return current_value
