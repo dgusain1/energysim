@@ -59,11 +59,20 @@ The `energysim` brand identity reflects the convergence of multi-energy sectors:
 
 ## 💻 Markdown & HTML Embedding
 
-### Responsive Dark/Light Embedding (GitHub & Documentation)
-```html
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="brand/energysim-full-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="brand/energysim-full-light.svg">
-  <img src="brand/energysim-full-light.svg" alt="energysim logo" width="460">
-</picture>
+### GitHub README Embedding
+GitHub uses `#gh-light-mode-only` and `#gh-dark-mode-only` URL fragments:
+```markdown
+<p align="center">
+  <img src="brand/energysim-full-light.svg#gh-light-mode-only" alt="energysim" width="460">
+  <img src="brand/energysim-full-dark.svg#gh-dark-mode-only" alt="energysim" width="460">
+</p>
+```
+
+### Material for MkDocs Embedding
+MkDocs Material uses `#only-light` and `#only-dark` URL fragments:
+```markdown
+<p align="center">
+  <img src="assets/brand/energysim-full-light.svg#only-light" alt="energysim" width="460">
+  <img src="assets/brand/energysim-full-dark.svg#only-dark" alt="energysim" width="460">
+</p>
 ```

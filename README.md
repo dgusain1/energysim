@@ -1,11 +1,8 @@
 # energysim
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="brand/energysim-full-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="brand/energysim-full-light.svg">
-    <img src="brand/energysim-full-light.svg" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
-  </picture>
+  <img src="brand/energysim-full-light.svg#gh-light-mode-only" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
+  <img src="brand/energysim-full-dark.svg#gh-dark-mode-only" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
 </p>
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)

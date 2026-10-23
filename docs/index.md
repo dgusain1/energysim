@@ -1,11 +1,8 @@
 # energysim: Multi-Energy System Modeling & Co-Simulation
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/energysim-full-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/brand/energysim-full-light.svg">
-    <img src="assets/brand/energysim-full-light.svg" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
-  </picture>
+  <img src="assets/brand/energysim-full-light.svg#only-light" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
+  <img src="assets/brand/energysim-full-dark.svg#only-dark" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
 </p>
 
 
