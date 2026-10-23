@@ -38,6 +38,7 @@ from .container import (
 )
 from . import models
 from . import networks
+from . import control  # optimisation / MPC layer (scipy, pandapower, pypsa imported lazily)
 from .models.common import ModelComponent, Curve1D, Surface2D
 
 __version__ = "2.1.9.1"
@@ -53,6 +54,7 @@ __all__ = [
     "Surface2D",
     "models",
     "networks",
+    "control",
     "VectorizedContainerAdapter",
     "BatteryFleetAdapter",
     "BuildingFleetAdapter",
