@@ -4,11 +4,12 @@
 
 ## Policy
 
-* **Every variable has a unit.** A unit is either *declared*, derived from a conventional name suffix (`p_mw`, `t_in_degc`, `vm_pu`), or taken from the world's default unit for the quantity the name denotes (`P_cmd` is active power).
-* **Undeclared means `unspecified`.** A variable whose unit cannot be determined is never silently scaled; connections between it and another unit raise instead of guessing.
+* **Every connected variable is resolved to a unit.** A unit is *declared* (simulator `units=`, the component's own `units`, or `from_unit`/`to_unit` on a connection), derived from a conventional name suffix (`p_mw`, `t_in_degc`, `vm_pu`), or taken from the world's default unit for the quantity the name denotes (`P_cmd` is active power). Values are converted into the **receiver's** unit.
+* **Undeclared means `unspecified`, and unspecified is never scaled.** With the default `unit_policy='lenient'` a connection with an unspecified end passes the value through unchanged and logs a warning. With `world(..., unit_policy='strict')` the same connection raises `ValueError` at `add_connections` (and `validate()` reports it as an error).
+* **Resolution order** (first match wins): simulator `units={var: unit}` (and `power_unit` for power-like names) -> the component's own `units` -> `from_unit` / `to_unit` on the connection -> name suffix -> the unit system's default for the quantity the name denotes -> unspecified. A `scale` on a connection without any unit key switches automatic conversion off for that connection.
 * **One default unit per quantity.** The energysim standard system is listed below. It is shown in logs, `Results.units`, the `energysim units` CLI and these docs, and can be overridden per world.
-* **No implicit physics.** Currencies (EUR vs USD), per-unit vs volts, and actual volume flow (`m3/h`) vs normal volume flow (`Nm3/h`) are different dimensions and are never converted. Unknown units and incompatible dimensions raise `ValueError`.
-* **Lookup order.** Exact spelling first (`MV` is megavolt, `mV` millivolt), then a spelling-insensitive match that is used only when unambiguous (`kw`, `KW`, `kW_el` -> `kW`; `mv` is rejected as ambiguous).
+* **No implicit physics.** Currencies (EUR vs USD), per-unit vs volts, and actual volume flow (`m3/h`) vs normal volume flow (`Nm3/h`) are different dimensions and are never converted. Unknown units and incompatible dimensions of explicitly known units raise `ValueError`; incompatible units that were only *guessed* from names are passed through with a warning.
+* **Spelling lookup.** Exact spelling first (`MV` is megavolt, `mV` millivolt), then a spelling-insensitive match that is used only when unambiguous (`kw`, `KW`, `kW_el` -> `kW`; `mv` is rejected as ambiguous).
 
 Default system: `energysim-default` (hash `60b559c9acca`).
 
@@ -527,7 +528,7 @@ class MyModel:
 **External simulators / adapters**:
 
 ```python {.no-test}
-w.add_simulator('plant', 'plant.fmu', step_size=60, units={'P': 'W', 'T': 'K'})
+w.add_simulator('fmu', 'plant', model='plant.fmu', step_size=60, units={'P': 'W', 'T': 'K'})
 ```
 
 **Connections** convert explicitly with `from_unit` / `to_unit`:
@@ -563,7 +564,8 @@ resolve_unit('y')                # (None, 'unspecified')
 
 ## Where conventions show up
 
-* **Log lines**: the world logs the active unit system (`UnitSystem.describe()`) at start and every applied conversion, plus a warning for each `unspecified` variable that is connected.
+* **Log lines**: the world logs the active unit system (`UnitSystem.describe()`) at start and every applied conversion, plus a warning for each connection with an `unspecified` end.
+* **Inspection**: `world.unit_table()` returns the unit system as text, `world.connection_units()` a DataFrame with the resolved units, their sources and the effective scale/offset of every connection, `world.validate()` lists the conversions, and `energysim units` / `energysim run|validate -v` print the same on the command line.
 * **Python**: `UnitSystem.default().format_table()` prints the table above as aligned text.
 * **Results**: `Results.units` maps every output variable to its unit (or `None` when unspecified); the unit-system name and hash are stored in the result metadata.
 
