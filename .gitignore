@@ -46,3 +46,4 @@ htmlcov/
 *.pyc
 *.npz
 *.fmu
+*.zip

@@ -1,2 +1,40 @@
-New in 2.1.8
-- added ability to specify inputs to external_simulator
+# Changelog - energysim
+
+## 2.1.9.1
+- **Brand & Visual Identity**:
+  - Integrated official brand kit with scalable SVGs for light and dark modes (`brand/`, `docs/assets/brand/`, `.github/assets/`).
+  - Added responsive logo banners in `README.md` and documentation header.
+  - Added vector favicons, standard multi-resolution `.ico`, and Apple touch icons.
+  - Added 1280x640 OpenGraph social preview cards for GitHub and web embedding.
+- **Python Compatibility & Modernization**:
+  - Modernized codebase with `__future__.annotations` and compatibility across Python 3.10 through 3.14+.
+  - Added GitHub Actions CI matrix testing across Python versions.
+  - Configured ReadTheDocs build using `.readthedocs.yaml` with MkDocs Material.
+
+## 2.1.9
+- **Physical Multi-Energy Component Library**:
+  - Added native physics models for Green Hydrogen & PtX (`PEMElectrolyzer`, `AlkalineElectrolyzer`, `SOECElectrolyzer`, `H2Compressor`, `H2StorageTank` 350-bar real gas, `FuelCell_PEM`, `FuelCell_SOFC`, `MethanationReactor`).
+  - Added Storage models (`BatteryBESS` with Thevenin ECM + thermal + aging, `FlowBattery` VRFB, `Flywheel`).
+  - Added Turbomachinery & Thermal models (`CombinedCycle_CCGT`, `GasTurbine_OCGT` with cold/warm/hot timers, `CHP_SteamTurbine`, `ReciprocatingGenset`).
+  - Added Renewables & Heating/Cooling (`PhysicsPV`, `WindTurbine`, `SolarThermalCollector`, `IndustrialHeatPump`, `ElectricBoiler`, `Chillers`, `CarbonCapture_Amine`).
+  - Added pre-parameterized OEM equipment catalog (`catalog.Tesla_Megapack_2XL`, `catalog.Nel_A1000`, `catalog.GE_7HA_02`, `catalog.ITM_Power_Trident`, etc.).
+- **Vectorized Fleet Simulation**:
+  - Introduced high-performance SIMD/NumPy vectorized containers (`StorageFleet`, `PVFleet`, `BuildingFleet`).
+- **Co-Simulation Adapters**:
+  - Pandapower adapter supporting AC/DC power flow and Optimal Power Flow (OPF).
+  - PyPSA adapter for online single-snapshot dispatch.
+  - OpenDSS distribution system adapter via `OpenDSSDirect.py`.
+  - DIgSILENT PowerFactory adapter via Python API.
+  - FMU (FMI 1.0/2.0 Co-Simulation & Model Exchange) adapter.
+  - MATLAB & GNU Octave auto-detecting adapters.
+- **Core Orchestrator (`world`)**:
+  - Dependency resolution via directed acyclic graph topological sorting.
+  - Automatic physical unit conversions and scaling (MW, kW, W, kg/s, Nm³/h, bar).
+  - State snapshotting (`save_state()` / `restore_state()`) for iterative coupling.
+- **CLI & Declarative Scenarios**:
+  - Added `energysim` CLI entry point for executing declarative YAML simulation scenarios.
+- **Documentation**:
+  - Full documentation rewrite built with MkDocs Material, interactive case studies, and notebook gallery.
+
+## 2.1.8
+- Added ability to specify inputs to `external_simulator`.

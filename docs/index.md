@@ -1,8 +1,13 @@
 # energysim: Multi-Energy System Modeling & Co-Simulation
 
 <p align="center">
-  <img src="assets/energysim.png" alt="energysim logo" width="220">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/energysim-full-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brand/energysim-full-light.svg">
+    <img src="assets/brand/energysim-full-light.svg" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
+  </picture>
 </p>
+
 
 <p align="center">
   <a href="https://pypi.org/project/energysim/"><img src="https://img.shields.io/pypi/v/energysim.svg?color=blue" alt="PyPI version"></a>

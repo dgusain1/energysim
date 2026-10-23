@@ -37,8 +37,9 @@ theme:
     - toc.follow
   icon:
     repo: fontawesome/brands/github
-  logo: assets/energysim.png
-  favicon: assets/energysim.png
+  logo: assets/brand/energysim-mark-light.svg
+  favicon: assets/brand/favicon.ico
+
 
 nav:
   - Home: index.md
