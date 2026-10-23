@@ -206,7 +206,7 @@ def test_storage_standing_loss():
 
 def _random_forest(rng, cls=EnergyNetwork, n_nodes=None):
     n_nodes = n_nodes or int(rng.integers(3, 9))
-    net = cls(f"rf")
+    net = cls("rf")
     names = []
     kinds = []
     for i in range(n_nodes):
