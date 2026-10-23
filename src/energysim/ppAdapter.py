@@ -9,7 +9,10 @@ Pandapower adapter for energysim.
 from __future__ import annotations
 
 
-import pandapower as pp
+try:
+    import pandapower as pp
+except ImportError:
+    pp = None
 
 # Check once whether numba is available; if not, pass numba=False
 # to all pp.run* calls to suppress the noisy print() warnings.
@@ -25,6 +28,11 @@ from .base import SimulatorAdapter, SimulatorVariableError, SimulatorElementNotF
 class pp_adapter(SimulatorAdapter):
 
     def __init__(self, network_name, net_loc=None, inputs=None, outputs=None, mode='ac', pf=None, model=None):
+        if pp is None:
+            raise ImportError(
+                "pandapower is required for pp_adapter. "
+                "Install it using: pip install pandapower (or pip install energysim[powerflow])"
+            )
         '''
         Initialises the pandapower network adapter for energysim cosimulaiton object.
         Specify the following:

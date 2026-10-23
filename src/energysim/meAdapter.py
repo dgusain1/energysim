@@ -10,21 +10,27 @@ from __future__ import annotations
 
 from ctypes import POINTER, c_double
 
-from fmpy import read_model_description, extract, dump
-from fmpy.fmi1 import (
-    FMU1Model,
-    fmi1CallbackFunctions, fmi1CallbackLoggerTYPE,
-    fmi1CallbackAllocateMemoryTYPE, fmi1CallbackFreeMemoryTYPE,
-    fmi1False,
-)
-from fmpy.fmi2 import (
-    FMU2Model,
-    fmi2CallbackFunctions, fmi2CallbackLoggerTYPE,
-    fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE,
-    fmi2True, fmi2False,
-    printLogMessage, calloc, free,
-)
-from fmpy.simulation import Input, apply_start_values
+try:
+    from fmpy import read_model_description, extract, dump
+    from fmpy.fmi1 import (
+        FMU1Model,
+        fmi1CallbackFunctions, fmi1CallbackLoggerTYPE,
+        fmi1CallbackAllocateMemoryTYPE, fmi1CallbackFreeMemoryTYPE,
+        fmi1False,
+    )
+    from fmpy.fmi2 import (
+        FMU2Model,
+        fmi2CallbackFunctions, fmi2CallbackLoggerTYPE,
+        fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE,
+        fmi2True, fmi2False,
+        printLogMessage, calloc, free,
+    )
+    from fmpy.simulation import Input, apply_start_values
+    _FMPY_AVAILABLE = True
+except ImportError:
+    _FMPY_AVAILABLE = False
+    read_model_description = extract = dump = None
+    FMU1Model = FMU2Model = Input = apply_start_values = None
 from random import random
 import numpy as np
 import os

@@ -8,19 +8,25 @@ FMU Co-Simulation adapter for energysim.
 """
 from __future__ import annotations
 
-from fmpy import read_model_description, extract, dump
-from fmpy.fmi1 import (
-    FMU1Slave,
-    fmi1CallbackFunctions, fmi1CallbackLoggerTYPE,
-    fmi1CallbackAllocateMemoryTYPE, fmi1CallbackFreeMemoryTYPE,
-)
-from fmpy.fmi2 import (
-    FMU2Slave,
-    fmi2CallbackFunctions, fmi2CallbackLoggerTYPE,
-    fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE,
-    printLogMessage, calloc, free,
-)
-from fmpy.simulation import Input, apply_start_values
+try:
+    from fmpy import read_model_description, extract, dump
+    from fmpy.fmi1 import (
+        FMU1Slave,
+        fmi1CallbackFunctions, fmi1CallbackLoggerTYPE,
+        fmi1CallbackAllocateMemoryTYPE, fmi1CallbackFreeMemoryTYPE,
+    )
+    from fmpy.fmi2 import (
+        FMU2Slave,
+        fmi2CallbackFunctions, fmi2CallbackLoggerTYPE,
+        fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE,
+        printLogMessage, calloc, free,
+    )
+    from fmpy.simulation import Input, apply_start_values
+    _FMPY_AVAILABLE = True
+except ImportError:
+    _FMPY_AVAILABLE = False
+    read_model_description = extract = dump = None
+    FMU1Slave = FMU2Slave = Input = apply_start_values = None
 from random import random
 import os
 import shutil

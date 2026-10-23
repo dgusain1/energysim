@@ -11,7 +11,11 @@ from __future__ import annotations
 
 
 import numpy as np
-import matplotlib.pyplot as plt
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 class Sweep():
@@ -152,6 +156,8 @@ class Sweep():
                 self.sweep_res[sim_name]['data'].append(a1)
                 self.sweep_res[sim_name]['value'].append(value)
 
+                if plt is None:
+                    raise ImportError("ParameterSweep.plot() requires matplotlib. Install it with: pip install matplotlib (or pip install energysim[plotting])")
                 cc += 1
                 if cc != len(list(value_list) + [self.original_values[parameter]]):
                     plt.figure(count)
