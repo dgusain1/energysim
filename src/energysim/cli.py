@@ -4,8 +4,12 @@ Command-Line Interface (CLI) runner for energysim.
 
 Usage
 -----
-energysim run scenario.yaml [--dashboard] [--to-csv] [--no-pbar]
-energysim validate scenario.yaml
+energysim run scenario.yaml [--dashboard] [--to-csv] [--no-pbar] [--safe]
+energysim validate scenario.yaml [--safe]
+
+``--safe`` refuses simulator types that execute arbitrary code (external,
+script, matlab, powerfactory), dotted-import model references and pickle
+model files. Use it for scenario files from untrusted sources.
 energysim --version
 """
 
@@ -67,6 +71,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Disable tqdm progress bar.",
     )
     run_parser.add_argument(
+        "--safe",
+        action="store_true",
+        help="Safe mode: refuse code-executing simulator types, dotted imports and pickle models.",
+    )
+    run_parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Run semantic pre-flight validation without executing simulation.",
@@ -80,6 +89,11 @@ def create_parser() -> argparse.ArgumentParser:
     val_parser.add_argument(
         "scenario",
         help="Path to scenario YAML file.",
+    )
+    val_parser.add_argument(
+        "--safe",
+        action="store_true",
+        help="Safe mode: refuse code-executing simulator types, dotted imports and pickle models.",
     )
 
     return parser
@@ -99,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: Scenario file not found: {scenario_path}", file=sys.stderr)
             return 1
         try:
-            w = world.from_yaml(scenario_path)
+            w = world.from_yaml(scenario_path, safe=args.safe)
             report = w.validate(raise_on_error=False)
             print(report)
             return 0 if report.is_valid else 1
@@ -114,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         try:
-            w = world.from_yaml(scenario_path)
+            w = world.from_yaml(scenario_path, safe=args.safe)
             if args.res_filename:
                 w.file_name = args.res_filename
 

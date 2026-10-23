@@ -31,8 +31,12 @@ class SimulatorElementNotFoundError(EnergysimError):
     """An element / component was not found in a network model."""
 
 
-class ConnectionError(EnergysimError):
+class ConnectionSpecError(EnergysimError):
     """A connection specification is invalid."""
+
+
+# Backwards-compatible alias (shadows the builtin only when imported explicitly).
+ConnectionError = ConnectionSpecError
 
 
 class ValidationError(EnergysimError):
@@ -63,19 +67,30 @@ class ParsedConnection(tuple):
     """
     Parsed connection tuple (output, input) with scale, offset, and unit attributes.
     Supports unpacking as (output, input) for 100% backwards compatibility.
+
+    ``scale`` / ``offset`` are the *effective* values applied during exchange
+    (unit conversion followed by the user's scale/offset):
+    ``value_in = (value_out * unit_scale + unit_offset) * user_scale + user_offset``.
+    ``user_scale`` / ``user_offset`` keep what the user specified, so the
+    connection can be serialised without applying unit conversion twice.
     """
     scale: float
     offset: float
     from_unit: Optional[str]
     to_unit: Optional[str]
+    user_scale: float
+    user_offset: float
 
     def __new__(cls, parsed_output: Any, parsed_input: Any, scale: float = 1.0, offset: float = 0.0,
-                from_unit: Optional[str] = None, to_unit: Optional[str] = None):
+                from_unit: Optional[str] = None, to_unit: Optional[str] = None,
+                user_scale: Optional[float] = None, user_offset: Optional[float] = None):
         instance = super().__new__(cls, (parsed_output, parsed_input))
         instance.scale = float(scale)
         instance.offset = float(offset)
         instance.from_unit = from_unit
         instance.to_unit = to_unit
+        instance.user_scale = float(scale if user_scale is None else user_scale)
+        instance.user_offset = float(offset if user_offset is None else user_offset)
         return instance
 
 
@@ -89,12 +104,29 @@ class SimulatorAdapter(ABC):
     # Subclasses *may* set this; the world can also override it.
     step_size: float = 1.0
 
+    #: When True, the world applies ``options({'init': ...})`` /
+    #: ``set_parameters`` values *before* calling :meth:`init` (needed by
+    #: FMUs, whose start values must be set before initialisation mode is
+    #: left).  When False (default) they are applied *after* :meth:`init`,
+    #: which is what tools that load their model in ``init()`` (OpenDSS,
+    #: PowerFactory, MATLAB, ...) need.
+    SET_PARAMS_BEFORE_INIT: bool = False
+
     # ------------------------------------------------------------------
     # Life-cycle hooks (override when needed; defaults are no-ops)
     # ------------------------------------------------------------------
 
+    def configure(self, start_time: float, stop_time: float, macro_step: float) -> None:
+        """Receive the run's time frame before :meth:`init` is called.
+
+        The world calls this on every adapter at the start of every run
+        (before any parameters are applied and before ``init()``).
+        Default is a no-op; adapters such as FMUs override it to set up
+        experiment start/stop times.
+        """
+
     def init(self) -> None:
-        """Initialise the simulator (called once before the first step)."""
+        """Initialise the simulator (called once at the start of every run)."""
 
     def cleanup(self) -> None:
         """Release resources (called once after the last step)."""
@@ -173,25 +205,6 @@ class SimulatorAdapter(ABC):
             rows.append(row)
             self.step(t)
         return rows
-
-    # ------------------------------------------------------------------
-    # State save / restore (for iterative coupling)
-    # ------------------------------------------------------------------
-
-    def save_state(self) -> Any:
-        """Save internal state for later rollback.  Returns an opaque token.
-
-        Adapters that support rollback (e.g. FMU CS with
-        ``canGetAndSetFMUstate``) should override this.
-        """
-        return None
-
-    def restore_state(self, state: Any) -> None:
-        """Restore previously saved state.
-
-        Default is a no-op — iterative coupling will still run but
-        convergence is not guaranteed for adapters that cannot roll back.
-        """
 
     # ------------------------------------------------------------------
     # Introspection helpers

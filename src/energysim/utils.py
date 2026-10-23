@@ -10,8 +10,26 @@ from __future__ import annotations
 import tables as tb
 import pandas as pd
 import os
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 filters = tb.Filters(complevel=5, complib='zlib')
+
+
+_UNSAFE_NAME_CHARS = re.compile(r'[^A-Za-z0-9_.\-]')
+
+
+def safe_filename_component(name: Any) -> str:
+    """Return *name* reduced to a safe single path component.
+
+    Path separators, drive colons, ``..`` and any character outside
+    ``[A-Za-z0-9_.-]`` are replaced by ``_`` so simulator names can never
+    escape the results directory.
+    """
+    s = _UNSAFE_NAME_CHARS.sub('_', str(name))
+    while '..' in s:
+        s = s.replace('..', '_')
+    s = s.strip('. ')
+    return s or '_'
 
 
 def convert_to_df(file_name, headers=None):
@@ -46,7 +64,7 @@ def convert_to_csv(file_name, headers=None):
                 node = f.get_node('/', key) if f.__contains__(f'/{key}') else getattr(f.root, key)
                 sim_data = node.read()
                 df = pd.DataFrame(data=sim_data, columns=['time'] + value)
-                df.to_csv(f'res_{key}.csv', header=None)
+                df.to_csv(f'res_{safe_filename_component(key)}.csv', header=None)
     else:
         with tb.open_file(filename=file_name, mode='r') as f:
             nodes = list(f.root)
@@ -77,7 +95,7 @@ def export_to_csv(processed_res, f_name='res'):
     tmp_path = os.path.join(parent_dir, f_name)
     os.makedirs(tmp_path, exist_ok=True)
     for sim_name, res_df in processed_res.items():
-        res_df.to_csv(os.path.join(tmp_path, f'res_{sim_name}.csv'))
+        res_df.to_csv(os.path.join(tmp_path, f'res_{safe_filename_component(sim_name)}.csv'))
     return f"Exported results to {tmp_path}."
 
 
@@ -116,129 +134,271 @@ def create_results_recorder(file_name, sim_dict):
 # ---------------------------------------------------------------------------
 # Unit Conversion Utilities
 # ---------------------------------------------------------------------------
+#
+# Each unit maps to (dimension, factor, offset) such that
+#     value_in_base = value * factor + offset
+# Conversion is only allowed within one dimension.  Unknown units raise
+# ``ValueError`` (never a silent factor of 1.0).
+#
+# Lookup is case-sensitive first (so 'MV' megavolt != 'mV' millivolt); a
+# case-insensitive fallback is used only when it is unambiguous
+# (e.g. 'mw' -> MW, 'kvar' -> kvar; 'mv' is rejected as ambiguous).
 
-_POWER_UNITS = {
-    'w': 1e-3, 'watt': 1e-3, 'watts': 1e-3,
-    'kw': 1.0, 'kilowatt': 1.0, 'kilowatts': 1.0,
-    'mw': 1e3, 'megawatt': 1e3, 'megawatts': 1e3,
-    'gw': 1e6, 'gigawatt': 1e6, 'gigawatts': 1e6,
-}
-
-_REACTIVE_POWER_UNITS = {
-    'var': 1e-3, 'vars': 1e-3,
-    'kvar': 1.0, 'kvars': 1.0,
-    'mvar': 1e3, 'mvars': 1e3,
-}
-
-_VOLTAGE_UNITS = {
-    'v': 1e-3, 'volt': 1e-3, 'volts': 1e-3,
-    'kv': 1.0, 'kilovolt': 1.0, 'kilovolts': 1.0,
-    'pu': 1.0, 'p.u.': 1.0,
-}
-
-_ENERGY_UNITS = {
-    'j': 1.0 / 3.6e6, 'joule': 1.0 / 3.6e6, 'joules': 1.0 / 3.6e6,
-    'wh': 1e-3,
-    'kwh': 1.0,
-    'mwh': 1e3,
-}
-
-_UNIT_CATEGORIES = [
-    _POWER_UNITS,
-    _REACTIVE_POWER_UNITS,
-    _VOLTAGE_UNITS,
-    _ENERGY_UNITS,
-]
+class UnitDef(NamedTuple):
+    dimension: str
+    factor: float
+    offset: float = 0.0
 
 
-def get_unit_scale(from_unit: str, to_unit: str) -> float:
-    """
-    Compute linear multiplication factor to convert numeric value from `from_unit` to `to_unit`.
-    Returns 1.0 if units are identical or unknown. Raises ValueError on category mismatch.
+_UNITS: Dict[str, UnitDef] = {}
+
+
+def _reg(dimension: str, factor: float, *names: str, offset: float = 0.0) -> None:
+    for n in names:
+        _UNITS[n] = UnitDef(dimension, factor, offset)
+
+
+# active power (base W)
+_reg('power', 1.0, 'W', 'watt', 'watts')
+_reg('power', 1e3, 'kW', 'kilowatt', 'kilowatts')
+_reg('power', 1e6, 'MW', 'megawatt', 'megawatts')
+_reg('power', 1e9, 'GW', 'gigawatt', 'gigawatts')
+# reactive power (base var)
+_reg('reactive_power', 1.0, 'var', 'vars')
+_reg('reactive_power', 1e3, 'kvar', 'kvars')
+_reg('reactive_power', 1e6, 'Mvar', 'mvars')
+# voltage (base V)
+_reg('voltage', 1e-3, 'mV', 'millivolt', 'millivolts')
+_reg('voltage', 1.0, 'V', 'volt', 'volts')
+_reg('voltage', 1e3, 'kV', 'kilovolt', 'kilovolts')
+_reg('voltage', 1e6, 'MV', 'megavolt', 'megavolts')
+# per-unit: its own dimension, never converted to/from volts
+_reg('per_unit', 1.0, 'pu', 'p.u.')
+# energy (base J)
+_reg('energy', 1.0, 'J', 'joule', 'joules')
+_reg('energy', 1e3, 'kJ')
+_reg('energy', 1e6, 'MJ')
+_reg('energy', 1e9, 'GJ')
+_reg('energy', 3.6e3, 'Wh')
+_reg('energy', 3.6e6, 'kWh')
+_reg('energy', 3.6e9, 'MWh')
+_reg('energy', 3.6e12, 'GWh')
+# mass flow (base kg/s)
+_reg('mass_flow', 1.0, 'kg/s')
+_reg('mass_flow', 1.0 / 3600.0, 'kg/h')
+_reg('mass_flow', 1000.0 / 3600.0, 't/h')
+# volume flows: actual and normal volume are separate dimensions
+_reg('volume_flow', 1.0, 'm3/s', 'm³/s')
+_reg('volume_flow', 1.0 / 3600.0, 'm3/h', 'm³/h')
+_reg('normal_volume_flow', 1.0, 'Nm3/h', 'Nm³/h')
+# pressure (base Pa)
+_reg('pressure', 1.0, 'Pa')
+_reg('pressure', 1e3, 'kPa')
+_reg('pressure', 1e5, 'bar')
+_reg('pressure', 1e6, 'MPa')
+# temperature (base K; degC is affine)
+_reg('temperature', 1.0, 'K', 'kelvin')
+_reg('temperature', 1.0, 'degC', '°C', 'celsius', offset=273.15)
+# time (base s)
+_reg('time', 1.0, 's', 'sec')
+_reg('time', 60.0, 'min')
+_reg('time', 3600.0, 'h', 'hr')
+# dimensionless
+_reg('dimensionless', 1.0, '-', '1')
+_reg('dimensionless', 0.01, '%')
+
+_UNITS_LOWER: Dict[str, List[str]] = {}
+for _name in _UNITS:
+    _UNITS_LOWER.setdefault(_name.lower(), []).append(_name)
+
+KNOWN_UNITS = tuple(_UNITS)
+
+
+def parse_unit(unit: str) -> UnitDef:
+    """Return the :class:`UnitDef` for *unit*; raise ``ValueError`` if unknown or ambiguous."""
+    if not isinstance(unit, str) or not unit.strip():
+        raise ValueError(f"Invalid unit {unit!r}.")
+    u = unit.strip()
+    if u in _UNITS:
+        return _UNITS[u]
+    candidates = _UNITS_LOWER.get(u.lower(), [])
+    defs = {_UNITS[c] for c in candidates}
+    if len(defs) == 1:
+        return _UNITS[candidates[0]]
+    if len(defs) > 1:
+        raise ValueError(
+            f"Ambiguous unit '{unit}': could be any of {sorted(candidates)}. Use the exact spelling."
+        )
+    raise ValueError(f"Unknown unit '{unit}'. Known units: {', '.join(KNOWN_UNITS)}")
+
+
+def is_known_unit(unit: str) -> bool:
+    """True if *unit* is a recognised (unambiguous) unit string."""
+    try:
+        parse_unit(unit)
+        return True
+    except ValueError:
+        return False
+
+
+def get_unit_conversion(from_unit: Optional[str], to_unit: Optional[str]) -> Tuple[float, float]:
+    """Return ``(scale, offset)`` with ``value_to = value_from * scale + offset``.
+
+    If either unit is ``None`` / empty, no conversion is applied (``(1.0, 0.0)``).
+    Unknown units raise ``ValueError``; units of different dimensions raise
+    ``ValueError`` ("Incompatible unit conversion").  Affine units
+    (degC <-> K) are supported through the offset.
     """
     if not from_unit or not to_unit:
-        return 1.0
-    u_from = from_unit.strip().lower()
-    u_to = to_unit.strip().lower()
-    if u_from == u_to:
-        return 1.0
-
-    for cat in _UNIT_CATEGORIES:
-        if u_from in cat and u_to in cat:
-            return cat[u_from] / cat[u_to]
-
-    # If both units were recognized in different categories
-    cat_from = any(u_from in cat for cat in _UNIT_CATEGORIES)
-    cat_to = any(u_to in cat for cat in _UNIT_CATEGORIES)
-    if cat_from and cat_to:
-        raise ValueError(f"Incompatible unit conversion: cannot convert '{from_unit}' to '{to_unit}'.")
-
-    return 1.0
+        return 1.0, 0.0
+    a = parse_unit(from_unit)
+    b = parse_unit(to_unit)
+    if a.dimension != b.dimension:
+        raise ValueError(
+            f"Incompatible unit conversion: cannot convert '{from_unit}' ({a.dimension}) "
+            f"to '{to_unit}' ({b.dimension})."
+        )
+    scale = a.factor / b.factor
+    offset = (a.offset - b.offset) / b.factor
+    return scale, offset
 
 
-def infer_variable_unit(var_name: str, sim_type: str = '', default_unit: str = 'kW') -> str:
+def get_unit_scale(from_unit: Optional[str], to_unit: Optional[str]) -> float:
     """
-    Infer the physical engineering unit from variable naming conventions or simulator native units.
+    Linear multiplication factor converting a value from `from_unit` to `to_unit`.
+
+    Returns 1.0 when either unit is unspecified.  Raises ``ValueError`` for
+    unknown units, incompatible dimensions, or affine conversions (degC <-> K;
+    use :func:`get_unit_conversion` for those).
+    """
+    scale, offset = get_unit_conversion(from_unit, to_unit)
+    if offset != 0.0:
+        raise ValueError(
+            f"Conversion '{from_unit}' -> '{to_unit}' needs an offset; use get_unit_conversion()."
+        )
+    return scale
+
+
+# Explicit unit suffixes recognised in (the last segment of) variable names.
+# Order matters: longer suffixes first.
+_SUFFIX_UNITS = (
+    ('_nm3_h', 'Nm3/h'), ('_m3_h', 'm3/h'),
+    ('_kg_s', 'kg/s'), ('_kg_h', 'kg/h'), ('_t_h', 't/h'),
+    ('_mwh', 'MWh'), ('_kwh', 'kWh'), ('_gwh', 'GWh'), ('_wh', 'Wh'),
+    ('_mvar', 'Mvar'), ('_kvar', 'kvar'),
+    ('_gw', 'GW'), ('_mw', 'MW'), ('_kw', 'kW'),
+    ('_kv', 'kV'), ('_pu', 'pu'),
+    ('_degc', 'degC'), ('_kpa', 'kPa'), ('_mpa', 'MPa'), ('_bar', 'bar'),
+)
+
+# Dotted tool-specific attribute names (OpenDSS / PowerFactory)
+_DOTTED_UNITS = (
+    ('.pgini', 'MW'), ('.plini', 'MW'), ('.qgini', 'Mvar'), ('.qlini', 'Mvar'),
+    ('.m:u', 'pu'), ('.kw', 'kW'), ('.kvar', 'kvar'), ('.kv', 'kV'),
+)
+
+# Names that conventionally denote active power: p, p_cmd, P_set, p_load, pgen, power, ...
+_POWER_NAME = re.compile(
+    r'^(p|p_(cmd|set|setpoint|ref|req|gen|load|el|elec|out|in|dispatch|demand)|'
+    r'p(cmd|set|gen|load|ref)|.*power.*)$'
+)
+
+_NATIVE_POWER_UNIT = {
+    'pandapower': 'MW', 'powerflow': 'MW', 'pypsa': 'MW', 'powerfactory': 'MW',
+    'opendss': 'kW', 'fmu': 'W',
+}
+
+
+def looks_like_power(var_name: str) -> bool:
+    """True if the variable name conventionally denotes active power (p, p_cmd, P_set, power, ...)."""
+    last = var_name.strip().split('.')[-1].lower()
+    return bool(_POWER_NAME.match(last))
+
+
+def infer_variable_unit(var_name: str, sim_type: str = '', default_unit: Optional[str] = None) -> Optional[str]:
+    """
+    Infer the unit of *var_name*, or return ``None`` when it cannot be
+    determined explicitly.
+
+    1. Conventional suffixes (``_mw``, ``_kw``, ``_kv``, ``_pu``, ``_kwh``,
+       ``_degc``, ...) and tool attribute names (``.kW``, ``.pgini``, ...).
+    2. Only for variables whose *name* looks like active power (``p``,
+       ``p_cmd``, ``P_set``, ``power`` ...): the simulator's native power unit
+       (pandapower/PyPSA/PowerFactory: MW, OpenDSS: kW, FMU: W), else
+       ``default_unit``.
+    3. Otherwise ``None`` -- the world will not auto-scale such a variable.
     """
     v_lower = var_name.strip().lower()
-    if v_lower.endswith(('_mw', '.p_mw', '.max_p_mw', '.min_p_mw', '.pgini', '.plini')):
-        return 'MW'
-    if v_lower.endswith(('_mvar', '.q_mvar', '.qgini', '.qlini')):
-        return 'Mvar'
-    if '.kw' in v_lower or v_lower.endswith(('_kw', '.p_kw', '.losses_kw', '.total_power_kw')):
-        return 'kW'
-    if '.kvar' in v_lower or v_lower.endswith(('_kvar', '.q_kvar')):
-        return 'kvar'
-    if 'vm_pu' in v_lower or v_lower.endswith(('.vm_pu', '_pu', '.v_mag_pu', '.m:u')):
+    if 'vm_pu' in v_lower:
         return 'pu'
-    if '.kv' in v_lower or v_lower.endswith(('_kv', '.kv')):
-        return 'kV'
+    for suf, unit in _DOTTED_UNITS:
+        if v_lower.endswith(suf):
+            return unit
+    last = v_lower.split('.')[-1]
+    for suf, unit in _SUFFIX_UNITS:
+        if last.endswith(suf):
+            return unit
 
-    # Fall back based on simulator native defaults
-    st = sim_type.strip().lower()
-    if st in ('pandapower', 'powerflow', 'pypsa', 'powerfactory'):
-        return 'MW'
-    if st == 'opendss':
-        return 'kW'
-    if st == 'fmu':
-        return 'W'
-
-    return default_unit
+    if looks_like_power(var_name):
+        st = (sim_type or '').strip().lower()
+        if st in _NATIVE_POWER_UNIT:
+            return _NATIVE_POWER_UNIT[st]
+        return default_unit
+    return None
 
 
-def resolve_model_reference(model_ref: Any) -> Any:
+# ---------------------------------------------------------------------------
+# Model references
+# ---------------------------------------------------------------------------
+
+MODEL_FILE_EXTS = ('.fmu', '.p', '.pkl', '.json', '.csv', '.dss', '.m', '.py', '.nc',
+                   '.xlsx', '.sqlite', '.h5', '.hdf5', '.pfd')
+PICKLE_EXTS = ('.p', '.pkl', '.pickle')
+_DOTTED_REF = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$')
+
+
+def looks_like_dotted_import(model_ref: Any) -> bool:
+    """True if *model_ref* is a string like ``'pkg.module.func'`` that is not a path / file name."""
+    if not isinstance(model_ref, str):
+        return False
+    if os.path.exists(model_ref) or model_ref.lower().endswith(MODEL_FILE_EXTS):
+        return False
+    return bool(_DOTTED_REF.match(model_ref))
+
+
+def resolve_model_reference(model_ref: Any, allow_import: bool = False) -> Any:
     """
     Resolve a model reference which can be:
+
     - An in-memory Python object (returned as is)
-    - An existing filesystem path (returned as is)
-    - A dotted import string (e.g. 'pandapower.networks.case14' or 'my_module.build_grid')
-      which is dynamically imported and evaluated if callable.
-    - An identifier string (e.g. PowerFactory project name 'IEEE13')
+    - An existing filesystem path / file name with a known extension (returned as is)
+    - A dotted import string (e.g. ``'pandapower.networks.case14'``) which is
+      imported and, if callable, called -- **only** when ``allow_import=True``.
+      Without that opt-in a ``ValueError`` is raised instead of silently
+      executing code.
+    - Any other identifier string (e.g. PowerFactory project ``'IEEE13'``),
+      returned as is.
     """
-    if not isinstance(model_ref, str):
+    if not isinstance(model_ref, str) or not looks_like_dotted_import(model_ref):
         return model_ref
 
-    # If it's a file on disk or looks like a file path with known extension, return it as string
-    if os.path.exists(model_ref) or any(model_ref.lower().endswith(ext) for ext in (
-        '.fmu', '.p', '.pkl', '.json', '.csv', '.dss', '.m', '.py', '.nc'
-    )):
-        return model_ref
+    if not allow_import:
+        raise ValueError(
+            f"Model reference '{model_ref}' looks like a dotted Python import. Importing and "
+            f"calling it requires explicit opt-in: pass allow_import=True (or build the model "
+            f"in Python and pass the object)."
+        )
 
-    # Check if it might be a dotted Python callable path (e.g. 'pandapower.networks.case14')
-    if '.' in model_ref and not any(c in model_ref for c in ('/', '\\', ' ', ':')):
+    import importlib
+    mod_name, func_name = model_ref.rsplit('.', 1)
+    try:
+        mod = importlib.import_module(mod_name)
+        obj = getattr(mod, func_name)
+    except (ImportError, AttributeError) as exc:
+        raise ValueError(f"Could not import model reference '{model_ref}': {exc}") from exc
+    if callable(obj):
         try:
-            mod_name, func_name = model_ref.rsplit('.', 1)
-            import importlib
-            mod = importlib.import_module(mod_name)
-            obj = getattr(mod, func_name)
-            if callable(obj):
-                try:
-                    return obj()
-                except TypeError:
-                    return obj
+            return obj()
+        except TypeError:
             return obj
-        except (ImportError, AttributeError, ValueError):
-            pass
-
-    return model_ref
-
+    return obj

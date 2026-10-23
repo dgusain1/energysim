@@ -3,10 +3,11 @@
 Renewable Generation Models for energysim.
 
 Includes:
-- PhysicsPV: Solar photovoltaic generator with empirical cell temperature,
-  temperature derating, Sandia inverter efficiency, and curtailment.
-- WindTurbine: Wind turbine with multi-point power curve, air density derating,
-  and rotor inertia lag.
+- PhysicsPV: Solar PV generator: DC power linear in irradiance, NOCT-based cell
+  temperature, linear temperature derating, a generic inverter efficiency curve
+  and AC clipping / curtailment.
+- WindTurbine: Wind turbine with multi-point power curve evaluated at a
+  density-corrected effective wind speed, and a first-order rotor lag.
 - SolarThermalCollector: Solar thermal collector with Hottel-Whillier-Bliss efficiency.
 """
 
@@ -21,7 +22,17 @@ from .common.curve import Curve1D
 
 class PhysicsPV(ModelComponent):
     """
-    Solar Photovoltaic system with irradiance, temperature derating, and inverter clipping.
+    Simple Solar Photovoltaic system model.
+
+    DC power is linear in plane-of-array irradiance, derated linearly with cell
+    temperature (NOCT cell-temperature model with a wind-speed damping term);
+    the inverter is a generic efficiency-vs-load curve with a hard AC clipping
+    limit and an optional curtailment setpoint. It is *not* a single-diode,
+    five-parameter or Sandia array/inverter model, and there is no spectral,
+    angle-of-incidence, soiling or shading loss.
+
+    Validity: G_poa in 0-1300 W/m2, T_amb -20..50 C, v_wind 0..20 m/s; the
+    output is a smooth surrogate for plant-level studies, not for bankable yield.
 
     Parameters
     ----------
@@ -35,7 +46,15 @@ class PhysicsPV(ModelComponent):
         Nominal Operating Cell Temperature in C (at 800 W/m2, 20 C ambient, 1 m/s wind).
     inverter_curve : Curve1D, optional
         Inverter efficiency vs normalized DC power.
+
+    Inputs: ``G_poa`` (W/m2), ``T_amb`` (degC), ``v_wind`` (m/s) and
+    ``curtail_limit`` (MW, AC upper limit; the attribute is ``curtail_limit_mw``).
     """
+
+    units = {
+        "G_poa": "W/m2", "T_amb": "degC", "v_wind": "m/s", "curtail_limit": "MW",
+        "P_ac": "MW", "P_dc": "MW", "T_cell": "degC",
+    }
 
     def __init__(
         self,
@@ -64,8 +83,7 @@ class PhysicsPV(ModelComponent):
         self.g_poa = 0.0          # W/m2 Plane-of-Array irradiance
         self.t_amb = 25.0         # deg C
         self.v_wind = 1.0         # m/s
-        self.curtail_limit = 1e6  # MW
-        self.curtail_limit_mw = 1e6
+        self.curtail_limit_mw = 1e6  # MW (input name: curtail_limit)
         self.p_dc = 0.0
         self.p_ac = 0.0
         self.t_cell_c = 25.0
@@ -73,13 +91,15 @@ class PhysicsPV(ModelComponent):
         self.register_variables(
             inputs=["G_poa", "T_amb", "v_wind", "curtail_limit"],
             outputs=["P_ac", "P_dc", "T_cell"],
+            defaults={"curtail_limit": self.curtail_limit_mw},
         )
+        self.register_parameters("p_dc_stc_mw", "inverter_p_ac_max_mw", "temp_coeff_p", "noct_c")
 
     def step_model(self, dt: float, time: float) -> None:
-        g_poa = float(self._inputs_val.get("G_poa", self.g_poa))
+        g_poa = max(0.0, float(self._inputs_val.get("G_poa", self.g_poa)))
         t_amb = float(self._inputs_val.get("T_amb", self.t_amb))
         v_wind = float(self._inputs_val.get("v_wind", self.v_wind))
-        curtail = float(self._inputs_val.get("curtail_limit", self.curtail_limit_mw))
+        curtail = max(0.0, float(self._inputs_val.get("curtail_limit", self.curtail_limit_mw)))
 
         if g_poa <= 1.0:
             self.p_dc = 0.0
@@ -113,7 +133,17 @@ class PhysicsPV(ModelComponent):
 
 class WindTurbine(ModelComponent):
     """
-    Wind Turbine with multi-point power curve, air density derating, and rotor inertia lag.
+    Wind Turbine with multi-point power curve, air density correction and rotor lag.
+
+    Air density is corrected on the *wind speed*: the power curve (defined at
+    standard density 1.225 kg/m3) is evaluated at
+    ``v_eff = v * (rho / rho0) ** (1/3)``, so the rated plateau is not derated
+    at winds well above rated speed. Density follows the ideal gas law with
+    pressure from the barometric formula at ``altitude_m``. Cut-out is applied
+    on the actual wind speed. A first-order lag models rotor/pitch inertia.
+
+    Validity: hub-height wind 0-30 m/s, T_amb -30..45 C, altitude 0-3000 m; no
+    wake, turbulence, icing or yaw-misalignment effects.
 
     Parameters
     ----------
@@ -127,7 +157,11 @@ class WindTurbine(ModelComponent):
         Cut-out wind speed in m/s.
     rotor_time_constant_sec : float, default 4.0
         1st-order rotor inertia acceleration/pitch lag time constant.
+    altitude_m : float, default 0.0
+        Site altitude above sea level in metres (barometric pressure correction).
     """
+
+    units = {"v_wind": "m/s", "T_amb": "degC", "P_actual": "MW"}
 
     def __init__(
         self,
@@ -139,9 +173,11 @@ class WindTurbine(ModelComponent):
         rotor_time_constant_sec: float = 4.0,
         power_curve: Optional[Curve1D] = None,
         step_size: float = 1.0,
+        altitude_m: float = 0.0,
         **kwargs,
     ):
         super().__init__(name=name, step_size=step_size, **kwargs)
+        self.altitude_m = altitude_m
         self.p_rated_mw = p_rated_mw
         self.cut_in = cut_in_speed_ms
         self.rated_speed = rated_speed_ms
@@ -173,20 +209,28 @@ class WindTurbine(ModelComponent):
         self.register_variables(
             inputs=["v_wind", "T_amb"],
             outputs=["P_actual"],
+            defaults={"T_amb": self.t_amb},
         )
+        self.register_parameters("altitude_m")
 
     def step_model(self, dt: float, time: float) -> None:
         v_wind = float(self._inputs_val.get("v_wind", self.v_wind))
         t_amb = float(self._inputs_val.get("T_amb", self.t_amb))
 
-        # Air density correction: rho = p / (R * T)
+        # Air density: barometric pressure at altitude, ideal gas law
+        pressure = 101325.0 * max(1.0 - 2.25577e-5 * self.altitude_m, 0.1) ** 5.25588
         t_kelvin = t_amb + 273.15
-        rho = 101325.0 / (287.05 * max(t_kelvin, 100.0))
-        rho_0 = 1.225  # Standard sea-level density
-        density_mult = rho / rho_0
+        rho = pressure / (287.05 * max(t_kelvin, 100.0))
+        rho_0 = 1.225  # Standard density (15 C, sea level)
 
-        p_raw = float(self.power_curve(v_wind)) * density_mult
-        p_target = min(self.p_rated_mw, max(0.0, p_raw))
+        # Density correction acts on wind speed (power ~ rho * v^3)
+        v_wind = max(0.0, v_wind)
+        v_eff = v_wind * (rho / rho_0) ** (1.0 / 3.0)
+        if v_wind >= self.cut_out:
+            p_target = 0.0
+        else:
+            v_eff = min(v_eff, self.cut_out - 0.1)  # stay below the curve's cut-out edge
+            p_target = min(self.p_rated_mw, max(0.0, float(self.power_curve(v_eff))))
 
         # Rotor inertia 1st-order filter
         alpha = dt / (self.tau + dt)
@@ -198,7 +242,16 @@ class WindTurbine(ModelComponent):
 class SolarThermalCollector(ModelComponent):
     """
     Solar thermal collector with quadratic Hottel-Whillier-Bliss efficiency.
+
+    Steady-state efficiency curve ``eta = eta0 - a1*dT/G - a2*dT^2/G`` (dT =
+    T_in - T_amb, G = irradiance on the collector plane); no thermal mass, no
+    incidence-angle modifier. Validity: G > 10 W/m2, dT 0-100 K.
     """
+
+    units = {
+        "G_solar": "W/m2", "T_in": "degC", "T_amb": "degC",
+        "Q_thermal_MW": "MW",
+    }
 
     def __init__(
         self,
@@ -224,6 +277,7 @@ class SolarThermalCollector(ModelComponent):
         self.register_variables(
             inputs=["G_solar", "T_in", "T_amb"],
             outputs=["Q_thermal_MW"],
+            defaults={"T_in": self.t_in_c, "T_amb": self.t_amb},
         )
 
     def step_model(self, dt: float, time: float) -> None:
