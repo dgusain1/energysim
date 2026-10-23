@@ -39,4 +39,4 @@ jobs:
 
       - name: Run test suite
         run: |
-          python -m pytest test_energysim.py test_models.py -v
+          python -m pytest tests -v

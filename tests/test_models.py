@@ -9,7 +9,7 @@ import pytest
 import numpy as np
 
 # Ensure src is on sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from energysim import world, SimulatorAdapter
 from energysim.models.common import Curve1D, Surface2D, OperatingStateMachine, OperatingState, ModelComponent

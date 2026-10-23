@@ -15,7 +15,7 @@ import sys
 import os
 
 # Ensure the source tree is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from energysim.base import SimulatorAdapter, SimEntry
 import numpy as np
@@ -329,7 +329,7 @@ def test_pyscript_adapter(tmp_path):
 
 def test_pyproject_optional_deps():
     """Verify h5py was removed and fmpy/pandapower/pypsa/opendss are optional."""
-    pyproject_path = os.path.join(os.path.dirname(__file__), 'pyproject.toml')
+    pyproject_path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
     with open(pyproject_path) as f:
         content = f.read()
     assert 'h5py' not in content
@@ -344,7 +344,7 @@ def test_pyproject_optional_deps():
 
 def test_pyproject_license_specification():
     """Verify pyproject.toml specifies GPL-3.0-or-later."""
-    pyproject_path = os.path.join(os.path.dirname(__file__), 'pyproject.toml')
+    pyproject_path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
     with open(pyproject_path) as f:
         content = f.read()
     assert 'license = "GPL-3.0-or-later"' in content

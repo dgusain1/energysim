@@ -47,3 +47,13 @@ htmlcov/
 *.npz
 *.fmu
 *.zip
+
+# Generated
+runs/
+*.parquet
+site/
+es_res.h5
+*_res.h5
+energysim-brand-kit.zip
+.ruff_cache/
+.pytest_cache/
