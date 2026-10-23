@@ -4,8 +4,14 @@ Command-Line Interface (CLI) runner for energysim.
 
 Usage
 -----
-energysim run scenario.yaml [--dashboard] [--to-csv] [--no-pbar] [--safe]
+energysim run scenario.yaml [--out DIR] [--to-csv] [--dashboard] [--dashboard-path P]
+              [--offline] [--no-pbar] [--safe] [--validate-only]
 energysim validate scenario.yaml [--safe]
+
+``--out DIR`` writes the run to ``DIR/<YYYYmmdd-HHMMSS>_<hash8>/`` (Parquet or
+CSV per simulator, ``meta.json``, ``scenario.yaml``).  ``--to-csv`` also
+exports CSV files (into ``<run dir>/csv``; implies ``--out runs`` when no
+``--out`` is given).  ``--dashboard`` writes the HTML dashboard and opens it.
 
 ``--safe`` refuses simulator types that execute arbitrary code (external,
 script, matlab, powerfactory), dotted-import model references and pickle
@@ -46,24 +52,30 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to scenario YAML file.",
     )
     run_parser.add_argument(
+        "--out",
+        default=None,
+        metavar="DIR",
+        help="Write the run to DIR/<timestamp>_<hash>/ (results, meta.json, scenario.yaml).",
+    )
+    run_parser.add_argument(
         "--dashboard",
         action="store_true",
-        help="Open interactive HTML dashboard after simulation finishes.",
+        help="Write the interactive HTML dashboard and open it in the browser.",
     )
     run_parser.add_argument(
         "--dashboard-path",
         default=None,
-        help="Path to save HTML dashboard file.",
+        help="Path of the HTML dashboard file (written even without --dashboard).",
+    )
+    run_parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Embed plotly.js in the dashboard (needs the 'plotly' package).",
     )
     run_parser.add_argument(
         "--to-csv",
         action="store_true",
-        help="Export simulation results to CSV files.",
-    )
-    run_parser.add_argument(
-        "--res-filename",
-        default=None,
-        help="Override results HDF5 storage filename.",
+        help="Export results as CSV files into <run dir>/csv (implies --out runs).",
     )
     run_parser.add_argument(
         "--no-pbar",
@@ -129,8 +141,6 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             w = world.from_yaml(scenario_path, safe=args.safe)
-            if args.res_filename:
-                w.file_name = args.res_filename
 
             # Pre-flight validate
             report = w.validate(raise_on_error=False)
@@ -149,16 +159,24 @@ def main(argv: list[str] | None = None) -> int:
                 print("Scenario pre-flight validation PASSED.")
                 return 0
 
+            out_dir = args.out
+            if args.to_csv and not out_dir:
+                out_dir = w.out_dir or "runs"
             print(f"Starting simulation: {scenario_path}")
-            w.simulate(pbar=not args.no_pbar, record_all=False, validate=False)
+            res = w.simulate(pbar=not args.no_pbar, record_all=False, validate=False,
+                             out_dir=out_dir)
             print("Simulation finished successfully.")
+            if res.run_dir:
+                print(f"Run directory: {res.run_dir}")
+            print(res.summary().to_string())
 
-            if args.to_csv or args.dashboard:
-                w.results(
-                    to_csv=args.to_csv,
-                    dashboard=args.dashboard,
-                    dashboard_path=args.dashboard_path,
-                )
+            if args.to_csv:
+                csv_dir = res.to_csv(os.path.join(res.run_dir, "csv"))
+                print(f"CSV files: {csv_dir}")
+            if args.dashboard or args.dashboard_path:
+                path = res.dashboard(path=args.dashboard_path, open=args.dashboard,
+                                     offline=args.offline)
+                print(f"Dashboard: {path}")
             return 0
         except ValidationError as ve:
             print(f"Pre-flight Validation Error:\n{ve}", file=sys.stderr)

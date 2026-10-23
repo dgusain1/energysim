@@ -26,14 +26,7 @@ from .csv_adapter import csv_simulator
 from .signalAdapter import signal_adapter
 from .opendssAdapter import opendss_adapter
 from .ParameterSweep import Sweep
-from .utils import (
-    convert_to_df,
-    convert_to_csv,
-    convert_hdf_to_dict,
-    export_to_csv,
-    record_data,
-    create_results_recorder,
-)
+from .results import Results, register_kpi
 from .dashboard import generate_dashboard
 
 from .container import (
@@ -74,12 +67,8 @@ __all__ = [
     "signal_adapter",
     "opendss_adapter",
     "generate_dashboard",
-    "convert_to_df",
-    "convert_to_csv",
-    "convert_hdf_to_dict",
-    "export_to_csv",
-    "record_data",
-    "create_results_recorder",
+    "Results",
+    "register_kpi",
     "__version__",
 ]
 

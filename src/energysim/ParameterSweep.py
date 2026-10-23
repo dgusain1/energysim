@@ -149,10 +149,9 @@ class Sweep():
                 self.my_options['init'][sim_name][0].append(sim_param)
                 self.my_options['init'][sim_name][1].append(value)
                 self.world.options(self.my_options)
-                self.world.simulate()
-                results = self.world.results(dashboard=False)
+                results = self.world.simulate(pbar=False)
 
-                a1 = results[op_sim_name].loc[:, ['time', op_var]]
+                a1 = results[op_sim_name][[op_var]].reset_index()
                 self.sweep_res[sim_name]['data'].append(a1)
                 self.sweep_res[sim_name]['value'].append(value)
 

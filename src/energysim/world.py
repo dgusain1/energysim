@@ -14,6 +14,7 @@ from .utils import (
 )
 from ._safeexpr import build_signal
 from .results import Results, Recorder, make_run_dir, scenario_hash, _have_pyarrow, _versions
+from .units import UnitSystem, resolve_unit as _resolve_unit_system
 from .base import (
     SimulatorAdapter, SimEntry,
     ConnectionSpecError,
@@ -142,6 +143,8 @@ class world():
         8. ``out_dir`` : optional directory; every run then writes
            ``<out_dir>/<YYYYmmdd-HHMMSS>_<hash8>/`` (Parquet/CSV per simulator,
            ``meta.json``, ``scenario.yaml``).  By default nothing is written.
+        9. ``unit_system`` : ``None`` / ``'default'`` / ``'si'`` / overrides dict /
+           :class:`~energysim.units.UnitSystem`; used to resolve result units.
 
     >>> my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
 
@@ -204,7 +207,7 @@ class world():
 
     def __init__(self, start_time=0, stop_time=1000, logging=False, t_macro=60,
                  coupling='jacobi', extrapolation='zero-order',
-                 power_unit='kW', start_datetime=None, seed=None, out_dir=None):
+                 power_unit='kW', start_datetime=None, seed=None, out_dir=None, unit_system=None):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
@@ -234,6 +237,7 @@ class world():
         self.seed = seed
         self.out_dir = out_dir
         self.last_results = None
+        self.unit_system = UnitSystem.coerce(unit_system)
         if coupling == 'iterative':
             raise ValueError(ITERATIVE_REMOVED_MSG)
         if coupling not in _COUPLINGS:
@@ -1588,6 +1592,8 @@ class world():
                 u = self._resolve_unit(entry, var)
                 if u is None:
                     u = conn_units.get((sim_name, var))
+                if u is None:
+                    u = _resolve_unit_system(var, None, self.unit_system)[0]
                 units[f"{sim_name}.{var}"] = u
         return units
 
@@ -1617,6 +1623,7 @@ class world():
             'extrapolation': self.extrapolation,
             'record_all': info['record_all'],
             'units': units,
+            'unit_system': self.unit_system.to_dict(),
             'warnings': [{'category': w.category.__name__, 'message': str(w.message)}
                          for w in list(caught)[:1000]],
             'n_rows': {s: recorder.n_rows(s) for s in recorder.columns},
@@ -1893,17 +1900,17 @@ class world():
         import matplotlib.pyplot as plt
         if y is None:
             y = []
-        res = self.results(dashboard=False)
+        res = self.last_results
+        if res is None:
+            raise RuntimeError("No simulation results available. Call simulate() first.")
         plt.figure(figsize=(10, 6))
-        for sim_name, df in res.items():
-            if not hasattr(df, 'columns') or 'time' not in df.columns:
-                continue
-            time_vector = df['time']
-            vars_to_plot = [c for c in df.columns if c != 'time']
+        for sim_name in res.sims:
+            df = res[sim_name]
+            vars_to_plot = list(df.columns)
             if y:
                 vars_to_plot = [c for c in vars_to_plot if f"{sim_name}.{c}" in y or c in y]
             for var in vars_to_plot:
-                plt.plot(time_vector, df[var], label=f"{sim_name}.{var}")
+                plt.plot(df.index, df[var], label=f"{sim_name}.{var}")
         plt.ticklabel_format(useOffset=scientific)
         plt.xlabel(xlab)
         plt.ylabel(ylab)
@@ -2126,9 +2133,11 @@ class world():
                 't_macro': self.exchange,
                 'coupling': self.coupling,
                 'extrapolation': self.extrapolation,
-                'res_filename': self.file_name,
                 'power_unit': self.power_unit,
                 'logging': self.logging,
+                **({'start_datetime': str(self.start_datetime)} if self.start_datetime is not None else {}),
+                **({'seed': self.seed} if self.seed is not None else {}),
+                **({'out_dir': str(self.out_dir)} if self.out_dir is not None else {}),
             },
             'simulators': sims_list,
             'connections': conns_list,
@@ -2187,6 +2196,8 @@ class world():
         removed = sorted(set(w_cfg) & _REMOVED_WORLD_KEYS)
         if removed:
             raise ValueError(f"World keys {removed} are no longer supported: {ITERATIVE_REMOVED_MSG}.")
+        if 'res_filename' in w_cfg:
+            raise ValueError(RES_FILENAME_REMOVED_MSG)
         unknown = sorted(set(w_cfg) - _WORLD_KEYS)
         if unknown:
             raise ValueError(f"Unknown world key(s) {unknown}. Valid keys: {sorted(_WORLD_KEYS)}.")
@@ -2198,7 +2209,9 @@ class world():
             t_macro=w_cfg.get('t_macro', 60),
             coupling=w_cfg.get('coupling', 'jacobi'),
             extrapolation=w_cfg.get('extrapolation', 'zero-order'),
-            res_filename=w_cfg.get('res_filename', 'es_res.h5'),
+            start_datetime=w_cfg.get('start_datetime'),
+            seed=w_cfg.get('seed'),
+            out_dir=w_cfg.get('out_dir'),
             power_unit=w_cfg.get('power_unit', 'kW'),
             logging=w_cfg.get('logging', False),
         )

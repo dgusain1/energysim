@@ -2,7 +2,8 @@
 """
 Interactive HTML Result Explorer for energysim.
 
-Generates a self-contained HTML file (Plotly.js via CDN) that lets users:
+Generates a self-contained HTML file (Plotly.js via CDN, or embedded with
+``offline=True``) that lets users:
     * Browse all simulator variables in a tree
     * Create / rename / delete custom subplots
     * Assign any variable to any subplot (drag-and-drop or click)
@@ -19,29 +20,126 @@ import html
 import json
 import os
 import tempfile
+import warnings
 import webbrowser
 from datetime import datetime
+
+import numpy as np
+
+_PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.0.min.js"
 
 
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
 
-def _build_traces_json(results_dict):
-    """Convert {sim_name: DataFrame} -> JSON-ready list of sim descriptors."""
+def _time_scale(max_span):
+    """Pick a display unit for a time span in seconds -> (divisor, label)."""
+    if max_span >= 7200:
+        return 3600.0, 'Time (h)'
+    if max_span >= 120:
+        return 60.0, 'Time (min)'
+    return 1.0, 'Time (s)'
+
+
+def _decimate_indices(y, max_points):
+    """Indices of a min/max-preserving decimation of *y* to about *max_points* points.
+
+    The series is split into ``max_points // 2`` buckets; each bucket keeps
+    the positions of its minimum and maximum, so peaks survive.  The first and
+    last points are always kept.  Non-numeric data falls back to a stride.
+    """
+    n = len(y)
+    if max_points is None or n <= max_points:
+        return None
+    nb = max(1, int(max_points) // 2)
+    edges = np.linspace(0, n, nb + 1).astype(np.int64)
+    try:
+        yf = np.asarray(y, dtype=np.float64)
+    except (TypeError, ValueError):
+        yf = None
+    if yf is None:
+        idx = np.unique(np.concatenate([np.linspace(0, n - 1, max_points).astype(np.int64)]))
+        return idx
+    keep = [0, n - 1]
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        if hi <= lo:
+            continue
+        seg = yf[lo:hi]
+        if np.all(np.isnan(seg)):
+            keep.append(lo)
+            continue
+        keep.append(lo + int(np.nanargmin(seg)))
+        keep.append(lo + int(np.nanargmax(seg)))
+    return np.unique(np.asarray(keep, dtype=np.int64))
+
+
+def _to_json_list(arr):
+    a = np.asarray(arr)
+    if a.dtype.kind == 'b':
+        return a.astype(int).tolist()
+    if a.dtype.kind in 'iuf':
+        return a.tolist()
+    return [None if v is None or (isinstance(v, float) and v != v) else
+            (v.item() if isinstance(v, np.generic) else (v if isinstance(v, (int, float, str)) else str(v)))
+            for v in a]
+
+
+def _iter_tables(results):
+    """Yield (sim_name, time_seconds ndarray, DataFrame without time) without mutating inputs."""
+    from .results import Results
+    if isinstance(results, Results):
+        for sim in results.sims:
+            df = results._raw(sim)
+            yield sim, df.index.to_numpy(dtype=np.float64), df
+        return
+    for sim_name, df in results.items():
+        if 'time' in df.columns:
+            t = df['time'].to_numpy()
+            data = df.drop(columns=['time'])
+        else:
+            t = df.index.to_numpy()
+            data = df
+        if np.issubdtype(np.asarray(t).dtype, np.datetime64):
+            t = (t - t[0]) / np.timedelta64(1, 's') if len(t) else np.asarray([], dtype=np.float64)
+        try:
+            t = np.asarray(t, dtype=np.float64)
+        except (TypeError, ValueError):
+            t = np.arange(len(df), dtype=np.float64)
+        yield sim_name, t, data
+
+
+def _build_traces_json(results, max_points=None, divisor=1.0):
+    """Convert results ({sim: DataFrame} or Results) -> JSON-ready list of sim descriptors.
+
+    Time is divided by *divisor*; series longer than *max_points* are
+    decimated (min/max preserving) and then carry their own x values in
+    ``xs[var]``.  The inputs are never modified.
+    """
     sims = []
-    for sim_name, df in results_dict.items():
+    for sim_name, t, df in _iter_tables(results):
         cols = [c for c in df.columns if str(c).lower() != "time"]
         if not cols:
             continue
-        time_vals = df["time"].tolist() if "time" in df.columns else list(range(len(df)))
-        data = {str(col): df[col].tolist() for col in cols}
-        sims.append({
+        tt = np.asarray(t, dtype=np.float64) / float(divisor)
+        data, xs = {}, {}
+        for col in cols:
+            y = df[col].to_numpy()
+            idx = _decimate_indices(y, max_points)
+            if idx is None:
+                data[str(col)] = _to_json_list(y)
+            else:
+                data[str(col)] = _to_json_list(y[idx])
+                xs[str(col)] = tt[idx].tolist()
+        entry = {
             "name": str(sim_name),
             "variables": [str(c) for c in cols],
-            "time": time_vals,
+            "time": tt.tolist() if len(xs) < len(cols) else [],
             "data": data,
-        })
+        }
+        if xs:
+            entry["xs"] = xs
+        sims.append(entry)
     return sims
 
 
@@ -80,7 +178,15 @@ def _json_for_script(obj):
     return s
 
 
-def _generate_html(sims_json, title="energysim Result Explorer", time_label="Time (h)"):
+def _plotly_script_tag(plotly_js=None):
+    if plotly_js is None:
+        return '<script src="' + _PLOTLY_CDN + '" charset="utf-8"></script>'
+    # never let the embedded library terminate the script element early
+    safe = plotly_js.replace('</script', '<\\/script').replace('</SCRIPT', '<\\/SCRIPT')
+    return '<script charset="utf-8">' + safe + '</script>'
+
+
+def _generate_html(sims_json, title="energysim Result Explorer", time_label="Time (h)", plotly_js=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sims_js = _json_for_script(sims_json)
     escaped_title = html.escape(str(title), quote=True)
@@ -92,7 +198,7 @@ def _generate_html(sims_json, title="energysim Result Explorer", time_label="Tim
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>""" + escaped_title + r"""</title>
-<script src="https://cdn.plot.ly/plotly-2.35.0.min.js" charset="utf-8"></script>
+""" + _plotly_script_tag(plotly_js) + r"""
 <style>
 :root {
     --bg:          #121220;
@@ -599,7 +705,7 @@ function updatePlot() {
             var simData = SIMS.find(function(s){return s.name === v.sim;});
             if (!simData) return;
             traces.push({
-                x: simData.time,
+                x: (simData.xs && simData.xs[v.varName]) || simData.time,
                 y: simData.data[v.varName],
                 type: 'scatter',
                 mode: 'lines',
@@ -761,39 +867,75 @@ document.getElementById('spList').addEventListener('drop', function(e) {
 # Public API
 # ---------------------------------------------------------------------------
 
-def generate_dashboard(results_dict, output_path=None, auto_open=True,
-                       title="energysim Result Explorer", time_label="Time (h)"):
-    """Generate an interactive HTML result explorer from simulation results.
+def _offline_plotly_js():
+    try:
+        from plotly.offline import get_plotlyjs
+    except ImportError:
+        warnings.warn("offline=True needs the 'plotly' package (pip install plotly); "
+                      "falling back to the Plotly CDN.", UserWarning, stacklevel=3)
+        return None
+    return get_plotlyjs()
+
+
+def generate_dashboard(results, output_path=None, auto_open=False,
+                       title="energysim Result Explorer", time_label=None,
+                       max_points=5000, offline=False, time_unit='auto'):
+    """Generate an interactive HTML result explorer.
 
     Parameters
     ----------
-    results_dict : dict
-        Dictionary of ``{sim_name: pandas.DataFrame}`` as returned by
-        ``world.results()``.  The *time* column should already be
-        converted to the desired display unit.
+    results : energysim.results.Results or dict
+        A :class:`~energysim.results.Results` or ``{sim_name: DataFrame}``
+        (time in seconds, as a ``time`` column or the index).  Inputs are
+        never modified.
     output_path : str or None
         Where to write the HTML file.  If *None*, a temp file is created.
     auto_open : bool
-        If True, opens the dashboard in the default web browser.
+        Open the dashboard in the default web browser (default False).
     title : str
         Page title.
-    time_label : str
-        X-axis label for time, e.g. ``'Time (h)'`` or ``'Time (s)'``.
+    time_label : str or None
+        X-axis label; by default derived from the chosen time unit.
+    max_points : int or None
+        Series longer than this are decimated (min/max preserving).
+    offline : bool
+        Embed plotly.js (from the ``plotly`` Python package) instead of
+        loading it from the CDN.
+    time_unit : 'auto', 's', 'min' or 'h'
+        Display unit of the time axis ('auto' picks it from the data span).
 
     Returns
     -------
     str
         Absolute path to the generated HTML file.
     """
-    sims_json = _build_traces_json(results_dict)
-    html = _generate_html(sims_json, title=title, time_label=time_label)
+    units = {'s': (1.0, 'Time (s)'), 'min': (60.0, 'Time (min)'), 'h': (3600.0, 'Time (h)')}
+    if time_unit == 'auto':
+        span = 0.0
+        for _, t, _df in _iter_tables(results):
+            if len(t):
+                span = max(span, float(np.nanmax(t)) - min(0.0, float(np.nanmin(t))))
+        divisor, label = _time_scale(span)
+    elif time_unit in units:
+        divisor, label = units[time_unit]
+    else:
+        raise ValueError(f"time_unit must be 'auto', 's', 'min' or 'h', got {time_unit!r}.")
+    if time_label is not None:
+        label = time_label
+
+    sims_json = _build_traces_json(results, max_points=max_points, divisor=divisor)
+    plotly_js = _offline_plotly_js() if offline else None
+    html_text = _generate_html(sims_json, title=title, time_label=label, plotly_js=plotly_js)
 
     if output_path is None:
         fd, output_path = tempfile.mkstemp(suffix=".html", prefix="energysim_dashboard_")
         os.close(fd)
+    else:
+        parent = os.path.dirname(os.path.abspath(output_path))
+        os.makedirs(parent, exist_ok=True)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(html_text)
 
     if auto_open:
         webbrowser.open("file://" + os.path.abspath(output_path).replace("\\", "/"))
