@@ -76,7 +76,25 @@ class OperatingStateMachine:
         self.time_offline_sec: float = 1e6  # Start assuming fully cold
         self.current_startup_category: str = "COLD"
         self.startup_timer_sec: float = 0.0
-        self.is_starting_up: bool = False
+
+    def transition(self, new_state: OperatingState) -> bool:
+        """Change state; resets ``time_in_state_sec`` only on an actual change.
+
+        Returns True if the state changed.
+        """
+        if new_state == self.state:
+            return False
+        self.state = new_state
+        self.time_in_state_sec = 0.0
+        return True
+
+    def can_stop(self) -> bool:
+        """True if the unit has run at least ``min_uptime_sec`` in a running state."""
+        return self.time_in_state_sec >= self.min_uptime_sec
+
+    def can_start(self) -> bool:
+        """True if the unit has been offline at least ``min_downtime_sec``."""
+        return self.time_offline_sec >= self.min_downtime_sec
 
     def update_time(self, dt_sec: float) -> None:
         """Advance internal timers by dt_sec."""

@@ -7,7 +7,8 @@ Includes:
 - ElectricBoiler: Fast-acting electrode/resistance boiler for steam and district heat.
 - ElectricChiller: Vapor-compression chiller with ambient-dependent COP.
 - AbsorptionChiller: Thermal-driven absorption chiller utilizing waste heat/steam.
-- ThermalStorageTank: Stratified sensible hot/cold water thermal energy storage.
+- ThermalStorageTank: Sensible hot/cold water thermal energy storage
+  (single energy bucket with proportional standing loss; no stratification).
 """
 
 from __future__ import annotations
@@ -23,6 +24,13 @@ class IndustrialHeatPump(ModelComponent):
     """
     Industrial Heat Pump with temperature-lift dependent COP.
 
+    COP = carnot_efficiency * T_sink / (T_sink - T_source) in Kelvin, with the
+    lift floored at 5 K and COP clamped to [1.2, 7.0]. The COP is evaluated
+    continuously from the current source/sink temperatures (also when idle).
+    Capacity is not derated with temperature and there is no start-up dynamic.
+
+    Validity: source -10..60 C, sink 30..120 C, lift 10..90 K.
+
     Parameters
     ----------
     q_max_thermal_mw : float
@@ -34,6 +42,11 @@ class IndustrialHeatPump(ModelComponent):
     t_sink_nom_c : float, default 75.0
         Nominal sink delivery temperature in C (district heat or process water).
     """
+
+    units = {
+        "Q_heat_cmd_MW": "MW", "T_source": "degC", "T_sink": "degC",
+        "P_elec_MW": "MW", "Q_heat_MW": "MW", "COP": "1", "Q_absorbed_source_MW": "MW",
+    }
 
     def __init__(
         self,
@@ -59,7 +72,9 @@ class IndustrialHeatPump(ModelComponent):
         self.register_variables(
             inputs=["Q_heat_cmd_MW", "T_source", "T_sink"],
             outputs=["P_elec_MW", "Q_heat_MW", "COP", "Q_absorbed_source_MW"],
+            defaults={"T_source": self.t_source_nom, "T_sink": self.t_sink_nom},
         )
+        self.register_parameters("q_max", "eta_carnot")
 
     def step_model(self, dt: float, time: float) -> None:
         q_cmd = float(self._inputs_val.get("Q_heat_cmd_MW", 0.0))
@@ -68,14 +83,14 @@ class IndustrialHeatPump(ModelComponent):
 
         self.q_actual_mw = min(self.q_max, max(0.0, q_cmd))
 
-        if self.q_actual_mw > 0.01:
-            # Carnot COP = T_sink / (T_sink - T_source) in Kelvin
-            t_snk_k = t_snk + 273.15
-            t_src_k = t_src + 273.15
-            delta_t = max(5.0, t_snk_k - t_src_k)
-            cop_carnot = t_snk_k / delta_t
-            self.cop = max(1.2, min(7.0, self.eta_carnot * cop_carnot))
+        # Carnot COP = T_sink / (T_sink - T_source) in Kelvin (valid also when idle)
+        t_snk_k = t_snk + 273.15
+        t_src_k = t_src + 273.15
+        delta_t = max(5.0, t_snk_k - t_src_k)
+        cop_carnot = t_snk_k / delta_t
+        self.cop = max(1.2, min(7.0, self.eta_carnot * cop_carnot))
 
+        if self.q_actual_mw > 0.01:
             self.p_elec_mw = self.q_actual_mw / self.cop
             self.q_absorbed_source_mw = self.q_actual_mw - self.p_elec_mw
         else:
@@ -91,7 +106,11 @@ class IndustrialHeatPump(ModelComponent):
 class ElectricBoiler(ModelComponent):
     """
     Electrode / Electric Resistance Boiler for rapid steam generation.
+
+    Constant efficiency, ramp-limited electric input. Validity: 0 to p_max_mw.
     """
+
+    units = {"P_cmd": "MW", "P_actual": "MW", "Q_thermal_MW": "MW"}
 
     def __init__(
         self,
@@ -135,7 +154,16 @@ class ElectricBoiler(ModelComponent):
 class ElectricChiller(ModelComponent):
     """
     Electric vapor-compression chiller.
+
+    COP degrades linearly with ambient temperature (1.5 % per K above 25 C) and
+    is clamped to [2, 8]; it is evaluated continuously, also when idle.
+    Validity: T_amb 5..45 C, constant-COP part-load behaviour.
     """
+
+    units = {
+        "Q_cool_cmd_MW": "MW", "T_amb": "degC",
+        "P_elec_MW": "MW", "Q_cool_actual_MW": "MW", "COP": "1",
+    }
 
     def __init__(
         self,
@@ -156,6 +184,7 @@ class ElectricChiller(ModelComponent):
         self.register_variables(
             inputs=["Q_cool_cmd_MW", "T_amb"],
             outputs=["P_elec_MW", "Q_cool_actual_MW", "COP"],
+            defaults={"T_amb": 25.0},
         )
 
     def step_model(self, dt: float, time: float) -> None:
@@ -164,10 +193,10 @@ class ElectricChiller(ModelComponent):
 
         self.q_cooling_actual_mw = min(self.q_max, max(0.0, q_cmd))
 
+        # Ambient derating: COP degrades by ~1.5% per C above 25 C
+        cop_adj = self.cop_nom * (1.0 - 0.015 * (t_amb - 25.0))
+        self.cop = max(2.0, min(8.0, cop_adj))
         if self.q_cooling_actual_mw > 0.01:
-            # Ambient derating: COP degrades by ~1.5% per C above 25 C
-            cop_adj = self.cop_nom * (1.0 - 0.015 * (t_amb - 25.0))
-            self.cop = max(2.0, min(8.0, cop_adj))
             self.p_elec_mw = self.q_cooling_actual_mw / self.cop
         else:
             self.p_elec_mw = 0.0
@@ -181,7 +210,15 @@ class AbsorptionChiller(ModelComponent):
     """
     Waste-heat / steam driven absorption chiller.
     Replaces electricity with thermal heat to produce chilled water.
+
+    Constant thermal COP; cooling is limited by capacity and by the available
+    waste heat (heat consumed = cooling / COP). No electrical parasitics.
     """
+
+    units = {
+        "Q_cool_cmd_MW": "MW", "Q_waste_heat_available_MW": "MW",
+        "Q_cool_actual_MW": "MW", "Q_heat_consumed_MW": "MW",
+    }
 
     def __init__(
         self,
@@ -201,11 +238,12 @@ class AbsorptionChiller(ModelComponent):
         self.register_variables(
             inputs=["Q_cool_cmd_MW", "Q_waste_heat_available_MW"],
             outputs=["Q_cool_actual_MW", "Q_heat_consumed_MW"],
+            defaults={"Q_waste_heat_available_MW": 1e6},
         )
 
     def step_model(self, dt: float, time: float) -> None:
-        q_cmd = float(self._inputs_val.get("Q_cool_cmd_MW", 0.0))
-        q_avail = float(self._inputs_val.get("Q_waste_heat_available_MW", 1e6))
+        q_cmd = max(0.0, float(self._inputs_val.get("Q_cool_cmd_MW", 0.0)))
+        q_avail = max(0.0, float(self._inputs_val.get("Q_waste_heat_available_MW", 1e6)))
 
         q_req_heat = q_cmd / self.cop_th
         heat_used = min(q_avail, q_req_heat)
@@ -218,8 +256,18 @@ class AbsorptionChiller(ModelComponent):
 
 class ThermalStorageTank(ModelComponent):
     """
-    Stratified hot/cold water sensible Thermal Energy Storage (TES).
+    Sensible hot/cold water Thermal Energy Storage (TES), energy-bucket model.
+
+    The tank is a single energy store: SoC integrates the commanded thermal
+    flow (positive = charging) minus a standing loss proportional to SoC. There
+    is *no* stratification, thermocline, temperature or flow-temperature
+    dependence. Requests are scaled so SoC stays in [0, 1], so stored energy
+    is exactly the integral of ``Q_actual_MW - Q_loss_MW``.
+
+    Validity: capacity-level studies at hours-to-days timescales.
     """
+
+    units = {"Q_cmd_MW": "MW", "Q_actual_MW": "MW", "SoC": "1", "Q_loss_MW": "MW"}
 
     def __init__(
         self,
@@ -238,26 +286,32 @@ class ThermalStorageTank(ModelComponent):
 
         self.soc = float(soc_init)
         self.q_actual_mw = 0.0
+        self.q_loss_mw = 0.0
 
         self.register_variables(
             inputs=["Q_cmd_MW"],
-            outputs=["Q_actual_MW", "SoC"],
+            outputs=["Q_actual_MW", "SoC", "Q_loss_MW"],
         )
+        self.register_parameters("capacity_mwh", "max_flow")
 
     def step_model(self, dt: float, time: float) -> None:
         q_cmd = float(self._inputs_val.get("Q_cmd_MW", 0.0))
         q_flow = max(-self.max_flow, min(self.max_flow, q_cmd))
 
-        if q_flow > 0 and self.soc >= 0.99:
-            q_flow = 0.0
-        elif q_flow < 0 and self.soc <= 0.01:
-            q_flow = 0.0
+        e_per_mw = dt / (self.capacity_mwh * 3600.0)  # SoC change per MW over this step
+        loss = self.loss_rate_s * self.soc * dt        # SoC lost to standing loss
+        if e_per_mw > 0:
+            # Scale the flow so that SoC remains within [0, 1].
+            if q_flow > 0:
+                q_flow = min(q_flow, max(0.0, (1.0 - self.soc + loss) / e_per_mw))
+            elif q_flow < 0:
+                q_flow = max(q_flow, min(0.0, (0.0 - self.soc + loss) / e_per_mw))
 
-        d_soc = (q_flow * dt) / (self.capacity_mwh * 3600.0)
-        d_soc -= self.loss_rate_s * self.soc * dt
-
-        self.soc = max(0.0, min(1.0, self.soc + d_soc))
+        soc_before = self.soc
+        self.soc = max(0.0, min(1.0, self.soc + q_flow * e_per_mw - loss))
         self.q_actual_mw = q_flow
+        self.q_loss_mw = self.loss_rate_s * soc_before * self.capacity_mwh * 3600.0
 
         self._outputs_val["Q_actual_MW"] = self.q_actual_mw
         self._outputs_val["SoC"] = self.soc
+        self._outputs_val["Q_loss_MW"] = self.q_loss_mw
