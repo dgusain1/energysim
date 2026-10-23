@@ -422,13 +422,21 @@ features:
     tests: ["tests/test_ensemble.py", "tests/test_sweep.py"]
     docs: docs/results.md
   - id: events
-    group: planned
-    title: Scheduled events
-    description: Time-triggered changes (outages, set-point steps) declared in the scenario.
-    status: planned
+    group: coupling
+    title: Events and variable macro step
+    description: Scheduled events, threshold triggers and adapter step hints; the macro step shrinks to land on events (t_macro_min).
+    status: stable
     since: "3.0"
-    tests: []
+    tests: ["tests/test_events.py"]
     docs: docs/yaml-cli.md
+  - id: unit-system
+    group: units
+    title: Default unit system
+    description: One canonical unit per quantity, visible in logs, CLI (energysim units) and results; strict or lenient policy.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_units.py", "tests/test_world_units.py"]
+    docs: docs/units.md
   - id: rollback
     group: planned
     title: State rollback API
