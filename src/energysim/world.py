@@ -1145,8 +1145,7 @@ class world():
                     entry.adapter.init()
                 except Exception as e2:
                     print(
-                        f"Could not initialize the {
-                            entry.sim_type} simulator '{sim_name}': {e2}. Simulation stopped.")
+                        f"Could not initialize the {entry.sim_type} simulator '{sim_name}': {e2}. Simulation stopped.")
                     raise RuntimeError(f"Initialization failed for '{sim_name}'") from e2
 
     def step_simulator(self, sim_name, entry, time, record_all, local_stop_time):
