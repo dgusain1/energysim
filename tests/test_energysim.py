@@ -460,7 +460,8 @@ def test_validation_empty_world():
 def test_validation_step_size_divisibility():
     """Warn when simulator step size does not divide t_macro."""
     from energysim import world
-    w = world(start_time=0, stop_time=100, t_macro=60)
+    # 3.0: the span must be an integer multiple of t_macro (else a validation error)
+    w = world(start_time=0, stop_time=120, t_macro=60)
     w.add_signal('sig1', signal=lambda t: t, step_size=45.0)  # 60 % 45 != 0
     report = w.validate(raise_on_error=False)
     assert report.is_valid  # warning, not error
@@ -504,8 +505,9 @@ def test_yaml_export_and_import_roundtrip(tmp_path):
     """Verify world can be exported to YAML and reloaded identically."""
     from energysim import world
     w = world(start_time=0, stop_time=3600, t_macro=300, coupling='jacobi')
-    w.add_signal('solar', signal=lambda t: 100.0, step_size=300)
-    w.add_signal('load', signal=lambda t: 50.0, step_size=300)
+    # 3.0: only expression/structured signals are serialisable (no eval of lambdas)
+    w.add_signal('solar', signal="100.0", step_size=300)
+    w.add_signal('load', signal={'type': 'constant', 'value': 50.0}, step_size=300)
     w.add_connections([
         {'from': 'solar.y', 'to': 'load.y', 'scale': 0.5, 'offset': 10.0}
     ])
@@ -652,7 +654,9 @@ def test_unit_conversion_utilities():
     assert infer_variable_unit('Gen.p_mw') == 'MW'
     assert infer_variable_unit('Load.kW') == 'kW'
     assert infer_variable_unit('Bus.vm_pu') == 'pu'
-    assert infer_variable_unit('unknown', sim_type='fmu') == 'W'
+    # 3.0: the simulator-type fallback only applies to power-like names
+    assert infer_variable_unit('unknown', sim_type='fmu') is None
+    assert infer_variable_unit('P', sim_type='fmu') == 'W'
 
 
 def test_world_connections_unit_scaling(tmp_path):
@@ -663,7 +667,8 @@ def test_world_connections_unit_scaling(tmp_path):
     csv_file.write_text("time,p_mw\n0,1.5\n10,2.0\n")
 
     w = world(start_time=0, stop_time=10, t_macro=10, power_unit='kW')
-    w.add_signal('sig_kw', lambda t: [500.0], power_unit='kW')
+    # 3.0: 'y' is not a power-like name, so its unit must be declared explicitly
+    w.add_signal('sig_kw', lambda t: [500.0], power_unit='kW', units={'y': 'kW'})
     w.add_csv('csv_grid', str(csv_file), step_size=10, outputs=['p_mw'], power_unit='MW')
 
     # Connect sig_kw (500 kW) to csv_grid.p_mw (MW)
@@ -706,8 +711,10 @@ def test_model_parameter_and_domain_convenience_kwargs(tmp_path):
     # 4. resolve_model_reference utility
     assert resolve_model_reference(123) == 123
     assert resolve_model_reference(str(csv_file)) == str(csv_file)
-    # Dotted import resolution
-    res_fn = resolve_model_reference('math.cos')
+    # Dotted import resolution requires explicit opt-in (3.0)
+    with pytest.raises(ValueError, match="allow_import"):
+        resolve_model_reference('math.cos')
+    res_fn = resolve_model_reference('math.cos', allow_import=True)
     assert callable(res_fn)
     assert res_fn(0) == 1.0
 
@@ -762,7 +769,7 @@ def test_end_to_end_pandapower_signal_cosim(tmp_path):
     w.add_powerflow('grid', net=net, inputs=['Load1.p_mw'], outputs=['Bus2.vm_pu'], step_size=10, mode='ac')
 
     # Add dynamic load controller signal (in kW: 15,000 kW = 15 MW)
-    w.add_signal('load_signal', lambda t: [15000.0], step_size=10, power_unit='kW')
+    w.add_signal('load_signal', lambda t: [15000.0], step_size=10, units={'y': 'kW'})
 
     # Connect signal to grid load (automatic conversion kW -> MW)
     w.add_connections({'load_signal.y': 'grid.Load1.p_mw'})
