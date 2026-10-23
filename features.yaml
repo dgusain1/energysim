@@ -429,14 +429,6 @@ features:
     since: "3.0"
     tests: ["tests/test_events.py"]
     docs: docs/yaml-cli.md
-  - id: unit-system
-    group: units
-    title: Default unit system
-    description: One canonical unit per quantity, visible in logs, CLI (energysim units) and results; strict or lenient policy.
-    status: stable
-    since: "3.0"
-    tests: ["tests/test_units.py", "tests/test_world_units.py"]
-    docs: docs/units.md
   - id: rollback
     group: planned
     title: State rollback API

@@ -39,6 +39,8 @@ WORLD_DOC = {
     "seed": "Optional random seed, recorded in the results metadata.",
     "out_dir": "If set, every run is written to `<out_dir>/<timestamp>_<hash>/`.",
     "unit_system": "`None`, `'default'`, `'si'`, an overrides dict or a `UnitSystem`.",
+    "unit_policy": "`'lenient'` (default; unspecified units pass through with a warning) or `'strict'` (unspecified units on connections raise).",
+    "t_macro_min": "Smallest macro step when adapters report step hints or events occur (default: `t_macro`, i.e. fixed step).",
 }
 
 ADD_SIM_DOC = {

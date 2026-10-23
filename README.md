@@ -48,6 +48,7 @@ It bridges electrical power networks with **built-in physical models for green h
 | [Gauss-Seidel coupling](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Sequential coupling in topological order so downstream models see fresh upstream outputs. |
 | [Algebraic-loop detection](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Feedback loops are detected, warned about and resolved with a one-step delay. |
 | [Input extrapolation](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Zero-order hold or linear extrapolation of coupled inputs between macro steps. |
+| [Events and variable macro step](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Scheduled events, threshold triggers and adapter step hints; the macro step shrinks to land on events (t_macro_min). |
 
 **Units**
 
@@ -124,7 +125,6 @@ It bridges electrical power networks with **built-in physical models for green h
 | Capability | Status | Description |
 |---|---|---|
 | [Iterative (fixed-point) coupling](https://energysim.readthedocs.io/en/latest/architecture/) | removed | Removed in 3.0 because it relied on rollback that adapters never supported; world() now raises. |
-| [Scheduled events](https://energysim.readthedocs.io/en/latest/yaml-cli/) | planned | Time-triggered changes (outages, set-point steps) declared in the scenario. |
 | [State rollback API](https://energysim.readthedocs.io/en/latest/architecture/) | removed | save_state / restore_state were removed; no adapter implements rollback. |
 
 Status legend: `stable` and `beta` features are covered by the test suite listed in `features.yaml`; `planned` features are not implemented yet; `removed` ones raise a clear error.
@@ -259,11 +259,13 @@ print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
 | `t_macro` | `60` | Macro time-step (variable exchange interval); `0` means the LCM of all simulator step sizes. |
 | `coupling` | `'jacobi'` | Coupling strategy: `'jacobi'` or `'gauss-seidel'`. |
 | `extrapolation` | `'zero-order'` | Input extrapolation between macro steps: `'zero-order'` or `'linear'`. |
-| `power_unit` | `'kW'` | World default power unit used to resolve unit-less power variables. |
+| `power_unit` | `None` | World default power unit used to resolve unit-less power variables. |
 | `start_datetime` | `None` | Optional wall-clock start; results are then indexed by datetime. |
 | `seed` | `None` | Optional random seed, recorded in the results metadata. |
 | `out_dir` | `None` | If set, every run is written to `<out_dir>/<timestamp>_<hash>/`. |
 | `unit_system` | `None` | `None`, `'default'`, `'si'`, an overrides dict or a `UnitSystem`. |
+| `unit_policy` | `'lenient'` | `'lenient'` (default; unspecified units pass through with a warning) or `'strict'` (unspecified units on connections raise). |
+| `t_macro_min` | `None` | Smallest macro step when adapters report step hints or events occur (default: `t_macro`, i.e. fixed step). |
 
 ### `add_simulator()` parameters
 
