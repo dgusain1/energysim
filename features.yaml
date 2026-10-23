@@ -414,12 +414,12 @@ features:
 
   # ------------------------------------------------------------------ planned / removed
   - id: ensemble
-    group: planned
+    group: results
     title: Ensembles and parameter sweeps
-    description: Run many scenario variants and collect them in one Results object.
-    status: planned
+    description: Run many scenario variants (grids, samplers, noise) and collect them in one Results object.
+    status: stable
     since: "3.0"
-    tests: []
+    tests: ["tests/test_ensemble.py", "tests/test_sweep.py"]
     docs: docs/results.md
   - id: events
     group: planned

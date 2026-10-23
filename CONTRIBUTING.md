@@ -72,7 +72,19 @@ Examples are rendered into the documentation, and the docs build runs in strict 
 
 ## Changelog
 
-Add an entry under the unreleased heading in `CHANGELOG.txt`.
+Do not edit `CHANGELOG.txt` directly. Add a fragment file `changes/<topic>.<type>.md` (types: added, changed,
+deprecated, removed, fixed, docs; see `changes/README.md`). Maintainers merge fragments at release time with
+`python scripts/build_changelog.py --version X.Y.Z`.
+
+## Documentation
+
+Reference pages, the README feature table, install extras and parameter tables are generated; never edit them by hand:
+
+    python scripts/generate_reference_docs.py     # docs/components, containers, networks, control, results
+    python scripts/generate_readme_features.py    # README regions (from features.yaml, pyproject, signatures)
+    python scripts/generate_units_doc.py          # docs/units.md
+
+New product claims go into `features.yaml` with the tests that prove them (`tests/docs/test_claims.py`).
 
 ## Pull requests
 

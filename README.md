@@ -74,6 +74,7 @@ It bridges electrical power networks with **built-in physical models for green h
 | [Save and load formats](https://energysim.readthedocs.io/en/latest/results/) | stable | Parquet (CSV fallback), CSV and HDF5 export with a meta.json and reload via Results.load. |
 | [KPIs and summaries](https://energysim.readthedocs.io/en/latest/results/) | stable | Energy integrals, time-weighted means and user-registered KPIs. |
 | [Interactive HTML dashboard](https://energysim.readthedocs.io/en/latest/results/) | stable | Self-contained offline HTML dashboard generated from a Results object. |
+| [Ensembles and parameter sweeps](https://energysim.readthedocs.io/en/latest/results/) | stable | Run many scenario variants (grids, samplers, noise) and collect them in one Results object. |
 
 **Built-in physical models**
 
@@ -123,7 +124,6 @@ It bridges electrical power networks with **built-in physical models for green h
 | Capability | Status | Description |
 |---|---|---|
 | [Iterative (fixed-point) coupling](https://energysim.readthedocs.io/en/latest/architecture/) | removed | Removed in 3.0 because it relied on rollback that adapters never supported; world() now raises. |
-| [Ensembles and parameter sweeps](https://energysim.readthedocs.io/en/latest/results/) | planned | Run many scenario variants and collect them in one Results object. |
 | [Scheduled events](https://energysim.readthedocs.io/en/latest/yaml-cli/) | planned | Time-triggered changes (outages, set-point steps) declared in the scenario. |
 | [State rollback API](https://energysim.readthedocs.io/en/latest/architecture/) | removed | save_state / restore_state were removed; no adapter implements rollback. |
 
