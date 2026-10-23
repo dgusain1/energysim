@@ -412,7 +412,7 @@ def test_package_public_api_and_modular_imports():
     """Verify clean modular exports and backwards compatibility."""
     import energysim
     assert hasattr(energysim, '__version__')
-    assert energysim.__version__ == '3.0.0.dev0'
+    assert energysim.__version__ == '3.0.0'
     assert hasattr(energysim, 'world')
     assert hasattr(energysim, 'World')
     assert hasattr(energysim, 'Sweep')

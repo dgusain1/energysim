@@ -1,6 +1,6 @@
 # Changelog - energysim
 
-## 3.0.0 (unreleased, 3.0.0.dev0)
+## 3.0.0 (2026-10-23)
 
 Major release with breaking changes.
 
@@ -49,6 +49,21 @@ Major release with breaking changes.
   (`energysim.control`: MPC, OPF, PyPSA rolling horizon), network-lite heat/gas networks,
   validation suite and generated docs (units, validation).
 - Worlds (with connections) are deep-copyable and picklable.
+
+### Review fixes and hardening
+- **Changed**:
+  - `simulate()` now defaults to `record_all=False` (one row per macro step) instead of recording every micro step, which was surprising for long runs with fine micro steps. Use `record_all=True`, `options({'record_all': True})`, the YAML `world: {record_all: true}` key or `energysim run --record-all` for micro-step recording.
+  - Safe mode (`from_yaml` / `from_dict` with `safe=True`, CLI `--safe`) is hardened: FMUs (native code) are refused unless `allow_native=True` / `--allow-native`; `type: model` with `file.py:Class` is refused; every model / csv / script / option file path and the scenario's `out_dir` must resolve (symlinks and `..` included) inside the scenario directory tree. The threat model is documented in `docs/safe-mode.md` and `SECURITY.md`.
+  - Stale examples and docs: the custom-adapter notebook no longer mentions `save_state` / `restore_state`; the industrial BTM example and notebook use the generic `BESS_2h_2MW` archetype instead of a deprecated branded alias; example READMEs no longer mention `es_res.h5`; legacy `pf=` keywords in examples were replaced by `mode='ac'`.
+- **Fixed**:
+  - YAML `type: model` now instantiates components: `model: PEMElectrolyzer` (any class exported by `energysim.models` / `energysim.networks`), a catalog archetype (`model: BESS_4h_2MW`) or `model: path/file.py:Class` (not in safe mode), with constructor parameters under `parameters:` / `options:`. Known components round-trip through `to_dict()` / `to_yaml()` when their constructor parameters can be recovered; other in-memory models are skipped with a warning.
+  - Units used by the component models but missing from the registry are registered: `W/m2` (irradiance, accepts `kW/m2`), `m/s` (wind speed, accepts `km/h`, `kn`, `mph`), `MMBtu/h` and `MMBtu` (fuel energy flow / energy, 293.07107 kW per MMBtu/h). A test asserts that every unit declared by a model or network class is known.
+  - Signals that return more than one value are rejected when added (`add_signal`, YAML): "signals expose a single output 'y'; add one signal per output". A callable returning a one-element list still works.
+  - PyPSA adapter: the `P` / `Q` of a slack generator without `p_set` (NaN in PyPSA) falls back to the bus balance, so it is always available.
+  - Scheduled / triggered declarative `set` actions on a connected input are now held for the step in which they fire (the exchange skips that input once) instead of being overwritten by the exchange of the same step.
+  - `Results.summary()` returns a purely numeric frame (`min, max, mean, last, count`; `last` is NaN for non-numeric variables) so `.round()` and `.loc[row, ['min', 'max']]` work; units and dtypes are in the new `Results.describe_variables()`.
+- **Documentation**:
+  - Reference docs, README feature table, install extras and parameter tables are now generated from the code (`features.yaml`, docstrings, signatures) and verified by tests; README/docs python snippets, examples and notebooks are executed in CI.
 
 ## 2.1.9.1
 - **Brand & Visual Identity**:

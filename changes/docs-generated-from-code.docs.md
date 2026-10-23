@@ -1,1 +1,0 @@
-Reference docs, README feature table, install extras and parameter tables are now generated from the code (`features.yaml`, docstrings, signatures) and verified by tests; README/docs python snippets, examples and notebooks are executed in CI.
