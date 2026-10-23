@@ -38,6 +38,8 @@ opendss = ["opendssdirect.py"]
 plotting = ["matplotlib"]
 all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
+test = ["pytest", "pytest-cov", "hypothesis"]
+dev = ["energysim[test]", "ruff", "mypy", "build", "twine"]
 
 [project.scripts]
 energysim = "energysim.cli:main"
@@ -60,4 +62,25 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "S"]
+# Existing code predates these rules; tracked for later cleanup rather than enforced now.
+ignore = ["I001", "B905", "B027"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311", "F401", "F841", "E731", "E501"]
+"src/energysim/**" = ["S101", "S110", "S311", "E501", "E731", "F401", "F541", "F841", "W293", "B009"]
+
+[tool.coverage.run]
+source = ["src/energysim"]
+branch = true
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
 
