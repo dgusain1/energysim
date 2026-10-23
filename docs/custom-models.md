@@ -1,267 +1,217 @@
-# Authoring & Parametrizing Custom Physical Models
+# Authoring and parametrizing models
 
-`energysim` allows users to author their own physical component models from scratch or parametrize existing models with custom manufacturer curves and operating limits.
+Every built-in physical model is a `ModelComponent` (`energysim.models.common`), a `SimulatorAdapter` with an
+ergonomic contract. You can write your own in a few lines, reuse the lookup helpers (`Curve1D`, `Surface2D`) and the
+`OperatingStateMachine`, or just re-parametrize an existing model.
 
----
+## What `ModelComponent` gives you
 
-## Architecture of a Physical Model
+| You write | The framework provides |
+|---|---|
+| `register_variables(inputs=[...], outputs=[...], defaults={...})` in `__init__` | strict variable access: `set_value` accepts only declared inputs and registered parameters, `get_value` only declared outputs / inputs / parameters; anything else raises `SimulatorVariableError` listing the valid names |
+| `register_parameters('a', 'b')` | numeric attributes that `set_value`, `options({'init': ...})`, [ensembles](ensemble.md) and sweeps may overwrite |
+| `step_model(dt, time)` | `step` / `step_partial` / `advance` (a shorter final step gets the true `dt`) |
+| a class attribute `units = {'var': 'unit'}` | unit-aware connections and `Results.units`, see [Units](units.md) |
+| nothing | outputs that are valid right after `init()` (evaluated with `step_model(0.0, 0.0)` and the state restored), re-runnable `init()` / `reset()` (the first `init()` snapshots the instance, later ones restore it), `describe()` / `describe_class()` |
+| optionally `time_to_event()` | [event hints](events.md) for variable macro steps |
 
-Every physical component in `energysim` inherits from `ModelComponent`, which itself subclasses `SimulatorAdapter`:
+Rules of thumb: create all state in `__init__` (it is snapshotted by the first `init()`), make `step_model(0.0, t)`
+change no state (quiescent at `dt = 0`), write every declared output into `self._outputs_val`, read inputs from
+`self._inputs_val`, and give every input and output a unit.
 
-```mermaid
-flowchart TD
-    Base["SimulatorAdapter (energysim.base)"] --> ModelComp["ModelComponent (energysim.models.common)"]
-    ModelComp --> Cust["User-Defined Custom Model"]
-    
-    subgraph CoreMethods["Core Lifecycle Methods"]
-        Reg["register_variables(inputs=[...], outputs=[...])"]
-        Step["step_model(dt, time)"]
-        Save["save_state() / restore_state()"]
-    end
-    
-    Cust --> CoreMethods
-```
-
-### Key Responsibilities of `ModelComponent`
-
-1. **Input/Output Registration**: Declares valid variable names for connection checks and result extraction.
-2. **Explicit Numerical Integration**: Enforces fixed or variable step integration in `step_model(dt, time)` without relying on brittle algebraic solvers.
-3. **State Management**: Provides rollback checkpoints (`save_state()` / `restore_state()`) to support iterative algebraic loop relaxation when coupled with power grids.
-
----
-
-## 1. Creating a Custom Model from Scratch
-
-To create a new model, subclass `ModelComponent` and implement `step_model(dt, time)`:
-
-### Example: Supercapacitor Fast-Discharge Storage
-
-Let's implement a supercapacitor model with series internal resistance ($R_{\text{esr}}$), self-discharge leakage, and voltage-dependent capacitance:
+## A complete example: a supercapacitor
 
 ```python
-from typing import Dict, Any, Optional
-import numpy as np
-from energysim.models.common.base_component import ModelComponent
+import math
 
-
-class SupercapacitorStorage(ModelComponent):
-    """
-    User-defined Supercapacitor Module for high-power fast frequency response.
-    """
-
-    def __init__(
-        self,
-        name: str = "supercap",
-        capacitance_farads: float = 500.0,
-        voltage_rated_v: float = 48.0,
-        r_esr_ohms: float = 0.005,
-        leakage_current_a: float = 0.002,
-        v_init_v: float = 48.0,
-        step_size: float = 1.0,
-        **kwargs,
-    ):
-        super().__init__(name=name, step_size=step_size, **kwargs)
-
-        self.c_f = float(capacitance_farads)
-        self.v_rated = float(voltage_rated_v)
-        self.r_esr = float(r_esr_ohms)
-        self.i_leak = float(leakage_current_a)
-
-        # Internal state
-        self.voltage = float(v_init_v)
-        self.current_a = 0.0
-        self.p_actual_kw = 0.0
-
-        # Register input setpoints and observable output variables
-        self.register_variables(
-            inputs=["P_cmd_kW"],
-            outputs=["P_actual_kW", "V_terminal", "I_current", "SoC", "energy_stored_kJ"],
-        )
-
-    def step_model(self, dt: float, time: float) -> None:
-        """
-        Advance supercapacitor state by dt seconds.
-        P_cmd_kW: Positive = Charging, Negative = Discharging
-        """
-        p_cmd_w = float(self._inputs_val.get("P_cmd_kW", 0.0)) * 1000.0
-
-        # Current calculation: P = V * I - I^2 * R
-        # Linear approximation for small dt:
-        if abs(self.voltage) > 1.0:
-            i_cmd = p_cmd_w / self.voltage
-        else:
-            i_cmd = 0.0
-
-        # Enforce voltage cutoffs
-        if self.voltage >= self.v_rated and i_cmd > 0:
-            i_cmd = 0.0
-        elif self.voltage <= 5.0 and i_cmd < 0:
-            i_cmd = 0.0
-
-        self.current_a = i_cmd
-
-        # dV/dt = (I - I_leak) / C
-        dv_dt = (self.current_a - self.i_leak) / self.c_f
-        self.voltage = max(0.0, min(self.v_rated, self.voltage + dv_dt * dt))
-
-        # Terminal voltage including ESR drop
-        v_terminal = self.voltage + self.current_a * self.r_esr
-        self.p_actual_kw = (v_terminal * self.current_a) / 1000.0
-
-        # Energy stored: 0.5 * C * V^2 (kJ)
-        energy_kj = 0.5 * self.c_f * (self.voltage ** 2) / 1000.0
-        soc = (self.voltage / self.v_rated) ** 2
-
-        # Assign output dictionary
-        self._outputs_val["P_actual_kW"] = self.p_actual_kw
-        self._outputs_val["V_terminal"] = v_terminal
-        self._outputs_val["I_current"] = self.current_a
-        self._outputs_val["SoC"] = soc
-        self._outputs_val["energy_stored_kJ"] = energy_kj
-```
-
----
-
-## 2. Incorporating Custom Empirical Curves (`Curve1D` & `Surface2D`)
-
-Real equipment rarely follows ideal linear formulas. `energysim` provides `Curve1D` and `Surface2D` lookup tools that feature:
-- Automatic piecewise interpolation
-- Boundary clamping (preventing negative efficiencies or unphysical blowups)
-- Serialization support
-
-### Adding a Custom 1D Heat Rate or Polarization Curve
-
-```python
-from energysim.models.common.curve import Curve1D
-
-# 1. Calibrated efficiency curve points from manufacturer test bench
-# Load ratio (%):    [20%,  40%,  60%,  80%,  100%]
-# Efficiency (%):    [28%,  36%,  42%,  44%,  43.5%]
-load_points = [0.20, 0.40, 0.60, 0.80, 1.00]
-eta_points  = [0.28, 0.36, 0.42, 0.44, 0.435]
-
-custom_eff_curve = Curve1D(
-    x_data=load_points,
-    y_data=eta_points,
-    min_val=0.10,    # Clamped floor
-    max_val=0.50,    # Clamped ceiling
-)
-
-# Evaluating efficiency at 72% load
-eff = custom_eff_curve(0.72)  # Evaluates to ~0.432
-```
-
----
-
-## 3. Adding Operating State Machines (`OperatingStateMachine`)
-
-For thermal generation (turbines, engines, boilers), startup delays, warm-up purges, and ramp limits prevent unphysical instantaneous step responses.
-
-Embed `OperatingStateMachine` into your model:
-
-```python
-from energysim.models.common.state_machine import OperatingStateMachine, OperatingState
-
-class PeakerTurbine(ModelComponent):
-    def __init__(self, name="peaker", p_rated_mw=25.0, **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.p_rated_mw = p_rated_mw
-        
-        # Configure state machine: 10 min hot start, 30 min warm, 60 min cold
-        self.sm = OperatingStateMachine(
-            hot_start_time_sec=600.0,
-            warm_start_time_sec=1800.0,
-            cold_start_time_sec=3600.0,
-            ramp_rate_up_mw_min=5.0,
-            ramp_rate_down_mw_min=10.0,
-        )
-        self.register_variables(inputs=["P_cmd"], outputs=["P_actual", "state"])
-
-    def step_model(self, dt: float, time: float) -> None:
-        p_cmd = float(self._inputs_val.get("P_cmd", 0.0))
-        self.sm.update_time(dt)
-        
-        # State transitions
-        if p_cmd > 0 and self.sm.state == OperatingState.OFF:
-            self.sm.initiate_start()
-            
-        p_out = self.sm.step_power(p_cmd, dt)
-        self._outputs_val["P_actual"] = p_out
-        self._outputs_val["state"] = self.sm.state.value
-```
-
----
-
-## 4. Parametrizing Existing Models Differently
-
-Rather than rewriting models, you can parametrize existing models by passing custom parameters or calibrated curves directly into their constructors.
-
-### Customizing a `CombinedCycle_CCGT`
-
-```python
-from energysim.models.thermal import CombinedCycle_CCGT
-from energysim.models.common.curve import Curve1D
-
-# Custom ambient derating curve: aggressive summer degradation
-ambient_temps = [-10.0, 0.0, 15.0, 30.0, 45.0]
-derate_mults  = [1.10, 1.05, 1.00, 0.90, 0.78]
-custom_amb = Curve1D(ambient_temps, derate_mults)
-
-# Instantiate CCGT with site-specific curves
-site_ccgt = CombinedCycle_CCGT(
-    name="site_ccgt",
-    p_rated_mw=250.0,
-    min_stable_gen_pct=30.0,          # Enhanced turndown burner
-    ramp_rate_mw_min=20.0,            # Fast-ramp capability
-    ambient_derate_curve=custom_amb,  # Custom ambient curve
-)
-```
-
-### Customizing a `PEMElectrolyzer`
-
-```python
-from energysim.models.hydrogen import PEMElectrolyzer
-
-# Overriding stack cell area, membrane thickness, and specific power consumption
-custom_pem = PEMElectrolyzer(
-    name="high_efficiency_pem",
-    p_nominal_mw=15.0,
-    specific_consumption_kwh_kg=48.5,  # Next-gen catalyst (48.5 vs 52.0 kWh/kg)
-    min_turndown_pct=5.0,              # 5% deep turndown
-    operating_pressure_bar=50.0,       # Direct 50-bar delivery
-)
-```
-
----
-
-## 5. Packaging into Your Own Archetype Catalog
-
-You can organize your organization's verified equipment models into a custom catalog file:
-
-```python
-# my_company_models.py
-from energysim.models.storage import BatteryBESS
-
-def HighPower_GridBooster_2MW(name="booster", **kwargs):
-    default_params = {
-        "capacity_mwh": 2.0,           # 1-hour C-rate
-        "p_max_mw": 2.0,
-        "eta_charge": 0.97,
-        "eta_discharge": 0.97,
-        "c_th_kj_k": 8000.0,
-    }
-    default_params.update(kwargs)
-    return BatteryBESS(name=name, **default_params)
-```
-
-Usage in simulations:
-```python
-import my_company_models as custom_cat
 from energysim import world
+from energysim.base import SimulatorVariableError
+from energysim.models.common import ModelComponent
 
-bess = custom_cat.HighPower_GridBooster_2MW(name="substation_battery", soc_init=0.8)
 
-sim = world(start_time=0, stop_time=3600, t_macro=900)
-sim.add_model("substation_battery", model=bess, outputs=["P_actual", "SoC"])
-sim.simulate(dashboard=False)
+class Supercap(ModelComponent):
+    """Supercapacitor module: dV/dt = (I - I_leak) / C and P = V * I."""
+
+    units = {"P_cmd": "kW", "P_actual": "kW", "V": "V", "SoC": "1"}
+
+    def __init__(self, name="supercap", capacitance_f=500.0, v_rated=48.0, i_leak_a=0.002, v_init=24.0,
+                 step_size=1.0):
+        super().__init__(name=name, step_size=step_size)
+        self.capacitance_f = float(capacitance_f)
+        self.v_rated = float(v_rated)
+        self.i_leak_a = float(i_leak_a)
+        self.v = float(v_init)
+        self.register_variables(inputs=["P_cmd"], outputs=["P_actual", "V", "SoC"], defaults={"P_cmd": 0.0})
+        self.register_parameters("capacitance_f", "i_leak_a")
+
+    def step_model(self, dt, time):
+        p_w = 1000.0 * self._inputs_val["P_cmd"]
+        i = p_w / max(self.v, 1.0)
+        if (i > 0 and self.v >= self.v_rated - 0.01) or (i < 0 and self.v <= 1.0):
+            i = 0.0                                             # full / empty
+        self.v = min(self.v_rated, max(0.0, self.v + (i - self.i_leak_a) / self.capacitance_f * dt))
+        self._outputs_val["P_actual"] = self.v * i / 1000.0
+        self._outputs_val["V"] = self.v
+        self._outputs_val["SoC"] = (self.v / self.v_rated) ** 2
+
+    def time_to_event(self):                                    # seconds until the module is full
+        i = 1000.0 * self._inputs_val["P_cmd"] / max(self.v, 1.0)
+        if i <= 0 or self.v >= self.v_rated:
+            return math.inf
+        return (self.v_rated - self.v) * self.capacitance_f / i
+
+
+cap = Supercap()
+cap.init()
+print(cap.get_value(["V", "SoC"], 0.0))                       # valid before the first step: [24.0, 0.25]
+print(cap.describe()["inputs"], cap.describe()["units"]["V"])  # ['P_cmd'] V
+try:
+    cap.set_value(["nonsense"], [1.0])
+except SimulatorVariableError as exc:
+    print(exc)                      # supercap: 'nonsense' is not a declared input or parameter. ...
+
+w = world(start_time=0, stop_time=600, t_macro=60, t_macro_min=1)
+w.add_signal("cmd", {"type": "step", "time": 120, "before": 0.0, "after": 5.0}, step_size=60, units={"y": "kW"})
+w.add_model("cap", cap, step_size=1)
+w.add_connections({"cmd.y": "cap.P_cmd"})
+
+res = w.simulate(pbar=False, record_all=False)
+print(res["cap.V"].iloc[-1])                                  # full at 48 V
+print([round(t, 1) for t in res["cap"].index[:7]])            # steps shrink towards the full point
+print(res.units["cap.V"], w.simulate(pbar=False, record_all=False)["cap.V"].iloc[-1])   # re-runnable
+
+w2 = world(start_time=0, stop_time=60, t_macro=60)
+w2.add_model("cap", Supercap, v_init=12.0)                    # a class: constructed with the extra keywords
+print(w2.get_adapter("cap").v)                                # 12.0
+```
+
+`add_model(name, model, ...)` also accepts a class or factory (`w.add_model("cap", Supercap, v_init=12.0)`; extra
+keyword arguments are passed to it). Inputs and outputs default to the registered ones; pass `outputs=[...]` to
+record fewer.
+
+## Lookup curves and surfaces
+
+`Curve1D(x, y, clamp=True, min_val=None, max_val=None, name='')` interpolates piecewise linearly and, by default,
+**clamps** queries to the data range (no wild extrapolation) and to optional output bounds. `Surface2D(x, y, z)` is
+the bilinear counterpart with `z.shape == (len(x), len(y))`. Both are immutable by convention, are shared (not
+copied) by the `init()` snapshot, and serialise with `to_dict()` / `from_dict()`.
+
+```python
+from energysim.models.common import Curve1D, Surface2D
+
+load = [0.2, 0.4, 0.6, 0.8, 1.0]
+eta = [0.28, 0.36, 0.42, 0.44, 0.435]            # efficiency from a test bench (your data)
+eff = Curve1D(load, eta, min_val=0.1, max_val=0.5, name="efficiency")
+
+print(eff(0.72))                # 0.432 (interpolated)
+print(eff(2.0))                 # 0.435 (clamped to the last point)
+print(eff([0.3, 0.5]))          # array([0.32, 0.39])
+print(Curve1D.from_dict(eff.to_dict())(0.72))
+
+derate = Surface2D(x=[0, 10, 20], y=[0, 1], z=[[1, 2], [3, 4], [5, 6]])
+print(derate(5, 0.5))           # 2.5
+```
+
+Several built-in models take curves as constructor arguments, for example `BatteryBESS(ocv_curve=..., rin_curve=...,
+inverter_curve=...)`, `GasTurbine_OCGT(ambient_derate_curve=..., heat_rate_curve=...)` and
+`CombinedCycle_CCGT(ambient_derate_curve=...)`.
+
+## Start-up timers and ramps: `OperatingStateMachine`
+
+Thermal plants cannot jump to full load. `OperatingStateMachine` tracks the state (`OFF`, `STANDBY`, `PURGE`,
+`STARTING`, `RUNNING`, `COOLDOWN`, `FAULT`), how long the unit was offline (which picks a hot / warm / cold start
+duration), minimum up and down times, and ramp limits. You drive it from `step_model`:
+
+```python
+from energysim import world
+from energysim.models.common import ModelComponent, OperatingState, OperatingStateMachine
+
+
+class Peaker(ModelComponent):
+    """Gas peaker with a 5 minute start-up and ramp limits (MW)."""
+
+    units = {"P_cmd": "MW", "P_actual": "MW", "state": "-"}
+
+    def __init__(self, p_rated_mw=25.0, step_size=10.0):
+        super().__init__(name="peaker", step_size=step_size)
+        self.p_rated_mw = p_rated_mw
+        self.sm = OperatingStateMachine(ramp_up_rate_min=5.0, ramp_down_rate_min=10.0,
+                                        hot_start_duration_sec=300.0, warm_start_duration_sec=300.0,
+                                        cold_start_duration_sec=300.0)
+        self.p = 0.0
+        self.register_variables(inputs=["P_cmd"], outputs=["P_actual", "state"], defaults={"P_cmd": 0.0})
+
+    def step_model(self, dt, time):
+        sm = self.sm
+        cmd = min(self._inputs_val["P_cmd"], self.p_rated_mw)
+        sm.update_time(dt)
+        if cmd > 0 and sm.state in (OperatingState.OFF, OperatingState.STANDBY):
+            sm.current_startup_category = sm.determine_startup_category()
+            sm.transition(OperatingState.STARTING)
+        if sm.state == OperatingState.STARTING and sm.time_in_state_sec >= sm.get_startup_duration():
+            sm.transition(OperatingState.RUNNING)
+        if sm.state == OperatingState.RUNNING:
+            self.p = sm.apply_ramp(self.p, cmd, dt)
+            if cmd <= 0 and self.p <= 0:
+                sm.transition(OperatingState.OFF)
+        self._outputs_val["P_actual"] = self.p
+        self._outputs_val["state"] = sm.state.value
+
+
+w = world(start_time=0, stop_time=1200, t_macro=60)
+w.add_signal("cmd", 20.0, step_size=60, units={"y": "MW"})
+w.add_model("gt", Peaker(), step_size=10)
+w.add_connections({"cmd.y": "gt.P_cmd"})
+res = w.simulate(pbar=False, record_all=False)
+print(res["gt"].loc[[240.0, 360.0, 540.0], ["P_actual", "state"]])      # STARTING -> RUNNING -> ramped to 20 MW
+```
+
+The built-in `GasTurbine_OCGT`, `CombinedCycle_CCGT`, `ReciprocatingGenset` and `CHP_SteamTurbine` use the same
+machine; their `time_to_event()` reports when a start-up or minimum up/down timer ends.
+
+## Re-parametrizing a built-in model
+
+Constructor arguments are the parameters. `describe()` lists them with their defaults, inputs, outputs and units;
+the generated [component pages](physical-models.md) document each model's variables and validity range.
+
+```python
+from energysim.models import CombinedCycle_CCGT, PEMElectrolyzer
+from energysim.models.common import Curve1D
+
+# Site-specific ambient derating for a combined cycle (multiplier on rated power vs ambient degC)
+derate = Curve1D([-10, 0, 15, 30, 45], [1.10, 1.05, 1.00, 0.90, 0.78], name="site derate")
+ccgt = CombinedCycle_CCGT(name="site_ccgt", p_rated_mw=250.0, min_stable_gen_pct=30.0,
+                          ramp_rate_mw_min=20.0, ambient_derate_curve=derate)
+
+pem = PEMElectrolyzer(name="pem", p_nominal_mw=5.0, min_turndown=0.05, t_stack_nom_c=65.0)
+
+print(sorted(ccgt.describe()["parameters"])[:4])
+print(pem.describe()["outputs"][:3])
+```
+
+A model whose parameters are inconsistent refuses to construct: for example a `PEMElectrolyzer` whose
+`p_nominal_mw` exceeds what its cell count and area can absorb raises a `ValueError` that names the fix.
+
+## Your own archetype catalog
+
+The built-in `energysim.models.catalog` holds generic archetypes (`BESS_2h_2MW`, `BESS_4h_2MW`, `Alkaline_2MW`,
+`PEM_5MW`, `SOEC_1MW`, `CCGT_570MW`, `Gas_Turbine_60MW`, `Gas_Engine_10MW`, `Solar_Farm`, `Wind_Turbine_4MW`), each
+an **illustrative archetype with a provenance note** (`catalog.PROVENANCE`), not a manufacturer datasheet. The
+manufacturer-branded names of 2.x (`Tesla_Megapack_2XL`, `Nel_A1000`, `GE_7HA_02`, ...) are deprecated aliases that
+emit a `DeprecationWarning`. Put your own verified equipment into a module of factories in the same style:
+
+```python
+from energysim.models import BatteryBESS, catalog
+
+
+def substation_battery(name="booster", **kwargs):
+    """2 MW / 2 MWh battery for our substations (parameters from our own acceptance tests)."""
+    params = dict(capacity_mwh=2.0, p_max_mw=2.0, soc_init=0.8)
+    params.update(kwargs)
+    return BatteryBESS(name=name, **params)
+
+
+bess = substation_battery(soc_init=0.6)
+generic = catalog.BESS_2h_2MW(name="reference")
+print(bess.capacity_mwh, generic.capacity_mwh, catalog.PROVENANCE["BESS_2h_2MW"])
 ```
