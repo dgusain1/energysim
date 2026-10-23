@@ -19,7 +19,7 @@ simulators:
     step_size: 1.0
     options:
       # Simple sine wave simulating diurnal irradiance
-      signal: "lambda t: max(0.0, 1000.0 * __import__('math').sin(3.14159 * t / 3600.0))"
+      signal: "lambda t: max(0, 1000 * sin(pi * t / 3600))"
 
   # 2. Building thermal load / energy management
   - name: building_load

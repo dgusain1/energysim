@@ -179,8 +179,6 @@ def test_available_variables_and_describe(cls):
 
 @pytest.mark.parametrize("cls", ALL_MODELS, ids=IDS)
 def test_units_cover_all_variables(cls):
-    if cls.__module__.endswith("hydrogen"):
-        pytest.skip("hydrogen models are documented by their own owner")
     m = cls()
     missing = [n for n in m.inputs + m.outputs if n not in cls.units]
     assert not missing, f"{cls.__name__} lacks units for {missing}"
