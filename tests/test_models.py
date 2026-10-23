@@ -347,15 +347,19 @@ def test_data_center_pue_thermal_surge():
 # =============================================================================
 
 def test_manufacturer_presets_and_catalog():
+    """Deprecated branded aliases still work (with a DeprecationWarning) and keep their numbers."""
     from energysim.models import catalog, archetypes
-    tesla = catalog.Tesla_Megapack_2XL(name="bess")
+    with pytest.warns(DeprecationWarning):
+        tesla = catalog.Tesla_Megapack_2XL(name="bess")
     assert tesla.capacity_mwh == pytest.approx(3.916)
     assert tesla.p_max_mw == pytest.approx(1.929)
 
-    nel = archetypes.Nel_A1000(name="ael")
+    with pytest.warns(DeprecationWarning):
+        nel = archetypes.Nel_A1000(name="ael")
     assert nel.p_nominal_mw == pytest.approx(2.2)
 
-    ge = presets.GE_7HA_02(name="ccgt")
+    with pytest.warns(DeprecationWarning):
+        ge = presets.GE_7HA_02(name="ccgt")
     assert ge.p_rated_mw == pytest.approx(573.0)
 
 
