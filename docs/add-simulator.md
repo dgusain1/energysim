@@ -1,658 +1,324 @@
-# Adding Simulators & Adapters
+# Simulator adapters
 
-Simulators and models are added to the `world` co-simulation canvas using `add_simulator()`, or through specialized helper methods: `add_powerflow()`, `add_pypsa()`, `add_opendss()`, `add_model()`, `add_container()`, and `add_signal()`.
+Every simulator enters a world through `add_simulator(sim_type, sim_name, model=..., inputs, outputs, step_size,
+mode, power_unit, units, **kwargs)` or through a dedicated method (`add_signal`, `add_csv`, `add_powerflow`, ...).
+Both forms build the same adapter. After a run, `world.get_adapter(name)` returns the adapter and `world.get_model(name)`
+the native object inside it.
 
-Ten simulator families are natively supported: **FMU (FMI 1.0/2.0)**, **pandapower (powerflow)**, **PyPSA**, **OpenDSS**, **CSV Data Feeds**, **External User Adapters**, **DIgSILENT PowerFactory**, **MATLAB/Octave**, **Script Functions**, and **Vectorized Container Fleets**.
-
----
-
-## The Modern `model` vs `sim_loc` Interface
-
-`energysim` features a unified model registration interface that supports both in-memory Python objects and filesystem paths:
-
-* **`model`** (Recommended Modern Argument):
-  Accepts in-memory model instances (such as a pandapower `net`, a PyPSA `Network`, a `ModelComponent` instance, or a Python callable) OR file path strings (`.fmu`, `.p`, `.dss`, `.csv`, `.m`).
-* **`sim_loc`** (Backward-Compatible Alias):
-  Accepts raw filesystem strings or directory paths. If both are passed, `model` takes precedence.
-
-### Common Parameters Reference
-
-| Parameter | Type | Default | Description |
+| `sim_type` | Dedicated method | `model` is | Needs |
 |---|---|---|---|
-| `sim_type` | `str` | - | Simulator type identifier (`'powerflow'`, `'pypsa'`, `'opendss'`, `'fmu'`, `'csv'`, `'external'`, `'powerfactory'`, `'matlab'`, `'script'`, `'container'`, or `'model'`). |
-| `sim_name` | `str` | - | Unique identifier string used in connection mappings and results DataFrames. |
-| `model` | `Any` | `None` | Model reference: in-memory network object, component instance, file path string, or callable factory. |
-| `sim_loc` | `str` | `None` | Backward-compatible alias for `model` (raw string address of simulator file or directory). |
-| `inputs` | `List[str]` | `[]` | List of settable variable names available to receive connections from other simulators or signals. |
-| `outputs` | `List[str]` | `[]` | List of observable variable names to record in simulation results at each time-step. |
-| `step_size` | `float` | `1.0` | Internal integration micro-step size in seconds. |
-| `mode` | `str` | `'ac'` | Calculation mode for power flow engines (`'ac'` or `'dc'`). |
-| `power_unit` | `str` | `'kW'` | Engineering unit for power exchanges (`'kW'`, `'MW'`, or `'W'`). |
-| `units` | `Dict[str, str]` | `None` | Optional per-variable unit dictionary mapping (e.g. `{'P_ac': 'MW', 'T_cell': 'degC'}`). |
+| `'signal'` | `add_signal` | number, callable, expression string, structured spec | core |
+| `'csv'` | `add_csv` | path of a CSV with a `time` column | core |
+| `'script'` | `add_script` | path of a `.py` file (or a directory), plus `function=` | core |
+| `'model'` | `add_model` | a `ModelComponent` / adapter instance, class or factory | core |
+| `'external'` | `add_external_simulator` | adapter instance, class, `'file.py:Class'` | core |
+| `'container'`, `'fleet'`, `'battery_fleet'`, `'building_fleet'`, `'pv_fleet'`, `'function_fleet'` | `add_container` / `add_fleet` | fleet adapter, or built from `kind=`, `size=` | core |
+| `'powerflow'` (`'pandapower'`) | `add_powerflow` | pandapower net, path (`.json`, `.p`, `.xlsx`, `.sqlite`) or factory | `energysim[powerflow]` |
+| `'pypsa'` | `add_pypsa` | PyPSA `Network`, path or factory | `energysim[pypsa]` |
+| `'opendss'` | `add_opendss` | path of the master `.dss` file | `energysim[opendss]` |
+| `'fmu'` | `add_fmu` | path of an `.fmu` | `energysim[fmu]` |
+| `'powerfactory'` | `add_powerfactory` | project name | PowerFactory + licence |
+| `'matlab'` | `add_matlab` | path of a `.m` function file | MATLAB Engine or `oct2py` + Octave |
 
----
+Common arguments:
 
-## Auto-Routing with `world.add_model()`
+* `model`: the object, path or name. Aliases (`sim_loc`, `net_loc`, `net`, `network`, `path`, `fmu_path`, `csv_path`,
+  `dss_path`, `script_path`, `project_name`, `container`, ...) are accepted; giving two different ones raises.
+* `inputs`, `outputs`: variable names; `outputs` are recorded in the results.
+* `step_size`: micro step in seconds. The macro step `t_macro` should be a multiple of it (`validate()` warns).
+* `mode`: `'ac'` (default) or `'dc'` for power-flow simulators (`'dc'` is not available for OpenDSS).
+* `units`, `power_unit`: unit declarations, see [Units](units.md).
+* `allow_import=True`: allow a dotted reference such as `'pandapower.networks.case14'` to be imported and called
+  (never in [safe mode](safe-mode.md)).
 
-For physical component models inheriting from `ModelComponent` or `SimulatorAdapter` (e.g., BESS, Solar PV, PEM Electrolyzer, CCGT), you can use the direct `add_model()` convenience method:
+## Signals
+
+A signal is a source with one output, `y`. It is read-only: a connection into it warns and is discarded.
+
+```python
+import math
+
+from energysim import world
+
+w = world(start_time=0, stop_time=7200, t_macro=900)
+w.add_signal("const", 5.0, step_size=900)                                           # a number
+w.add_signal("expr", "3 + 2 * sin(2 * pi * t / 3600)", step_size=900)               # a safe expression of t [s]
+w.add_signal("step", {"type": "step", "time": 3600, "before": 0, "after": 10}, step_size=900)   # a structured spec
+w.add_signal("fn", lambda t: 10.0 * math.cos(t / 1800.0), step_size=900)            # a Python callable
+res = w.simulate(pbar=False, record_all=False)
+print(res["expr.y"].round(2).tolist()[:3], res["step.y"].tolist()[3:6])
+```
+
+Strings are parsed by the safe-expression grammar and never `eval`-ed (functions `sin cos tan exp log sqrt abs min max
+floor ceil`, constants `pi`, `e`, the variable `t`; an optional `lambda t:` prefix is accepted). Structured specs:
+`constant`, `sine` (`amplitude`, `frequency` or `period`, `phase`, `offset`), `step`, `ramp`, `piecewise`
+(`breakpoints: [[t, v], ...]`, `interpolation: linear | previous`) and `expression`. A callable may return a number or
+a one-element list. `breakpoints=[...]` (and the breakpoints of step / ramp / piecewise specs) are
+[event hints](events.md).
+
+## CSV profiles
+
+A CSV with a `time` column in seconds at a **fixed interval** and one column per variable. The value at time `t` is the
+row with the largest `time <= t` (zero-order hold), clamped to the first and last row. Unknown output columns raise
+`SimulatorVariableError` immediately; CSV simulators are read-only.
+
+```python
+from pathlib import Path
+
+from energysim import world
+
+Path("profile.csv").write_text("time,load_kw,temp_c\n0,100,5\n900,120,6\n1800,150,7\n2700,130,7\n3600,110,6\n",
+                               encoding="utf-8")
+
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_csv("profile", "profile.csv", step_size=900, outputs=["load_kw", "temp_c"], units={"load_kw": "kW"})
+res = w.simulate(pbar=False, record_all=False)
+print(res["profile.load_kw"].tolist())          # [100, 120, 150, 130, 110]
+```
+
+`add_csv(..., delimiter=';')` changes the separator; `align_to_rows=True` reports the next row as an event hint.
+
+## Python script functions
+
+`py_adapter` calls `function(inputs: dict) -> list` once per micro step. The module is loaded **from its file** under a
+unique name (two scripts with the same file name never collide, `sys.path` is not changed permanently), and a world
+can be simulated repeatedly.
+
+```python
+from pathlib import Path
+
+from energysim import world
+
+Path("controller.py").write_text('''
+def control(inputs):
+    soc = inputs.get("soc", 0.5)
+    return [1.0 if soc < 0.5 else -1.0]       # charge below 50 %, otherwise discharge
+''', encoding="utf-8")
+
+w = world(start_time=0, stop_time=600, t_macro=60)
+w.add_simulator("script", "ctrl", model="controller.py", function="control",
+                inputs=["soc"], outputs=["p_cmd"], step_size=60, units={"soc": "1", "p_cmd": "MW"})
+w.add_signal("soc", 0.4, step_size=60, units={"y": "1"})
+w.add_connections({"soc.y": "ctrl.soc"})
+print(w.simulate(pbar=False, record_all=False)["ctrl.p_cmd"].tolist()[-3:])     # [1.0, 1.0, 1.0]
+```
+
+Scripts execute arbitrary code; they are refused in safe mode.
+
+## Built-in models and your own classes
+
+`add_model(name, model, ...)` takes an adapter instance, or a class / factory plus keyword arguments. See
+[Physical components](physical-models.md) for the library and [Custom models](custom-models.md) /
+[External simulators](external-simulators.md) to write your own.
 
 ```python
 from energysim import world
-from energysim.models.storage import BatteryBESS
+from energysim.models import PhysicsPV, catalog
 
-bess = BatteryBESS(name="bess", capacity_mwh=4.0, p_max_mw=2.0)
-
-sim = world(start_time=0, stop_time=3600, t_macro=900)
-# Auto-routes model and detects inputs/outputs automatically
-sim.add_model("bess", model=bess, outputs=["P_actual", "SoC"])
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_signal("sun", "800", step_size=900)
+w.add_model("pv", PhysicsPV(p_dc_stc_mw=2.0, inverter_p_ac_max_mw=1.6), step_size=900)
+w.add_model("bess", catalog.BESS_2h_2MW, step_size=60, soc_init=0.3)       # a factory with keyword arguments
+w.add_connections({"sun.y": "pv.G_poa"})
+print(w.simulate(pbar=False, record_all=False)["pv.P_ac"].round(2).tolist())
 ```
 
----
+## Vectorized fleets
 
-## FMU simulators
-
-FMUs conforming to FMI 1.0 or 2.0 are supported. `energysim`
-auto-detects whether the FMU is **Co-Simulation** or **Model Exchange**
-and loads the appropriate adapter.
-
-Additional keyword arguments:
-
-| Parameter   | Default  | Description                                                              |
-|-------------|----------|--------------------------------------------------------------------------|
-| `validate`  | `True`   | Let FMPy validate the FMU before initialisation. Set to `False` for FMUs that fail validation but simulate correctly (common with OpenModelica exports). |
-| `variable`  | `False`  | Enable variable-step integration (Co-Simulation only).                   |
+`add_fleet` / `add_container` with `fleet_type='battery' | 'building' | 'pv' | 'function'` (or a fleet `sim_type`)
+simulates thousands of identical units in one NumPy step. Outputs are available as `total_<var>`, `mean_<var>`,
+`min_<var>`, `max_<var>` and per entity as `<var>[i]`; a scalar input is broadcast to all units. See
+[Vectorized fleets](containers/overview.md).
 
 ```python
-my_world.add_simulator(
-    sim_type='fmu', sim_name='electrolyser',
-    sim_loc='electrolyser.fmu',
-    inputs=['P_order', 'T_ambient'],
-    outputs=['H2_production', 'efficiency'],
-    step_size=1,
-    validate=False)
+from energysim import world
+
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_fleet(fleet_type="battery", name="evs", size=100, capacity_kwh=50.0, max_charge_kw=11.0,
+            initial_soc=0.2, step_size=900)
+w.add_signal("dispatch", 7.4, step_size=900, units={"y": "kW"})
+w.add_connections({"dispatch.y": "evs.p_cmd"})
+res = w.simulate(pbar=False, record_all=False)
+print(round(res["evs.mean_soc"].iloc[-1], 3))
 ```
 
-!!! note
-    FMPy is only imported when the first FMU is added, so `energysim`
-    works without FMPy installed as long as no FMU simulators are used.
+## pandapower
 
-### Variable naming convention (FMU)
-
-FMU variables follow the Modelica dot-notation:
-
-```
-sim_name.Component.SubComponent.Variable
-```
-
-For example: `electrolyser.stack.voltage`.
-
----
-
-## Powerflow simulators
-
-Pandapower networks (saved as `.p` pickle files) can be added directly.
-
-Additional keyword arguments:
-
-| Parameter | Default | Description                                             |
-|-----------|---------|---------------------------------------------------------|
-| `mode`    | `'ac'`  | Power-flow mode: `'ac'` (AC power flow) or `'dc'` (DC power flow) |
-
-```python
-my_world.add_simulator(
-    sim_type='powerflow', sim_name='grid',
-    sim_loc='network.p',
-    inputs=['WF.p_mw', 'Load1.p_mw'],
-    outputs=['Bus 0.vm_pu', 'WF.p_mw', 'Load1.p_mw'],
-    step_size=300,
-    mode='ac')
-```
-
-!!! warning
-    All load, generator, sgen, bus, and external-grid elements in the
-    pandapower network **must have names**. `energysim` matches
-    variables by element name, not by index. If a named element is not
-    found, a `SimulatorElementNotFoundError` is raised. If a variable
-    attribute is invalid, a `SimulatorVariableError` is raised.
-
-The pandapower adapter implements `get_available_variables()` for
-connection validation — see [Features](features.md).
-
-### Variable naming convention (powerflow)
-
-Variables are specified as `ElementName.variable`:
-
-**Inputs** (values that can be set):
-
-- Generators: `Gen1.p_mw`, `Gen1.q_mvar`
-- Loads: `Load1.p_mw`, `Load1.q_mvar`
-- Sgens: `PV.p_mw`, `WF.p_mw`
-- Cost: `Load1.cp1_eur_per_mw` (for OPF)
-- Controllability bounds: `Load1.max_p_mw`, `Load1.min_p_mw`
-
-**Outputs** (values that can be recorded):
-
-- Bus voltages: `Bus1.vm_pu`, `Bus1.va_degree`
-- Generator results: `Gen1.p_mw`, `Gen1.q_mvar`
-- Load results: `Load1.p_mw`, `Load1.q_mvar`
-- Sgen results: `PV.p_mw`
-- External grid: `grid.p_mw`, `grid.q_mvar`
-
-!!! note
-    For OPF, loads that should be dispatchable must have
-    `controllable=True` set in the pandapower network. You can do
-    this after adding the simulator:
-
-### Standalone Runnable Example (pandapower AC Power Flow)
+Variables are `"<element name>.<column>"`, where the name is the `name` of a `load`, `sgen`, `gen`, `storage`,
+`ext_grid`, `line`, `trafo` or `bus`. Results come from the `res_<table>` frame when the column exists there
+(`Bus2.vm_pu`, `Feeder.loading_percent`, `Feeder.p_from_mw`), otherwise from the element table (inputs such as
+`Load1.p_mw`, `Gen1.vm_pu`). Prefix `table:` to disambiguate duplicate names (`"bus:Grid.vm_pu"`). The adapter keeps a
+pristine copy of the network and restores it on the next `init()`, so a world can be re-run. `mode='ac'` runs
+`runpp`, `mode='dc'` `rundcpp`. pandapower works in MW / MVar; connections convert from kW automatically.
 
 ```python
 import pandapower as pp
+
 from energysim import world
 
-# 1. Create a 3-bus network in memory
 net = pp.create_empty_network(name="feeder")
 b1 = pp.create_bus(net, vn_kv=20.0, name="Bus1")
 b2 = pp.create_bus(net, vn_kv=20.0, name="Bus2")
-b3 = pp.create_bus(net, vn_kv=20.0, name="Bus3")
-pp.create_ext_grid(net, b1, name="SlackGrid")
-pp.create_line(net, b1, b2, length_km=2.0, std_type="NAYY 4x150 SE", name="Line1")
-pp.create_line(net, b2, b3, length_km=1.5, std_type="NAYY 4x150 SE", name="Line2")
-pp.create_load(net, b2, p_mw=0.8, q_mvar=0.2, name="FactoryLoad")
-pp.create_sgen(net, b3, p_mw=0.0, q_mvar=0.0, name="SolarPark")
+pp.create_ext_grid(net, b1, name="Grid")
+pp.create_line(net, b1, b2, length_km=2.5, std_type="NAYY 4x150 SE", name="Feeder")
+pp.create_load(net, b2, p_mw=1.2, q_mvar=0.3, name="Load1")
 
-# 2. Setup world canvas (kW basis with automatic MW scaling)
-sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit="kW")
-
-# 3. Add simulator with in-memory net
-sim.add_powerflow(
-    sim_name="grid",
-    model=net,
-    inputs=["FactoryLoad.p_mw", "SolarPark.p_mw"],
-    outputs=["Bus2.vm_pu", "Bus3.vm_pu", "Line1.loading_percent", "SlackGrid.p_mw"],
-    step_size=900,
-    mode="ac",
-)
-
-# 4. Inject dynamic time signals
-sim.add_signal("solar_signal", lambda t: 1200.0 * (t / 3600.0), power_unit="kW")
-sim.add_connections({"solar_signal.y": "grid.SolarPark.p_mw"})
-
-# 5. Simulate
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
-print(results["grid"].head())
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_powerflow("grid", net=net, inputs=["Load1.p_mw"],
+                outputs=["Bus2.vm_pu", "Feeder.loading_percent"], step_size=900)
+w.add_signal("demand", "800 + 400 * t / 3600", step_size=900, units={"y": "kW"})
+w.add_connections({"demand.y": "grid.Load1.p_mw"})
+res = w.simulate(pbar=False, record_all=False)
+print(res["grid.Bus2.vm_pu"].round(4).tolist())
+print(w.get_model("grid") is w.get_adapter("grid").network)          # the live pandapower net
 ```
 
----
+Optimal power flow is not a `mode`; use `energysim.control.OPFController` ([Control](control.md)).
 
-## CSV simulators
+## PyPSA
 
-CSV files provide time-indexed data profiles (e.g. weather, demand).
+One snapshot is solved per macro step (`n.pf()` for `mode='ac'`, `n.lpf()` for `'dc'`); multi-period optimisation is
+done by the [rolling-horizon controller](control.md). Variables are `"<component>.<variable>"` with an optional type
+prefix to disambiguate (`"Bus:b1.V"`; Generator, Load, StorageUnit, Bus, Line, Transformer):
 
-Additional keyword arguments:
+* inputs: `P`, `Q` of generators, loads and storage units (written to `p_set` / `q_set`; a generator with
+  `control='Slack'` ignores `p_set` in a power flow);
+* outputs: `P`, `Q` of generators / loads / storage units; for buses `V` (p.u.), `Va`, `Va_deg`, `P`, `Q`; for
+  lines and transformers `p0`, `q0`, `p1`, `q1`, `loading_percent`. In `'dc'` mode reactive outputs are 0 and `V` is 1.
 
-| Parameter   | Default | Description        |
-|-------------|---------|--------------------|
-| `delimiter` | `','`   | Column delimiter.  |
-
-Requirements:
-
-- The CSV **must** have a `time` column.
-- Time values must be at fixed intervals.
-
-```python
-my_world.add_simulator(
-    sim_type='csv', sim_name='profiles',
-    sim_loc='data.csv',
-    step_size=900)
-```
-
-Variables are accessed by column name: `profiles.wind_power`,
-`profiles.temperature`, etc.
-
-!!! note
-    CSV simulators are **read-only**. If a connection writes to a CSV
-    simulator, `set_value()` emits a `UserWarning` and discards the
-    value. The CSV adapter implements `get_available_variables()` to
-    return all column names for connection validation.
-
----
-
-## External simulators
-
-User-defined Python simulators can be integrated by subclassing
-`SimulatorAdapter` from `energysim.base`. See
-[External Simulators](external-simulators.md) for the full guide.
-
-```python
-my_world.add_simulator(
-    sim_type='external', sim_name='my_sim',
-    sim_loc='/path/to/directory',
-    inputs=['cmd'], outputs=['result'],
-    step_size=60)
-```
-
-The `sim_name` must match the Python filename (without `.py`), and
-the file must contain a class called `external_simulator`.
-
----
-
-## PowerFactory simulators
-
-DIgSILENT PowerFactory models can be integrated using the
-`'powerfactory'` sim type. This requires PowerFactory 2020+ with
-the Python API and a valid licence.
-
-Additional keyword arguments:
-
-| Parameter | Default  | Description                                                                              |
-|-----------|----------|------------------------------------------------------------------------------------------|
-| `mode`    | `'ac'`   | Calculation mode: `'ac'` (AC load flow, default) or `'dc'` (DC load flow)                |
-| `pf_path` | `None`   | Path to the PowerFactory Python directory.                                               |
-
-```python
-# Generic registration using model='IEEE13' (PowerFactory project name)
-my_world.add_simulator(
-    sim_type='powerfactory',
-    sim_name='grid_pf',
-    model='IEEE13',
-    inputs=['Load1.plini', 'Gen1.pgini'],
-    outputs=['Bus1.m:u', 'Bus2.m:u', 'Line1.m:I:bus1'],
-    step_size=900,
-    mode='ac',
-    pf_path=r'C:\DIgSILENT\PowerFactory 2024\Python\3.11')
-
-# Or dedicated method:
-my_world.add_powerfactory(
-    sim_name='grid_pf',
-    project_name='IEEE13',
-    outputs=['Bus1.m:u'],
-    step_size=900,
-)
-```
-
-!!! tip "Project Activation"
-    `model` (or `project_name`) specifies the PowerFactory **project name** to activate in the database. If omitted, `sim_name` is used by default.
-
-### Variable naming convention (PowerFactory)
-
-Variables are specified as `ElementName.attribute`:
-
-**Inputs** (written via `SetAttribute`):
-
-- Load active power: `Load1.plini` (auto-prefixed to `e:plini`)
-- Generator active power: `Gen1.pgini`
-- Any editable attribute: `Element.e:attributeName`
-
-**Outputs** (read via `GetAttribute`):
-
-- Bus voltage magnitude: `Bus1.m:u`
-- Bus voltage angle: `Bus1.m:phiu`
-- Line current: `Line1.m:I:bus1`
-- Generator output: `Gen1.m:P:bus1`
-
-Result attributes start with `m:`. For inputs, the `e:` prefix is
-added automatically if omitted.
-
----
-
-## MATLAB / Octave simulators
-
-MATLAB `.m` **functions** (not scripts) can be integrated using the
-`'matlab'` sim type. The adapter auto-detects whether to use the
-MATLAB Engine for Python or GNU Octave (via `oct2py`).
-
-Additional keyword arguments:
-
-| Parameter | Default  | Description                                                      |
-|-----------|----------|------------------------------------------------------------------|
-| `engine`  | `'auto'` | Which backend: `'auto'` (try MATLAB first), `'matlab'`, `'octave'` |
-
-```python
-my_world.add_simulator(
-    sim_type='matlab',
-    sim_name='heatpump',
-    sim_loc=r'/path/to/m_files',
-    inputs=['P_cmd', 'T_source', 'T_sink'],
-    outputs=['Q_thermal', 'COP'],
-    step_size=30,
-    engine='auto')
-```
-
-!!! warning
-    `sim_name` must match the `.m` filename (without extension).
-    The file must define a **function** (not a script).
-
-### Writing .m functions for energysim
-
-Your `.m` function must follow this signature:
-
-```matlab
-function [out1, out2, ...] = func_name(in1, in2, ..., time)
-```
-
-- **Input arguments** map to the `inputs` list **in order**, plus `time` (appended automatically by the adapter).
-- **Output arguments** map to the `outputs` list **in order**.
-
-The adapter validates at init time that:
-
-1. The `.m` file is a function (not a script).
-2. `nargin` matches `len(inputs) + 1` (the +1 is for `time`).
-3. `nargout` matches `len(outputs)`.
-
-#### Example: heatpump.m
-
-```matlab
-function [Q_thermal, COP] = heatpump(P_cmd, T_source, T_sink, time)
-% HEATPUMP  Simple Carnot heat-pump model for energysim.
-%
-%   Inputs:
-%     P_cmd    - commanded electrical power [kW]
-%     T_source - source temperature [deg C]
-%     T_sink   - sink temperature [deg C]
-%     time     - simulation time [s] (unused here)
-%
-%   Outputs:
-%     Q_thermal - thermal output [kW]
-%     COP       - coefficient of performance [-]
-
-    COP_carnot = (T_sink + 273.15) / max(T_sink - T_source, 0.1);
-    COP = 0.45 * COP_carnot;
-    Q_thermal = P_cmd * COP;
-end
-```
-
-#### Example: battery.m
-
-```matlab
-function [SoC, P_actual] = battery(P_cmd, time)
-% BATTERY  Simple Li-ion battery with Coulomb counting.
-
-    persistent soc_state;
-    if isempty(soc_state)
-        soc_state = 0.5;  % start at 50%
-    end
-
-    capacity_kwh = 13.5;
-    max_power = 5.0;
-    dt = 30;
-
-    P_actual = max(-max_power, min(max_power, P_cmd));
-    soc_state = soc_state - (P_actual * dt / 3600) / capacity_kwh;
-    soc_state = max(0.05, min(0.95, soc_state));
-    SoC = soc_state;
-end
-```
-
-!!! note
-    Functions can use `persistent` variables to maintain state between
-    steps — the MATLAB/Octave equivalent of Python instance variables.
-
----
-
-## PyPSA Simulators (Pattern B Online Dispatch)
-
-PyPSA networks (imported from CSV folders) can be simulated using `sim_type='pypsa'`.
-
-```python
-my_world.add_simulator(
-    sim_type='pypsa',
-    sim_name='transmission',
-    sim_loc='/path/to/pypsa_csv_folder',
-    inputs=['Generator1.P', 'Load1.P'],
-    outputs=['Bus1.V', 'Generator1.P'],
-    step_size=900,
-    mode='ac'   # 'ac' for AC power flow, 'dc' for DC power flow (lpf)
-)
-```
-
-!!! warning "Design Characteristic & Limitation (Pattern B)"
-    The `energysim` PyPSA adapter operates strictly in **Pattern B (Single Snapshot Mode)**.
-    At each co-simulation macro time step, the PyPSA network evaluates a single snapshot.
-    Multi-period lookahead time series optimization (e.g. continuous multi-day optimization
-    with inter-temporal storage state linkages) is solved sequentially snapshot-by-snapshot
-    within the co-simulation loop rather than solving the entire multi-period time-horizon
-    simultaneously.
-
-Supported modes:
-- `mode='ac'`: Non-linear AC power flow (`lpf()` + `pf()`).
-- `mode='dc'`: Linear DC power flow (`lpf()`).
-
-### Standalone Runnable Example (PyPSA In-Memory Dispatch)
+PyPSA 0.30 up to (excluding) 2.0 is supported. With PyPSA 1.x the active power of a slack generator is only filled in
+when that generator has a `p_set`; bus `P` is always available.
 
 ```python
 import pypsa
+
 from energysim import world
 
-# 1. Build a 2-bus PyPSA network programmatically
 n = pypsa.Network()
-n.add("Bus", "Bus0", v_nom=110.0)
-n.add("Bus", "Bus1", v_nom=110.0)
-n.add("Line", "Branch0", bus0="Bus0", bus1="Bus1", x=0.05, r=0.01, s_nom=200.0)
-n.add("Generator", "Gen0", bus="Bus0", p_nom=150.0, marginal_cost=25.0)
-n.add("Load", "Load1", bus="Bus1", p_set=50.0)
+n.set_snapshots([0])
+n.add("Bus", "b1", v_nom=20.0)
+n.add("Bus", "b2", v_nom=20.0)
+n.add("Generator", "grid", bus="b1", control="Slack", p_nom=10.0, p_set=0.0)
+n.add("Load", "load", bus="b2", p_set=1.0, q_set=0.2)
+n.add("Line", "l12", bus0="b1", bus1="b2", x=0.5, r=0.2, s_nom=5.0)
 
-# 2. Add to world using modern 'model' parameter
-sim = world(start_time=0, stop_time=3600, t_macro=900)
-sim.add_pypsa(
-    sim_name="market",
-    model=n,
-    inputs=["Load1.p_set"],
-    outputs=["Gen0.p", "Bus1.v_mag_pu_set"],
-    step_size=900,
-    mode="ac",
-)
-
-# 3. Simulate
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
-print(results["market"].head())
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_pypsa("net", net=n, inputs=["load.P"], outputs=["b2.V", "l12.loading_percent", "b1.P"], step_size=900)
+w.add_signal("demand", "1 + 0.5 * t / 3600", step_size=900, units={"y": "MW"})
+w.add_connections({"demand.y": "net.load.P"})
+res = w.simulate(pbar=False, record_all=False)
+print(res["net.l12.loading_percent"].round(1).tolist())
 ```
 
----
+## OpenDSS
 
-## OpenDSS Simulators
+OpenDSS runs through OpenDSSDirect.py, which is a **process-wide singleton**: only one circuit can be active per
+Python process (a second active adapter raises `EnergysimError`). Only AC snapshot power flow exists: `mode='dc'`
+raises `ValueError`. Each step re-solves the circuit; time is not advanced inside OpenDSS, so drive time-varying
+behaviour through inputs.
 
-Distribution networks defined in EPRI OpenDSS scripts (`.dss`) can be simulated using `sim_type='opendss'`.
-This uses `OpenDSSDirect.py` for cross-platform execution across Windows, Linux, and macOS without requiring legacy COM servers.
-
-```python
-my_world.add_simulator(
-    sim_type='opendss',
-    sim_name='feeder',
-    model='Master.dss',
-    inputs=['Load.Load1.kW', 'Generator.PV.kW', 'Load.Load1.kvar'],
-    outputs=['Bus.B1.vm_pu', 'Bus.B1.kv', 'Line.Line1.p_kw', 'Circuit.losses_kw'],
-    step_size=300,
-    mode='ac'   # 'ac' for snapshot power flow, 'dc' for direct mode
-)
-```
-
-### Standalone Runnable Example (OpenDSS Feeder)
+* inputs: `"<Type>.<Name>.<Property>"` such as `Load.ld1.kW`, `Generator.pv.kW`;
+* outputs: `Bus.<bus>.vm_pu` (mean per-unit voltage; `.vm_pu.<node>` for one node), `Bus.<bus>.vm_kv`, `Bus.<bus>.vang`,
+  `<Type>.<Name>.p_kw` / `q_kvar` / `losses_kw` / `i_a` / `loading_percent`, and `Circuit.losses_kw`,
+  `Circuit.losses_kvar`, `Circuit.total_power_kw`.
 
 ```python
-import tempfile
-import os
+from pathlib import Path
+
 from energysim import world
 
-# 1. Generate a self-contained 3-bus test circuit
-dss_content = \"\"\"Clear
-New Circuit.TestFeeder basekv=11 pu=1.05 phases=3 bus1=SourceBus
-New LineCode.336ACSR nphases=3 r1=0.198 x1=0.347 units=km
-New Line.Line1 Bus1=SourceBus Bus2=LoadBus LineCode=336ACSR Length=1.5 Units=km
-New Load.Factory Bus1=LoadBus Phases=3 kV=11 kW=600 kvar=150
-Set VoltageBases = [11.0]
-CalcVoltageBases
-\"\"\"
+Path("feeder.dss").write_text("""
+Clear
+New Circuit.feeder basekv=11 pu=1.0 phases=3 bus1=SourceBus
+New Line.l1 bus1=SourceBus bus2=b1 length=1 units=km
+New Load.ld1 bus1=b1 phases=3 kv=11 kw=500 pf=0.95
+Set voltagebases=[11]
+Calcvoltagebases
+Solve
+""", encoding="utf-8")
 
-dss_path = os.path.join(tempfile.gettempdir(), "test_circuit.dss")
-with open(dss_path, "w") as f:
-    f.write(dss_content)
-
-# 2. Add to energysim world
-sim = world(start_time=0, stop_time=3600, t_macro=900)
-sim.add_opendss(
-    sim_name="feeder",
-    model=dss_path,
-    inputs=["Load.Factory.kW"],
-    outputs=["Bus.LoadBus.vm_pu", "Line.Line1.p_kw", "Circuit.losses_kw"],
-    step_size=900,
-)
-
-# 3. Simulate
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
-print(results["feeder"].head())
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_opendss("dss", dss_loc="feeder.dss", inputs=["Load.ld1.kW"],
+              outputs=["Bus.b1.vm_pu", "Load.ld1.p_kw", "Circuit.losses_kw"], step_size=900)
+w.add_signal("demand", "500 + 200 * t / 3600", step_size=900, units={"y": "kW"})
+w.add_connections({"demand.y": "dss.Load.ld1.kW"})
+res = w.simulate(pbar=False, record_all=False)
+print(res["dss.Load.ld1.p_kw"].tolist())
 ```
 
-### Variable naming convention (OpenDSS)
+## FMUs (FMI 1.0 and 2.0)
 
-- **Inputs**: `'ElementType.ElementName.Property'` (e.g. `'Load.Load1.kW'`, `'Generator.Gen1.kW'`, `'PVSystem.PV1.pmpp'`).
-- **Outputs**:
-  - Bus voltage: `'Bus.<busname>.vm_pu'`, `'Bus.<busname>.kv'`, `'Bus.<busname>.vang'`
-  - Line power: `'Line.<linename>.p_kw'`, `'Line.<linename>.q_kvar'`
-  - Circuit summary: `'Circuit.losses_kw'`, `'Circuit.total_power_kw'`
+`add_fmu` reads the model description once and creates a co-simulation adapter (`FmuCsAdapter`) if the FMU has a
+co-simulation interface, otherwise a model-exchange adapter (`FmuMeAdapter`, CVode through `fmpy.sundials`, or
+`solver_name='Euler'`). Start values from `options({'init': ...})` / `set_parameters` are applied **before** the FMU
+leaves initialisation mode. FMU adapters are re-runnable (the FMU is re-instantiated), `validate=False` skips FMPy's
+model-description validation, and model-exchange FMUs report their time events as step hints. Variable names are the
+FMU's `modelVariables` names (including `der(x)` for derivatives).
 
----
+The FMUs in `examples/Optimal Dispatch of FER/` were exported for a specific platform, so this snippet is not executed
+by the documentation tests:
 
-## Script simulators
+```python notest
+from energysim import world
 
-Standalone Python functions can be plugged directly into the co-simulation using `sim_type='script'`:
-
-```python
-my_world.add_simulator(
-    sim_type='script',
-    sim_name='my_module.my_step_function',
-    sim_loc='/path/to/script_directory',
-    inputs=['in_power', 'in_temp'],
-    outputs=['out_voltage', 'out_soc'],
-    step_size=60
-)
+w = world(start_time=0, stop_time=3600, t_macro=300)
+w.add_fmu("plant", "models/plant.fmu", inputs=["cmd"], outputs=["temp"], step_size=1,
+          units={"cmd": "kW", "temp": "degC"}, validate=False)
+w.options({"init": {"plant": (["tank_volume"], [2.0])}})          # start values, applied before init
 ```
 
-### Writing a script function
+## DIgSILENT PowerFactory
 
-In your Python file (e.g. `my_module.py` located inside `sim_loc`):
+Requires PowerFactory 2020 or later with the Python API and a licence; CI uses a mock, the real adapter is checked
+manually (`tools/powerfactory_manual_check.py`). The adapter activates the project, runs the load flow (`ComLdf`;
+`mode='dc'` selects the DC option) every micro step, writes inputs with `SetAttribute` (`e:` prefix added if missing)
+and reads outputs with `GetAttribute` (`m:` result attributes). Variables are `"<loc_name>.<attribute>"`.
 
-```python
-def my_step_function(inputs):
-    """
-    inputs: dict mapping input variable name -> current numeric value
-    returns: list or tuple of output values matching the declared outputs order
-    """
-    p = inputs.get('in_power', 0.0)
-    t = inputs.get('in_temp', 20.0)
-    
-    # Compute output values
-    v = 230.0 - 0.05 * p
-    soc = max(0.0, 1.0 - t / 100.0)
-    
-    return [v, soc]
+```python notest
+from energysim import world
+
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_powerfactory("IEEE13", model="IEEE13", inputs=["Load1.plini"],
+                   outputs=["Bus1.m:u", "Line1.m:loading"], step_size=900,
+                   pf_path=r"C:\Program Files\DIgSILENT\PowerFactory 2024\Python\3.11")   # needs a licence
 ```
 
----
+## MATLAB and GNU Octave
 
-## Physical Units & Automatic Engineering Conversion
+`.m` **functions** (not scripts) with the signature `function [out1, ...] = name(in1, ..., time)`: inputs in the order of
+`inputs`, `time` (seconds) appended last, outputs in the order of `outputs`. The file name must equal the function name.
+`engine='auto'` picks the MATLAB Engine for Python if installed, otherwise Octave through `oct2py`. Use `persistent`
+variables for state.
 
-Multi-energy co-simulations frequently exchange power variables between simulators that operate with different native engineering units (e.g. Modelica FMUs in Watts, OpenDSS in kilowatts, and Pandapower in megawatts).
+```python notest
+from energysim import world
 
-`energysim` standardizes on **kW** (kilowatts) as its baseline unit, but allows users to specify custom units at the world, simulator, or connection level.
-
-### Specifying units
-
-1. **Simulation Canvas Default** (`world` level):
-   ```python
-   my_world = world(power_unit='kW', ...)  # Default is 'kW'
-   ```
-
-2. **Simulator Level**:
-   ```python
-   my_world.add_simulator(
-       sim_type='csv',
-       sim_name='solar',
-       sim_loc='solar.csv',
-       power_unit='kW',                     # Default for variables in this simulator
-       units={'ghi': 'W/m2', 'p_solar': 'kW'}  # Per-variable overrides
-   )
-   ```
-
-3. **Connection Level**:
-   ```python
-   # Explicit from_unit and to_unit:
-   my_world.add_connections({
-       'solar.p_solar': {'to': 'grid.Gen1.p_mw', 'from_unit': 'kW', 'to_unit': 'MW'}
-   })
-   ```
-
-### Automatic Unit Resolution
-
-When `from_unit` or `to_unit` are omitted, `energysim` automatically infers the physical unit from:
-- Explicit per-variable annotations in `units`
-- Variable naming conventions (`.p_mw` $\to$ MW, `.kW` $\to$ kW, `losses_kw` $\to$ kW, `.m:u` / `.vm_pu` $\to$ p.u.)
-- Simulator native defaults (Pandapower $\to$ MW, OpenDSS $\to$ kW, FMU $\to$ W)
-
-The conversion factor is automatically computed and applied during every variable exchange step without requiring manual scale factors.
-
----
-
-## Glass-Box Co-Simulation (Accessing Simulator Internals)
-
-Rather than treating simulators as opaque black boxes, `energysim` provides standardized public accessors to inspect or modify internal solver state and domain objects:
-
-```python
-# Access the underlying native simulation model
-net = my_world.get_model("grid")       # returns pandapower network DataFrame collection
-pypsa_net = my_world.get_model("pypsa") # returns PyPSA Network instance
-dss = my_world.get_model("feeder")     # returns opendssdirect module handle
-proj = my_world.get_model("grid_pf")   # returns active PowerFactory project
-fmu = my_world.get_model("plant")      # returns FMU model instance
-
-# Access the energysim SimulatorAdapter wrapper
-adapter = my_world.get_adapter("grid")
+w = world(start_time=0, stop_time=3600, t_macro=900)
+w.add_matlab("heatpump", model="models/heatpump.m", inputs=["P_cmd", "T_source", "T_sink"],
+             outputs=["Q_thermal", "COP"], step_size=900, engine="auto")      # needs MATLAB or Octave
 ```
 
-This allows users to modify parameters midway through a scenario (e.g. line outages, tap changes, or custom control laws) and leverage vendor-specific visualization tools directly.
-
----
-
-## Simulator Variable Interface & Plumbing Contract
-
-| Simulator | Under the Hood | Variable Format | Native Power Unit | Read/Write Mechanism |
-| :--- | :--- | :--- | :--- | :--- |
-| **Pandapower** | Python API (`net` DataFrames) | `ElementName.attribute` (e.g. `PV.p_mw`, `Bus1.vm_pu`) | **MW / MVar** | Direct vector assignment to `net.load`, `net.gen`, `net.res_bus` |
-| **OpenDSS** | `OpenDSSDirect.py` C-API | `Type.Name.Property` (e.g. `Load.L1.kW`, `Bus.B1.vm_pu`) | **kW / kVar** | Direct C-API setters via `opendssdirect` element navigation |
-| **PyPSA** | Network component DataFrames | `Component.Attribute` (e.g. `Generator1.P`, `Bus1.V`) | **MW / MVar** | Vector assignment to `network.generators_t.p_set` at active snapshot |
-| **PowerFactory** | C-Python Engine API | `Element.e:attr` / `Element.m:attr` | **MW / MVar** | `object.SetAttribute()` / `object.GetAttribute()` |
-| **FMI (FMU)** | FMPy (C-DLL / Shared Lib) | Modelica dot path: `a.b.c` | **W / Var** (SI) | `fmi2SetReal()` / `fmi2GetReal()` |
-| **MATLAB / Octave** | MATLAB Engine / `oct2py` | Positional function arguments | User-defined | Dynamic array marshaling |
-| **Python Script** | Native function call | Arbitrary dict keys | User-defined | Keyword argument dictionary |
-| **Vectorized Container** | Vectorized NumPy SIMD | `var[idx]`, `total_<var>`, `mean_<var>` | User-defined (`kW` default) | Direct NumPy array slices & in-place BLAS operations |
-
----
-
-## Vectorized Container Simulators (Fleets)
-
-When simulating mass fleets (e.g. 1,000 EVs, 500 heat pumps, or 200 PV arrays), use `world.add_fleet()` or `world.add_container()` instead of creating hundreds of individual simulators.
+## Initial values, parameters and signal modification
 
 ```python
-# Add an EV battery fleet with 1,000 units
-my_world.add_fleet(
-    fleet_type='battery',
-    name='ev_fleet',
-    size=1000,
-    capacity_kwh=60.0,
-    max_charge_kw=11.0,
-    initial_soc=0.3,
-    step_size=900,
-)
+from energysim import world
+from energysim.models import BatteryBESS
 
-# Broadcast charging dispatch and connect aggregated fleet load to grid
-my_world.add_connections({
-    'dispatch.p_cmd': 'ev_fleet.p_cmd',
-    'ev_fleet.total_actual_p_kw': 'grid.FleetLoad.p_mw',
+w = world(start_time=0, stop_time=600, t_macro=60)
+w.add_model("bess", BatteryBESS(capacity_mwh=2.0, p_max_mw=1.0), step_size=60)
+w.add_signal("cmd", 1.0, step_size=60, units={"y": "kW"})        # a kW signal into a MW input ...
+w.add_connections({"cmd.y": "bess.P_cmd"})                       # ... is converted: 1 kW -> 0.001 MW
+
+w.options({
+    "init": {"bess": (["P_cmd"], [-0.5])},                       # initial values / start values
+    "parameter_set": {"bess": {"capacity_mwh": 4.0}},            # registered parameters; applied at the start of every run
+    "modify_signal": {"cmd.y": [2.0, 0.0]},                      # gain [and offset] on the source value, before unit conversion
+    "record_all": False,                                         # default for simulate(record_all=...)
 })
+res = w.simulate(pbar=False)
+print(w.get_adapter("bess").capacity_mwh, res["bess.P_actual"].iloc[-1])      # 4.0 and the applied power [MW]
 ```
 
-See the full [Vectorized Containers guide](containers/overview.md) for detailed formulas, architecture, and end-to-end co-simulation examples.
-
-
+`options` accepts exactly the keys `init`, `parameter_set`, `modify_signal` and `record_all`; anything else raises
+`ValueError`. Initial values are applied at the start of every run, before or after `init()` as the adapter requires.
+Prefer unit declarations or `from_unit` / `to_unit` on the connection over `modify_signal` for unit changes.

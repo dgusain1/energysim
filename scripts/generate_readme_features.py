@@ -64,7 +64,7 @@ Type-specific keyword arguments:
 - **FMU**: `validate` (bool), `variable` (bool), `solver_name`
 - **Power flow** (`pandapower`, `pypsa`, `opendss`): `mode` - `'ac'` or `'dc'`
 - **CSV**: `delimiter` (str)
-- **PowerFactory**: `mode` - `'ldf'`, `'shc'` or `'rms'`; `pf_path` (str)
+- **PowerFactory**: `mode` - `'ac'` or `'dc'` (load flow); `pf_path` (str)
 - **MATLAB / Octave**: `engine` - `'auto'`, `'matlab'` or `'octave'`"""
 
 
