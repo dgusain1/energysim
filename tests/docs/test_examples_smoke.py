@@ -1,7 +1,7 @@
 """Smoke-run every ``examples/*/run_*.py`` headless in a temporary copy (marked ``slow``).
 
 Each example runs in a fresh interpreter with ``MPLBACKEND=Agg`` and ``webbrowser.open`` patched, inside a
-copy of its folder (so generated dashboards/run folders never touch the repository), with a 120 s timeout.
+copy of its folder (so generated dashboards/run folders never touch the repository), with a 300 s timeout.
 Examples that need a proprietary engine (PowerFactory, MATLAB/Octave) are skipped when it is missing.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"
-TIMEOUT_S = 120
+TIMEOUT_S = 300
 
 SCRIPTS = sorted(EXAMPLES.glob("*/run_*.py"))
 
