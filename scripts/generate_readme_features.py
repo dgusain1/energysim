@@ -29,7 +29,7 @@ DOCS_BASE = "https://energysim.readthedocs.io/en/latest/"
 
 WORLD_DOC = {
     "start_time": "Simulation start time in seconds.",
-    "stop_time": "Simulation end time in seconds; `stop_time - start_time` must be a multiple of `t_macro`.",
+    "stop_time": "Simulation end time in seconds; `stop_time - start_time` must be a multiple of `t_macro` (unless `t_macro_min < t_macro`).",
     "logging": "Print INFO progress messages of the `energysim` logger.",
     "t_macro": "Macro time-step (variable exchange interval); `0` means the LCM of all simulator step sizes.",
     "coupling": "Coupling strategy: `'jacobi'` or `'gauss-seidel'`.",

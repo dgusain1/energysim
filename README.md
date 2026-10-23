@@ -36,7 +36,7 @@ It bridges electrical power networks with **built-in physical models for green h
 | [pandapower networks](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | AC/DC power flow and OPF through pandapower, validated against direct runpp. |
 | [PyPSA networks](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Single-snapshot online power flow / dispatch of PyPSA networks. |
 | [OpenDSS distribution feeders](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Unbalanced AC distribution feeders via OpenDSSDirect.py (DC mode rejected). |
-| [DIgSILENT PowerFactory](https://energysim.readthedocs.io/en/latest/add-simulator/) | beta | Load flow / short circuit / RMS through the PowerFactory Python API; CI uses a mock, a licensed run is manual. |
+| [DIgSILENT PowerFactory](https://energysim.readthedocs.io/en/latest/add-simulator/) | beta | AC / DC load flow through the PowerFactory Python API; CI uses a mock, a licensed run is manual. |
 | [MATLAB / GNU Octave functions](https://energysim.readthedocs.io/en/latest/add-simulator/) | beta | Call .m functions through the MATLAB Engine or Octave (oct2py), auto-detected. |
 | [Uniform adapter contract](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Every adapter kind passes one contract suite and is interchangeable inside a world. |
 
@@ -48,14 +48,14 @@ It bridges electrical power networks with **built-in physical models for green h
 | [Gauss-Seidel coupling](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Sequential coupling in topological order so downstream models see fresh upstream outputs. |
 | [Algebraic-loop detection](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Feedback loops are detected, warned about and resolved with a one-step delay. |
 | [Input extrapolation](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Zero-order hold or linear extrapolation of coupled inputs between macro steps. |
-| [Events and variable macro step](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Scheduled events, threshold triggers and adapter step hints; the macro step shrinks to land on events (t_macro_min). |
+| [Events and variable macro step](https://energysim.readthedocs.io/en/latest/events/) | stable | Scheduled events, threshold triggers and adapter step hints; the macro step shrinks to land on events (t_macro_min). |
 
 **Units**
 
 | Capability | Status | Description |
 |---|---|---|
 | [Unit-aware connections](https://energysim.readthedocs.io/en/latest/units/) | stable | Declared or inferred units are converted automatically across connections; incompatible units raise. |
-| [Strict unit policy](https://energysim.readthedocs.io/en/latest/units/) | stable | A variable with no determinable unit is never silently scaled; a manual scale disables conversion. |
+| [Unit policy](https://energysim.readthedocs.io/en/latest/units/) | stable | A variable with no determinable unit is never scaled (a warning by default, an error with unit_policy='strict'); a manual scale disables conversion. |
 
 **Scenarios, validation and safety**
 
@@ -63,7 +63,7 @@ It bridges electrical power networks with **built-in physical models for green h
 |---|---|---|
 | [Pre-run validation](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | world.validate() reports unknown names, unit clashes and step-size problems before running. |
 | [Command-line interface](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | `energysim validate` and `energysim run` with stable exit codes and --out / --safe flags. |
-| [Safe mode](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Refuses scripts, external code and dotted imports when running untrusted scenario files. |
+| [Safe mode](https://energysim.readthedocs.io/en/latest/safe-mode/) | stable | Refuses scripts, external code and dotted imports when running untrusted scenario files. |
 | [Declarative YAML scenarios](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Describe a world in YAML, load it with world.from_yaml and round-trip it with to_yaml. |
 | [Glass-box access](https://energysim.readthedocs.io/en/latest/architecture/) | stable | get_adapter / get_model expose the live objects inside a world. |
 
@@ -75,7 +75,7 @@ It bridges electrical power networks with **built-in physical models for green h
 | [Save and load formats](https://energysim.readthedocs.io/en/latest/results/) | stable | Parquet (CSV fallback), CSV and HDF5 export with a meta.json and reload via Results.load. |
 | [KPIs and summaries](https://energysim.readthedocs.io/en/latest/results/) | stable | Energy integrals, time-weighted means and user-registered KPIs. |
 | [Interactive HTML dashboard](https://energysim.readthedocs.io/en/latest/results/) | stable | Self-contained offline HTML dashboard generated from a Results object. |
-| [Ensembles and parameter sweeps](https://energysim.readthedocs.io/en/latest/results/) | stable | Run many scenario variants (grids, samplers, noise) and collect them in one Results object. |
+| [Ensembles and parameter sweeps](https://energysim.readthedocs.io/en/latest/ensemble/) | stable | Run many scenario variants (grids, samplers, noise) and collect them in one Results object. |
 
 **Built-in physical models**
 
@@ -84,7 +84,7 @@ It bridges electrical power networks with **built-in physical models for green h
 | [Storage models](https://energysim.readthedocs.io/en/latest/components/bess/) | stable | BatteryBESS (Rint ECM + thermal + aging), FlowBattery (VRFB) and Flywheel. |
 | [Renewable models](https://energysim.readthedocs.io/en/latest/components/pv/) | stable | PhysicsPV (NOCT cell temperature, inverter clipping), WindTurbine and SolarThermalCollector. |
 | [Hydrogen and PtX models](https://energysim.readthedocs.io/en/latest/components/pem_electrolyzer/) | stable | PEM / alkaline / SOEC electrolyzers, H2 compressor and tank, PEM / SOFC fuel cells, methanation. |
-| [Thermal generation models](https://energysim.readthedocs.io/en/latest/components/ocgt/) | stable | OCGT with start-up timers, CCGT (HRSG + steam), reciprocating genset and CHP steam turbine. |
+| [Thermal generation models](https://energysim.readthedocs.io/en/latest/components/ocgt/) | stable | OCGT with start-up timers, CCGT (fixed GT/ST split, part-load heat rate), reciprocating genset and CHP steam turbine. |
 | [Heating, cooling and thermal storage models](https://energysim.readthedocs.io/en/latest/components/heat_pump/) | stable | Industrial heat pump (Carnot-lift COP), electric boiler, electric / absorption chillers, thermal storage tank. |
 | [Carbon capture](https://energysim.readthedocs.io/en/latest/components/carbon_capture/) | stable | Amine-based post-combustion CarbonCapture_Amine. |
 | [Industrial and data-centre loads](https://energysim.readthedocs.io/en/latest/components/datacenter/) | stable | DataCenterLoad and IndustrialProcessSteam demand models. |
@@ -145,7 +145,13 @@ through this interface:
 | `advance(start, stop)`              | Advance from *start* to *stop* (loops `step()`).  |
 | `get_value(parameters, time)`       | Query output variables.                           |
 | `set_value(parameters, values)`     | Set input variables.                              |
+| `step_partial(time, dt)`            | Shorter final micro-step when an event shortens a macro step. |
+| `max_step(time)`, `next_event_time(time)` | Optional step-size hints for the variable macro step. |
 | `cleanup()`                         | Release resources after the simulation.           |
+
+Coupling is `'jacobi'` (default) or `'gauss-seidel'`; feedback loops are solved with a one-macro-step delay (reduce
+`t_macro` or merge the coupled components). Fixed-point (iterative) coupling and state rollback were
+removed in 3.0. See [Migrating to 3.0](https://energysim.readthedocs.io/en/latest/migration-3.0/).
 
 ## Installation
 
@@ -244,6 +250,17 @@ results = sim.simulate()
 print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
 ```
 
+More workflows (each with runnable examples in the documentation):
+
+- **Events and variable macro step**: `world.schedule(t, {'set': {...}})`, `world.add_trigger(...)`,
+  `world(t_macro_min=...)` - [Events](https://energysim.readthedocs.io/en/latest/events/).
+- **Ensembles and sweeps**: `Ensemble`, samplers, `noisy_signal`, `Sweep` -
+  [Ensembles](https://energysim.readthedocs.io/en/latest/ensemble/).
+- **Untrusted scenario files**: `world.from_yaml(path, safe=True)` / `energysim run --safe` -
+  [Safe mode](https://energysim.readthedocs.io/en/latest/safe-mode/).
+- **Units**: every connection is converted into the receiver's unit; unspecified units are never scaled
+  (`unit_policy='strict'` makes them an error) - [Units](https://energysim.readthedocs.io/en/latest/units/).
+
 ## Parameters
 
 <!-- params:start -->
@@ -254,7 +271,7 @@ print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
 | Parameter | Default | Description |
 |---|---|---|
 | `start_time` | `0` | Simulation start time in seconds. |
-| `stop_time` | `1000` | Simulation end time in seconds; `stop_time - start_time` must be a multiple of `t_macro`. |
+| `stop_time` | `1000` | Simulation end time in seconds; `stop_time - start_time` must be a multiple of `t_macro` (unless `t_macro_min < t_macro`). |
 | `logging` | `False` | Print INFO progress messages of the `energysim` logger. |
 | `t_macro` | `60` | Macro time-step (variable exchange interval); `0` means the LCM of all simulator step sizes. |
 | `coupling` | `'jacobi'` | Coupling strategy: `'jacobi'` or `'gauss-seidel'`. |
@@ -288,7 +305,7 @@ Type-specific keyword arguments:
 - **FMU**: `validate` (bool), `variable` (bool), `solver_name`
 - **Power flow** (`pandapower`, `pypsa`, `opendss`): `mode` - `'ac'` or `'dc'`
 - **CSV**: `delimiter` (str)
-- **PowerFactory**: `mode` - `'ldf'`, `'shc'` or `'rms'`; `pf_path` (str)
+- **PowerFactory**: `mode` - `'ac'` or `'dc'` (load flow); `pf_path` (str)
 - **MATLAB / Octave**: `engine` - `'auto'`, `'matlab'` or `'octave'`
 <!-- params:end -->
 
