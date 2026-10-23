@@ -12,6 +12,8 @@ Generates a self-contained HTML file (Plotly.js via CDN) that lets users:
     * Export the figure as PNG or standalone HTML
     * Quick-view: auto-plot everything ("Overview" button)
 """
+from __future__ import annotations
+
 
 import html
 import json

@@ -9,6 +9,8 @@ with inter-temporal storage/SOC linkages) is evaluated sequentially snapshot-by-
 within the co-simulation loop rather than solving the entire multi-period time-horizon
 simultaneously.
 """
+from __future__ import annotations
+
 
 import logging
 

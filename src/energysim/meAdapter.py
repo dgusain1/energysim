@@ -6,6 +6,8 @@ Created on Mon Sep 10 15:32:24 2018
 
 FMU Model Exchange adapter for energysim.
 """
+from __future__ import annotations
+
 from ctypes import POINTER, c_double
 
 from fmpy import read_model_description, extract, dump

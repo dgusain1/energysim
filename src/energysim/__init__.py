@@ -7,6 +7,8 @@ heterogeneous energy system simulators including FMUs (Co-Simulation
 and Model Exchange), pandapower, PyPSA, PowerFactory, MATLAB/Octave,
 CSV profiles, signal generators, and custom Python scripts.
 """
+from __future__ import annotations
+
 
 from .world import world, World
 from .base import (

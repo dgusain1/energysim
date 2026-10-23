@@ -6,6 +6,8 @@ Created on Thu Jun  6 16:44:38 2019
 
 Signal adapter for energysim.
 """
+from __future__ import annotations
+
 
 from .base import SimulatorAdapter
 import warnings

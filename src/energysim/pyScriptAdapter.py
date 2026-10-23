@@ -13,6 +13,8 @@ must be importable from ``script_loc`` (which is added to ``sys.path``).
 The function is called each step with a dict of current input values
 and must return a list of output values.
 """
+from __future__ import annotations
+
 
 import sys
 import importlib

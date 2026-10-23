@@ -6,6 +6,8 @@ Created on Sat Jul  6 15:07:17 2019
 
 Pandapower adapter for energysim.
 """
+from __future__ import annotations
+
 
 import pandapower as pp
 

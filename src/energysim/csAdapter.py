@@ -6,6 +6,8 @@ Created on Tue Jul  3 16:13:38 2018
 
 FMU Co-Simulation adapter for energysim.
 """
+from __future__ import annotations
+
 from fmpy import read_model_description, extract, dump
 from fmpy.fmi1 import (
     FMU1Slave,

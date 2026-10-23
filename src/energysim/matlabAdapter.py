@@ -33,6 +33,8 @@ Requirements
 - **MATLAB**: ``matlab.engine`` Python package (ships with MATLAB).
 - **Octave**: ``oct2py`` (``pip install oct2py``) + GNU Octave on PATH.
 """
+from __future__ import annotations
+
 
 from .base import SimulatorAdapter
 

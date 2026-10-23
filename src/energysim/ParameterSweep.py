@@ -7,6 +7,8 @@ Created on Thu Jun  6 15:59:11 2019
 class for parameter sweep. Takes in World(), parameter names and values as lists.
 Outputs nice figures based on seaborn for visualisation.
 """
+from __future__ import annotations
+
 
 import numpy as np
 import matplotlib.pyplot as plt

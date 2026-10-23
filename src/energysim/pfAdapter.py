@@ -28,6 +28,8 @@ start with ``m:`` (e.g. ``m:u``, ``m:P:bus1``).  Input attributes
 usually start with ``e:`` but the prefix is added automatically if
 omitted.
 """
+from __future__ import annotations
+
 
 import sys
 

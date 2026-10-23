@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/energysim/"><img src="https://img.shields.io/pypi/v/energysim.svg?color=blue" alt="PyPI version"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python 3.8+"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B%20%7C%203.14-blue.svg" alt="Python 3.10+ | 3.14"></a>
   <a href="https://github.com/dgusain1/energysim/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
   <a href="https://energysim.readthedocs.io"><img src="https://img.shields.io/badge/docs-passing-success.svg" alt="Documentation Status"></a>
 </p>

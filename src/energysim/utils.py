@@ -4,6 +4,8 @@ Created on Mon Nov 23 10:17:34 2020
 
 @author: Digvijay
 """
+from __future__ import annotations
+
 
 import tables as tb
 import pandas as pd
