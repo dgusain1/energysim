@@ -23,7 +23,7 @@ print(res['dh.city.delivered_MW'])
 
 *Module*: `energysim.networks.base`
 
-```python
+```python {.no-test}
 EnergyNetwork(name: 'str' = 'network', step_size: 'float' = 1.0, **kwargs)
 ```
 
@@ -70,7 +70,7 @@ connections, e.g. ``grid.consumer1.demand_MW``.
 
 *Module*: `energysim.networks.heat`
 
-```python
+```python {.no-test}
 HeatNetwork(
     name: 'str' = 'heat',
     step_size: 'float' = 1.0,
@@ -115,7 +115,7 @@ Adds to `EnergyNetwork`:
 
 *Module*: `energysim.networks.gas`
 
-```python
+```python {.no-test}
 GasNetwork(
     name: 'str' = 'gas',
     step_size: 'float' = 1.0,
@@ -167,7 +167,7 @@ Adds to `EnergyNetwork`:
 
 *Module*: `energysim.networks.base`
 
-```python
+```python {.no-test}
 NetworkError(...)
 ```
 

@@ -233,7 +233,7 @@ sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 
 # 3. Register the grid model and a dynamic controller signal
 sim.add_powerflow('grid', net=net, inputs=['Load1.p_mw'], outputs=['Bus2.vm_pu'], step_size=900, mode='ac')
-sim.add_signal('load_controller', lambda t: [800.0 + 200.0 * (t / 3600)], power_unit='kW')
+sim.add_signal('load_controller', lambda t: [800.0 + 200.0 * (t / 3600)], units={'y': 'kW'})
 
 # 4. Connect signal to load (automatically converts 800 kW -> 0.8 MW)
 sim.add_connections({'load_controller.y': 'grid.Load1.p_mw'})
@@ -292,20 +292,21 @@ Type-specific keyword arguments:
 
 ## Results & Dashboard
 
-`my_world.simulate()` returns a `Results` object (also kept as
-`my_world.last_results`). Nothing is written to disk unless you ask for it:
+`sim.simulate()` returns a `Results` object (also kept as
+`sim.last_results`). Nothing is written to disk unless you ask for it:
 
 ```python
-res = my_world.simulate()
+res = sim.simulate()                  # `sim` from the Quick Start above
 res['grid']                   # DataFrame of one simulator (index: time)
 res['grid.Bus2.vm_pu']        # Series of one variable
 res.to_frame(resample='15min')  # wide frame, columns 'sim.var'
 res.summary(); res.kpis()     # statistics, energy integrals (kWh), ...
 res.save('out')               # Parquet (or CSV) + meta.json; Results.load('out')
 res.dashboard('my_dashboard.html', open=True)
-
-world(..., out_dir='runs')    # every run -> runs/<YYYYmmdd-HHMMSS>_<hash8>/
 ```
+
+To keep every run on disk, create the world with `world(..., out_dir='runs')`; each run is then written to
+`runs/<YYYYmmdd-HHMMSS>_<hash8>/`.
 
 ## Citing
 

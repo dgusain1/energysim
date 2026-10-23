@@ -49,7 +49,7 @@ from energysim import world
 
 sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 sim.add_fleet(fleet_type='pv', name='rooftops', size=1000, peak_kw=5.0, step_size=900, power_unit='kW')
-sim.add_signal('irradiance', lambda t: [800.0], step_size=900, units={'y': 'W/m2'})
+sim.add_signal('irradiance', lambda t: [800.0], step_size=900)
 sim.add_signal('temperature', lambda t: [25.0], step_size=900, units={'y': 'degC'})
 sim.add_connections({'irradiance.y': 'rooftops.irradiance_w_m2', 'temperature.y': 'rooftops.t_ambient'})
 res = sim.simulate()

@@ -1,0 +1,10 @@
+# Pages whose ```python snippets are known to fail (xfail, non-strict). One docs path per line.
+# Empty this file as the pages are rewritten; tests/docs/test_doc_snippets.py reports xpasses (-rX).
+docs/add-simulator.md
+docs/architecture.md
+docs/custom-models.md
+docs/external-simulators.md
+docs/faq.md
+docs/features.md
+docs/index.md
+docs/yaml-cli.md

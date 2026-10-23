@@ -119,8 +119,7 @@ sim.add_model("evs", model=ev_fleet, outputs=[
     "total_actual_p_kw", "mean_soc", "min_soc", "max_soc"
 ])
 
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+results = sim.simulate()
 
 print("Peak aggregate EV charging demand:", results["evs"]["total_actual_p_kw"].max() / 1000.0, "MW")
 ```
@@ -164,7 +163,8 @@ custom_container = VectorizedFunctionAdapter(
 )
 
 sim.add_model("quick_fleet", model=custom_container, outputs=["total_actual_p", "mean_soc"])
-sim.simulate(dashboard=False)
+res = sim.simulate()
+print(res["quick_fleet"].tail(2))
 ```
 
 ---

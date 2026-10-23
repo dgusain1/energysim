@@ -107,7 +107,7 @@ print(res['ev_fleet.mean_soc'])''',
 
 sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 sim.add_fleet(fleet_type='pv', name='rooftops', size=1000, peak_kw=5.0, step_size=900, power_unit='kW')
-sim.add_signal('irradiance', lambda t: [800.0], step_size=900, units={'y': 'W/m2'})
+sim.add_signal('irradiance', lambda t: [800.0], step_size=900)
 sim.add_signal('temperature', lambda t: [25.0], step_size=900, units={'y': 'degC'})
 sim.add_connections({'irradiance.y': 'rooftops.irradiance_w_m2', 'temperature.y': 'rooftops.t_ambient'})
 res = sim.simulate()
@@ -304,13 +304,12 @@ def sig_block(obj, name=None) -> str:
     try:
         sig = inspect.signature(obj)
     except (TypeError, ValueError):
-        return f"```python\n{name}(...)\n```"
+        return f"```{NOTEST}\n{name}(...)\n```"
     flat = f"{name}{sig}"
-    flat = flat.replace("'", "'")
     if len(flat) > 100 and sig.parameters:
         params = [str(p) for p in sig.parameters.values()]
         flat = f"{name}(\n" + "".join(f"    {p},\n" for p in params) + ")"
-    return f"```python\n{flat}\n```"
+    return f"```{NOTEST}\n{flat}\n```"
 
 
 def plain_sig(fn, drop_first=True) -> str:

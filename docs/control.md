@@ -10,7 +10,7 @@ Controllers are simulators that read measurements, optionally look ahead with a 
 
 *Module*: `energysim.control.base`
 
-```python
+```python {.no-test}
 Controller(
     name: 'str' = 'controller',
     measurement_inputs: 'Sequence[str]' = (),
@@ -64,7 +64,7 @@ Base class of controllers (optimisers, MPC, OPF, rule-based ...).
 
 *Module*: `energysim.control.base`
 
-```python
+```python {.no-test}
 RuleController(rule, measurement_inputs=(), setpoint_outputs=(), **kwargs)
 ```
 
@@ -83,7 +83,7 @@ Handy as a baseline or as the fallback of an optimising controller.
 
 *Module*: `energysim.control.mpc`
 
-```python
+```python {.no-test}
 MPCController(
     blocks: 'Sequence[Block]',
     forecasts: 'Optional[Mapping[str, Any]]' = None,
@@ -141,7 +141,7 @@ Economic MPC over a set of `Block` objects.
 
 *Module*: `energysim.control.opf`
 
-```python
+```python {.no-test}
 OPFController(
     network: 'Any',
     inputs: 'Sequence[str]' = (),
@@ -185,7 +185,7 @@ pandapower OPF wrapped as an energysim controller.
 
 *Module*: `energysim.control.pypsa_rolling`
 
-```python
+```python {.no-test}
 PyPSARollingHorizonController(
     network: 'Any',
     window: 'int',
@@ -228,7 +228,7 @@ Receding-horizon controller around ``pypsa.Network.optimize``.
 
 *Module*: `energysim.control.forecast`
 
-```python
+```python {.no-test}
 Forecast()
 ```
 
@@ -239,7 +239,7 @@ Base class of forecast providers.
 
 *Module*: `energysim.control.forecast`
 
-```python
+```python {.no-test}
 PerfectForecast(
     data,
     column: 'Optional[str]' = None,
@@ -265,7 +265,7 @@ Read ahead in a known time series (an oracle forecast).
 
 *Module*: `energysim.control.forecast`
 
-```python
+```python {.no-test}
 PersistenceForecast(input: 'Optional[str]' = None, default: 'float' = 0.0)
 ```
 
@@ -283,7 +283,7 @@ Repeat the latest measured value over the whole horizon.
 
 *Module*: `energysim.control.forecast`
 
-```python
+```python {.no-test}
 CallableForecast(fn: 'Callable[[float, np.ndarray], Any]')
 ```
 
@@ -294,7 +294,7 @@ Wrap ``fn(t, horizon_times) -> array | scalar``.
 
 *Module*: `energysim.control.forecast`
 
-```python
+```python {.no-test}
 NoisyForecast(
     base: 'Forecast',
     sigma: 'float',
@@ -321,7 +321,7 @@ seeds give identical runs.
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 Block(name: 'str')
 ```
 
@@ -337,7 +337,7 @@ with ``"<block name>."``.
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 StorageBlock(
     name: 'str',
     capacity: 'float',
@@ -393,7 +393,7 @@ e[k+1] = (1 - self_discharge * dt_h) * e[k] + eta_c * pc[k] * dt_h - pd[k] / eta
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 ElectrolyzerBlock(
     name: 'str',
     p_max: 'float',
@@ -429,7 +429,7 @@ enforced exactly (MILP); otherwise ``on`` is relaxed to [0, 1] (LP).
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 HeatPumpBlock(
     name: 'str',
     q_max: 'float',
@@ -448,7 +448,7 @@ Heat pump: ``P_elec = Q_heat / COP``; COP fixed or time-varying (forecast).
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 BoilerBlock(
     name: 'str',
     p_max: 'float',
@@ -474,7 +474,7 @@ The set-point is the fuel / electric input power.
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 GeneratorBlock(
     name: 'str',
     p_max: 'float',
@@ -504,7 +504,7 @@ is binary with ``use_binary=True`` (MILP) else relaxed to [0, 1].
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 GridBlock(
     name: 'str' = 'grid',
     import_limit: 'Any' = inf,
@@ -530,7 +530,7 @@ with ``carrier='hydrogen', import_limit=0, price_export=4.0``).
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 LoadBlock(
     name: 'str',
     demand: 'Any',
@@ -552,7 +552,7 @@ The output ``P_set`` is the planned load (a set-point for flexible loads).
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 RenewableBlock(
     name: 'str',
     available: 'Any',
@@ -569,7 +569,7 @@ Variable renewable source: ``0 <= p <= available`` (``== available`` if not curt
 
 *Module*: `energysim.control.blocks`
 
-```python
+```python {.no-test}
 PlanContext(
     lp: 'LinearProblem',
     times: 'np.ndarray',
@@ -589,7 +589,7 @@ Shared state while the blocks build one horizon problem.
 
 *Module*: `energysim.control.lp`
 
-```python
+```python {.no-test}
 LinearProblem() -> 'None'
 ```
 
@@ -600,7 +600,7 @@ Incrementally built ``min c'x  s.t.  lo <= A x <= hi,  lb <= x <= ub``.
 
 *Module*: `energysim.control.lp`
 
-```python
+```python {.no-test}
 LPResult(
     status: 'int',
     x: 'Optional[np.ndarray]',
