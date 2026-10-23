@@ -226,7 +226,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v4 # v4
+        uses: actions/upload-artifact@v7 # v4
         with:
           name: validation-junit
           path: validation-junit.xml
