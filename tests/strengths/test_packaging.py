@@ -60,7 +60,7 @@ def test_clean_venv_install_import_and_cli(wheel, tmp_path):
     r = _run([str(py), "-m", "energysim.cli", "--version"], cwd=str(work))
     assert r.returncode == 0 and r.stdout.startswith("energysim ")
     scenario = work / "s.yaml"
-    scenario.write_text("world: {start_time: 0, stop_time: 20, t_macro: 10, res_filename: r.h5}\n"
+    scenario.write_text("world: {start_time: 0, stop_time: 20, t_macro: 10}\n"
                         "simulators:\n  - {name: a, type: signal, step_size: 10, signal: '2*t'}\n")
     r = _run([str(py), "-m", "energysim.cli", "validate", str(scenario)], cwd=str(work))
     assert r.returncode == 0 and "PASSED" in r.stdout

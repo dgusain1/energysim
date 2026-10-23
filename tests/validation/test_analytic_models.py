@@ -83,7 +83,7 @@ def test_rc_scalar_equivalent_matches_fleet_and_closed_form():
 def test_rc_step_response_through_world(tmp_path):
     """Same step response when the fleet is driven through the co-simulation orchestrator."""
     r, c, t0, t_amb, q, dt = 2.5, 15.0, 20.0, 5.0, 2.0, 900.0
-    w = world(start_time=0, stop_time=6 * 3600, t_macro=dt, res_filename=str(tmp_path / "rc.h5"))
+    w = world(start_time=0, stop_time=6 * 3600, t_macro=dt)
     w.add_signal("amb", signal=t_amb, step_size=dt, units={"y": "degC"})
     w.add_signal("heat", signal=q, step_size=dt, units={"y": "kW"})
     w.add_container("fleet", kind="building", size=1, c_th_kwh_per_k=c, r_th_k_per_kw=r,

@@ -93,7 +93,7 @@ KINDS = {
 
 
 def _build(kind, tmp_path, with_driver=True):
-    w = world(start_time=0, stop_time=40, t_macro=10, res_filename=str(tmp_path / f"{kind}.h5"))
+    w = world(start_time=0, stop_time=40, t_macro=10)
     in_var, out_var = KINDS[kind](w, tmp_path)
     if in_var and with_driver:
         w.add_signal("drv", "5.0", step_size=10)
@@ -123,7 +123,7 @@ def test_adapter_contract_smoke(kind, tmp_path):
 def test_every_kind_runs_in_world_and_is_rerunnable(kind, tmp_path):
     w, in_var, out_var = _build(kind, tmp_path)
     first = run_and_get(w, record_all=False)["x"]
-    assert out_var in first.columns and len(first) == 4
+    assert out_var in first.columns and len(first) == 5  # 4 macro steps + final row at stop_time
     assert first[out_var].notna().all()
     try:
         second = run_and_get(w, record_all=False)["x"]

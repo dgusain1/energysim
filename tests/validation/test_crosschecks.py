@@ -79,7 +79,7 @@ def test_pandapower_via_energysim_matches_direct_runpp(tmp_path):
     p_new = 150.0                          # MW, up from 90 MW at bus 5
     ref_net.load.loc[ref_net.load.name == "L1", "p_mw"] = p_new
     pp.runpp(ref_net, numba=False)
-    w = world(start_time=0, stop_time=20, t_macro=10, power_unit="MW", res_filename=str(tmp_path / "pp.h5"))
+    w = world(start_time=0, stop_time=20, t_macro=10, power_unit="MW")
     w.add_powerflow("grid", net=net, inputs=["L1.p_mw"], outputs=["B9.vm_pu", "B5.vm_pu"], step_size=10)
     w.add_signal("ld", signal=p_new * 1000.0, step_size=10, units={"y": "kW"})   # kW -> MW conversion included
     w.add_connections({"ld.y": "grid.L1.p_mw"})
@@ -145,7 +145,7 @@ def test_pypsa_via_energysim_matches_direct_pypsa(tmp_path):
     n_es, n_ref = _pypsa_net(), _pypsa_net()
     n_ref.loads.at["ld", "p_set"] = 8.0
     n_ref.pf()
-    w = world(start_time=0, stop_time=20, t_macro=10, power_unit="MW", res_filename=str(tmp_path / "ps.h5"))
+    w = world(start_time=0, stop_time=20, t_macro=10, power_unit="MW")
     try:
         w.add_pypsa("grid", network=n_es, inputs=["ld.P"], outputs=["b1.V", "slack.P"], step_size=10)
     except AttributeError as exc:     # pragma: no cover - environment dependent

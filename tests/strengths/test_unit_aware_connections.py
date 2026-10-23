@@ -15,7 +15,7 @@ pytestmark = pytest.mark.strength
 
 
 def _connected(tmp_path, src_unit=None, dst_unit=None, value=1.0, src_name="y", dst_name="u", **conn):
-    w = world(start_time=0, stop_time=10, t_macro=10, res_filename=str(tmp_path / "u.h5"))
+    w = world(start_time=0, stop_time=10, t_macro=10)
     w.add_signal("src", signal=value, step_size=10, units={"y": src_unit} if src_unit else None)
     dst = Alg()
     w.add_model("dst", dst, inputs=[dst_name], outputs=["y"], step_size=10,
@@ -101,7 +101,7 @@ def test_unknown_units_are_never_guessed(tmp_path):
 
 def test_fmu_like_temperature_is_never_rescaled(tmp_path):
     """An FMU-style simulator has a native power unit of W, but a temperature must not be touched."""
-    w = world(start_time=0, stop_time=10, t_macro=10, power_unit="kW", res_filename=str(tmp_path / "f.h5"))
+    w = world(start_time=0, stop_time=10, t_macro=10, power_unit="kW")
     fmu_like = Alg(gain=1.0)
     w.add_model("fmu", fmu_like, inputs=["u"], outputs=["T_zone", "P"], step_size=10, power_unit="W")
     fmu_like.y = 21.5
@@ -116,7 +116,7 @@ def test_fmu_like_temperature_is_never_rescaled(tmp_path):
 
 
 def test_fmu_like_power_in_watts_is_converted_to_world_unit(tmp_path):
-    w = world(start_time=0, stop_time=10, t_macro=10, power_unit="kW", res_filename=str(tmp_path / "g.h5"))
+    w = world(start_time=0, stop_time=10, t_macro=10, power_unit="kW")
     src = Alg()
     w.add_model("fmu", src, inputs=["u"], outputs=["P"], step_size=10, power_unit="W")
     sink = Alg()

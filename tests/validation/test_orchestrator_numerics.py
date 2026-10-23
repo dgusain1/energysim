@@ -59,8 +59,7 @@ _A, _C, _D = -0.1, -0.3, 0.5
 
 def _cascade_error(h, coupling, tmp_path, extrapolation="zero-order", horizon=40.0):
     """A: x' = a x (x0=1), B: y' = c y + d x ; error of y(T) vs the analytic solution."""
-    w = world(start_time=0, stop_time=horizon, t_macro=h, coupling=coupling, extrapolation=extrapolation,
-              res_filename=str(tmp_path / f"c_{coupling}_{h}.h5"))
+    w = world(start_time=0, stop_time=horizon, t_macro=h, coupling=coupling, extrapolation=extrapolation)
     a_sys = LinearSystem(_A, {"u": 0.0}, 1.0)
     b_sys = LinearSystem(_C, {"u": _D}, 0.0)
     w.add_model("A", a_sys, inputs=["u"], outputs=["x"], step_size=h)
@@ -95,8 +94,7 @@ def _cyclic_error(h, coupling, tmp_path, horizon=20.0):
     scipy_linalg = pytest.importorskip("scipy.linalg")
     m = np.array([[-0.2, 0.3], [-0.4, -0.5]])
     x0 = np.array([1.0, 0.5])
-    w = world(start_time=0, stop_time=horizon, t_macro=h, coupling=coupling,
-              res_filename=str(tmp_path / f"cy_{coupling}_{h}.h5"))
+    w = world(start_time=0, stop_time=horizon, t_macro=h, coupling=coupling)
     s1 = LinearSystem(m[0, 0], {"u": m[0, 1]}, x0[0])
     s2 = LinearSystem(m[1, 1], {"u": m[1, 0]}, x0[1])
     w.add_model("S1", s1, inputs=["u"], outputs=["x"], step_size=h)
@@ -145,8 +143,7 @@ class _Hold(SimulatorAdapter):
 
 
 def _extrapolation_error(h, mode, tmp_path):
-    w = world(start_time=0, stop_time=60.0, t_macro=h, extrapolation=mode,
-              res_filename=str(tmp_path / f"ex_{mode}_{h}.h5"))
+    w = world(start_time=0, stop_time=60.0, t_macro=h, extrapolation=mode)
     w.add_signal("src", signal=lambda t: [math.sin(0.2 * t)], step_size=h)
     rx = _Hold()
     w.add_model("rx", rx, inputs=["u"], outputs=["u"], step_size=h)
@@ -173,8 +170,7 @@ def _build_chain(tmp_path, seed, steps=240, macro=60.0):
     rng = np.random.default_rng(seed)
     g = np.clip(rng.normal(650.0, 350.0, steps + 2), 0.0, 1200.0)
     demand = rng.uniform(0.0, 150.0, steps + 2)
-    w = world(start_time=0, stop_time=steps * macro, t_macro=macro, power_unit="MW",
-              res_filename=str(tmp_path / f"chain_{seed}.h5"))
+    w = world(start_time=0, stop_time=steps * macro, t_macro=macro, power_unit="MW")
     w.add_signal("sun", signal=lambda t: [float(g[min(int(t // macro), steps + 1)])], step_size=macro)
     w.add_signal("draw", signal=lambda t: [float(demand[min(int(t // macro), steps + 1)])], step_size=macro,
                  units={"y": "kg/h"})

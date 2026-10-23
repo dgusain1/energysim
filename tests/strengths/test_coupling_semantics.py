@@ -15,8 +15,7 @@ pytestmark = pytest.mark.strength
 
 
 def _chain_world(tmp_path, coupling, names=("A", "B", "C"), reverse_registration=False, macro=10.0, steps=8):
-    w = world(start_time=0, stop_time=macro * steps, t_macro=macro, coupling=coupling,
-              res_filename=str(tmp_path / f"{coupling}.h5"))
+    w = world(start_time=0, stop_time=macro * steps, t_macro=macro, coupling=coupling)
     w.add_signal("S", "t", step_size=macro)
     order = list(names)[::-1] if reverse_registration else list(names)
     for n in order:
@@ -71,8 +70,7 @@ def test_gauss_seidel_equals_jacobi_for_first_stage_and_beats_it_downstream(tmp_
 
 
 def _loop_world(tmp_path, coupling):
-    w = world(start_time=0, stop_time=60, t_macro=10, coupling=coupling,
-              res_filename=str(tmp_path / f"loop_{coupling}.h5"))
+    w = world(start_time=0, stop_time=60, t_macro=10, coupling=coupling)
     w.add_signal("S", "1", step_size=10)
     w.add_model("P", Alg(gain=0.5), inputs=["u"], outputs=["y"], step_size=10)
     w.add_model("Q", Alg(gain=0.5), inputs=["u"], outputs=["y"], step_size=10)
@@ -101,7 +99,7 @@ def test_scc_detection_warning_and_validation_advice(coupling, tmp_path):
 def test_feedback_loop_uses_one_step_delay_and_converges(tmp_path):
     """P.y = 0.5*(S + Q.y) style loop: with a one-step delay the iteration converges to the fixed point."""
     macro = 10.0
-    w = world(start_time=0, stop_time=macro * 40, t_macro=macro, res_filename=str(tmp_path / "fp.h5"))
+    w = world(start_time=0, stop_time=macro * 40, t_macro=macro)
     w.add_signal("S", "1", step_size=macro)
     w.add_model("P", Alg(gain=0.5, bias=0.5), inputs=["u"], outputs=["y"], step_size=macro)   # y = 0.5 u + 0.5
     w.add_model("Q", Alg(gain=0.5), inputs=["u"], outputs=["y"], step_size=macro)             # y = 0.5 u

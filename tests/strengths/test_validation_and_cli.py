@@ -13,7 +13,7 @@ pytestmark = pytest.mark.strength
 
 def _scenario(tmp_path, body, world_cfg="start_time: 0, stop_time: 100, t_macro: 10"):
     f = tmp_path / "s.yaml"
-    f.write_text(f"world: {{{world_cfg}, res_filename: {(tmp_path / 'r.h5').as_posix()}}}\n{body}")
+    f.write_text(f"world: {{{world_cfg}}}\n{body}")
     return str(f)
 
 
@@ -88,9 +88,11 @@ def test_missing_file_exit_code(tmp_path, capsys):
 
 def test_run_executes_and_exits_0(tmp_path, capsys):
     f = _scenario(tmp_path, SIGNALS)
-    rc, out, _ = run_cli(capsys, "run", f, "--no-pbar")
+    out_dir = tmp_path / "runs"
+    rc, out, _ = run_cli(capsys, "run", f, "--no-pbar", "--out", str(out_dir))
     assert rc == 0 and "Simulation finished successfully." in out
-    assert (tmp_path / "r.h5").exists()
+    run_dirs = [d for d in out_dir.iterdir() if d.is_dir()]
+    assert len(run_dirs) == 1 and (run_dirs[0] / "meta.json").exists()
 
 
 def test_version_flag(capsys):
@@ -125,7 +127,7 @@ def test_safe_mode_allows_plain_scenarios(tmp_path, capsys):
 
 
 def test_python_api_raises_validation_error_with_same_report(tmp_path):
-    w = world(start_time=0, stop_time=95, t_macro=10, res_filename=str(tmp_path / "v.h5"))
+    w = world(start_time=0, stop_time=95, t_macro=10)
     w.add_signal("a", "1", step_size=10)
     with pytest.raises(ValidationError, match="integer multiple of the macro step"):
         w.simulate(pbar=False)

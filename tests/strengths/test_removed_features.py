@@ -36,7 +36,7 @@ def test_no_rollback_names_exported():
 def test_iterative_coupling_raises(tmp_path):
     with pytest.raises(ValueError, match="iterative coupling was removed in 3.0"):
         world(coupling="iterative")
-    w = world(start_time=0, stop_time=10, t_macro=10, res_filename=str(tmp_path / "x.h5"))
+    w = world(start_time=0, stop_time=10, t_macro=10)
     w.add_signal("a", "1", step_size=10)
     w.coupling = "iterative"
     with pytest.raises(ValueError, match="iterative coupling was removed in 3.0"):
@@ -53,7 +53,7 @@ def test_iterative_world_options_removed():
 
 def test_world_results_absent_once_results_object_exists(tmp_path):
     """Conditional: before the Results merge ``world.results`` exists; afterwards it must be gone."""
-    w = world(start_time=0, stop_time=20, t_macro=10, res_filename=str(tmp_path / "r.h5"))
+    w = world(start_time=0, stop_time=20, t_macro=10)
     w.add_signal("a", "t", step_size=10)
     ret = w.simulate(pbar=False, record_all=False)
     returns_results_object = not isinstance(ret, str) and (hasattr(ret, "to_frame") or hasattr(ret, "__getitem__"))
