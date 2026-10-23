@@ -97,7 +97,19 @@ class OPFController(Controller):
             kind, idx = self._locate(el)
             if kind == "bus":
                 raise SimulatorVariableError(f"Bus '{el}' cannot be controllable.")
-            getattr(self.network, kind).at[idx, "controllable"] = True
+            table = getattr(self.network, kind)
+            if "controllable" not in table.columns:
+                table["controllable"] = False
+            table.at[idx, "controllable"] = True
+            # pandapower's OPF requires P and Q limits on controllable elements.
+            p_now = float(table.at[idx, "p_mw"]) if "p_mw" in table.columns else 0.0
+            for col, default in (("min_p_mw", min(0.0, p_now)), ("max_p_mw", max(0.0, p_now)),
+                                 ("min_q_mvar", 0.0), ("max_q_mvar", 0.0)):
+                if col not in table.columns:
+                    table[col] = float("nan")
+                val = table.at[idx, col]
+                if val is None or (isinstance(val, float) and math.isnan(val)):
+                    table.at[idx, col] = default
         for el, spec in (costs or {}).items():
             spec = {"cp1_eur_per_mw": float(spec)} if not isinstance(spec, Mapping) else dict(spec)
             for col, val in spec.items():
