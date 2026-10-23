@@ -187,6 +187,16 @@ class opendss_adapter(SimulatorAdapter):
             raise SimulatorVariableError(f"OpenDSS input value {val!r} is not finite.")
         return repr(f)
 
+    def _command(self, dss, cmd, context):
+        """Run a DSS command; OpenDSSDirect errors (DSSException) become EnergysimError."""
+        try:
+            dss.Command(cmd)
+        except EnergysimError:
+            raise
+        except Exception as exc:
+            raise EnergysimError(f"OpenDSS error during {context}: {exc}") from exc
+        self._check_error(dss, context)
+
     def _check_error(self, dss, context):
         try:
             if dss.Error.Number() != 0:
@@ -217,17 +227,19 @@ class opendss_adapter(SimulatorAdapter):
         _ACTIVE = weakref.ref(self)
         self._owns = True
         try:
-            dss.Command("Clear")
-            dss.Command(f'Redirect "{self.dss_location}"')
-            self._check_error(dss, f"loading '{self.dss_location}'")
-            dss.Command("Set mode=Snapshot")
+            self._command(dss, "Clear", "Clear")
+            self._command(dss, f'Redirect "{self.dss_location}"', f"loading '{self.dss_location}'")
+            self._command(dss, "Set mode=Snapshot", "Set mode")
             self._solve(dss)
         except Exception:
             self._release()
             raise
 
     def _solve(self, dss):
-        dss.Solution.Solve()
+        try:
+            dss.Solution.Solve()
+        except Exception as exc:
+            raise EnergysimError(f"OpenDSS solve failed for simulator '{self.dss_name}': {exc}") from exc
         if not dss.Solution.Converged():
             raise EnergysimError(f"OpenDSS power flow did not converge for simulator '{self.dss_name}'.")
 
@@ -268,8 +280,7 @@ class opendss_adapter(SimulatorAdapter):
                     f"OpenDSS element '{etype}.{name}' not found (simulator '{self.dss_name}')."
                 )
             formatted = self._format_value(val)
-            dss.Command(f"edit {etype}.{name} {prop}={formatted}")
-            self._check_error(dss, f"setting {param}")
+            self._command(dss, f"edit {etype}.{name} {prop}={formatted}", f"setting {param}")
             self._input_cache[param] = val
 
     def _activate_element(self, dss, etype, name, param):
