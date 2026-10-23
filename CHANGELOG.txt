@@ -1,5 +1,55 @@
 # Changelog - energysim
 
+## 3.0.0 (unreleased, 3.0.0.dev0)
+
+Major release with breaking changes.
+
+### Breaking changes
+- **Rollback and iterative coupling removed**: `coupling='iterative'`, `max_iterations`,
+  `convergence_tolerance` and `save_state()` / `restore_state()` are gone. Use `'jacobi'`
+  (default) or `'gauss-seidel'`, a smaller `t_macro`, or merge tightly coupled components.
+  Algebraic loops use a one-macro-step delay. `bisect=True` on triggers raises
+  `NotImplementedError` for the same reason.
+- **Results API**: `simulate()` returns a `Results` object (`res['sim.var']`, `to_frame()`,
+  `summary()`, `kpis()`, `save()`, `dashboard()`); `world.last_results` holds the last run.
+  `res_filename` and the HDF5 helpers were removed; `out_dir` / CLI `--out` persist runs as
+  Parquet/CSV + `meta.json` + `scenario.yaml`. Every simulator gets a final row at `stop_time`.
+- **Strict units and the default unit system**: unknown units and incompatible dimensions raise
+  `ValueError`; `energysim.units` is the single source of truth (`UnitSystem.default()` /
+  `si()` / overrides; `energysim.utils` unit helpers delegate to it). Every connected variable is
+  resolved: simulator `units` / `power_unit` (power-like names) -> component `units` -> connection
+  `from_unit`/`to_unit` -> name suffix -> unit-system default by quantity -> unspecified. Values
+  are converted into the receiver's unit; unspecified ends are never scaled (warning), or raise
+  with `world(unit_policy='strict')`. `world(power_unit=...)` now defaults to `None` (the unit
+  system's active-power unit). Visible via logs, `world.unit_table()`, `world.connection_units()`,
+  `validate()`, `energysim units`, `run/validate -v`, `Results.units` and dashboard labels.
+- **Safe mode and safe expressions**: signal strings / YAML conditions are parsed with a
+  whitelisted AST evaluator (never `eval`); dotted-import model references need
+  `allow_import=True`; `from_yaml(..., safe=True)` / `--safe` refuse code-executing simulator
+  types, dotted imports and pickle model files.
+- **Adapters / base**: `ConnectionError` renamed `ConnectionSpecError` (alias kept);
+  `configure()` and `SET_PARAMS_BEFORE_INIT` lifecycle; runs are re-runnable;
+  `set_parameters()` values apply at the start of every run.
+- **World split**: `world.py` is now a thin class composed of mixins in `energysim._world`
+  (registry, connections, units, coupling, events, runner, validation, scenario). The public
+  `from energysim import world, World` is unchanged.
+- `Sweep` was rewritten on top of the new `Ensemble` package.
+
+### New
+- **Event-driven / variable macro step** (predictive, no rollback): `t_macro` is the maximum
+  step, `t_macro_min` (default `t_macro`: fixed step, bit-identical to 2.x) lets adapter hints
+  (`max_step(t)`, `next_event_time(t)`) shrink it. `world.schedule(t, action)` lands steps
+  exactly on event times; `world.add_trigger(name, condition, action, direction)` fires on
+  threshold crossings at step boundaries; YAML `events:` / `triggers:` (declarative `set` only);
+  fired events in `Results.meta['events']`. Hints: signal breakpoints, CSV `align_to_rows`,
+  FMU ME `nextEventTime`, `ModelComponent.time_to_event()` (OCGT/CCGT timers, BESS / flow
+  battery / H2 tank / thermal tank limits, PEM fuel-cell ramps). Adapters do a shorter final
+  micro-step (`step_partial`) when a macro interval is not a multiple of their step size.
+- Ensemble package (samplers, `Ensemble` / `EnsembleResults`, `NoisyInput`), control layer
+  (`energysim.control`: MPC, OPF, PyPSA rolling horizon), network-lite heat/gas networks,
+  validation suite and generated docs (units, validation).
+- Worlds (with connections) are deep-copyable and picklable.
+
 ## 2.1.9.1
 - **Brand & Visual Identity**:
   - Integrated official brand kit with scalable SVGs for light and dark modes (`brand/`, `docs/assets/brand/`, `.github/assets/`).

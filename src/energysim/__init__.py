@@ -42,7 +42,7 @@ from . import networks
 from . import control  # optimisation / MPC layer (scipy, pandapower, pypsa imported lazily)
 from .models.common import ModelComponent, Curve1D, Surface2D
 
-__version__ = "2.1.9.1"
+__version__ = "3.0.0.dev0"
 
 __all__ = [
     "world",
