@@ -123,7 +123,8 @@ class ModelComponent(SimulatorAdapter):
             for out in outputs:
                 if out not in self.outputs:
                     self.outputs.append(out)
-                self._outputs_val.setdefault(out, 0.0)
+                if out not in self._inputs_val:   # an input that is also an output passes through
+                    self._outputs_val.setdefault(out, 0.0)
 
     def register_parameters(self, *names: str) -> None:
         """Declare numeric instance attributes that ``set_value`` may overwrite."""
@@ -212,10 +213,11 @@ class ModelComponent(SimulatorAdapter):
         for p in parameters:
             if p in self._outputs_val:
                 val = self._outputs_val[p]
+            elif p in self._inputs_val:
+                # also covers an output name that is an input as well (pass-through)
+                val = self._inputs_val[p]
             elif p in self.outputs:
                 val = 0.0
-            elif p in self._inputs_val:
-                val = self._inputs_val[p]
             elif p in self._states:
                 val = self._states[p]
             elif p in self._parameters:
@@ -282,6 +284,33 @@ class ModelComponent(SimulatorAdapter):
             step_dt = min(dt, stop_time - t)
             self.step_model(step_dt, t)
             t += step_dt
+
+    def step_partial(self, time: float, dt: float) -> None:
+        """Shorter final micro-step (event-driven macro steps): ``step_model(dt, time)``."""
+        self.step_model(dt, time)
+
+    # ------------------------------------------------------------------
+    # Event hints
+    # ------------------------------------------------------------------
+    def time_to_event(self) -> float:
+        """Seconds until the next predictable internal event, from the current state and inputs.
+
+        Override in models with timers or limits (start-up sequence finished,
+        storage full/empty at the current power, ramp completed, ...).  The
+        world uses it (via :meth:`next_event_time`) to end a macro step exactly
+        at the event when ``t_macro_min < t_macro``.  Default: ``inf``.
+        """
+        return float("inf")
+
+    def next_event_time(self, time: float) -> float:
+        """``time + time_to_event()`` (``inf`` when no event is ahead)."""
+        try:
+            dt = float(self.time_to_event())
+        except Exception:
+            return float("inf")
+        if not (dt > 0.0) or dt == float("inf") or dt != dt:
+            return float("inf")
+        return time + dt
 
     def step_model(self, dt: float, time: float) -> None:
         """

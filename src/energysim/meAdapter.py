@@ -336,6 +336,12 @@ class FmuMeAdapter(_FmuAdapterBase):
         if self.fmu is not None:
             self.fmu.terminate()
 
+    def next_event_time(self, time: float) -> float:
+        """The FMU's announced next time event (``nextEventTime``), else ``inf``."""
+        if self._next_event_defined and self._next_event_time > time + 1e-12:
+            return float(self._next_event_time)
+        return float('inf')
+
     # ------------------------------------------------------------------
     # advance() — hand whole intervals to the ODE solver
     # ------------------------------------------------------------------

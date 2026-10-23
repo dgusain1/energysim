@@ -707,6 +707,17 @@ class H2StorageTank(ModelComponent):
         self.soc = self._soc(self.pressure_bar)
         self._publish()
 
+    def time_to_event(self) -> float:
+        """Event hint: time (s) until the tank is full / empty at the current net flow."""
+        m_in = max(0.0, float(self._inputs_val.get("m_dot_in_kg_hr", 0.0)))
+        m_out = max(0.0, float(self._inputs_val.get("m_dot_out_kg_hr", 0.0)))
+        net = m_in - m_out                                   # kg/h
+        if net > 0 and self.mass_stored_kg < self.mass_capacity_kg:
+            return (self.mass_capacity_kg - self.mass_stored_kg) / net * 3600.0
+        if net < 0 and self.mass_stored_kg > 0.0:
+            return self.mass_stored_kg / (-net) * 3600.0
+        return math.inf
+
 
 class FuelCell_PEM(ModelComponent):
     """
@@ -783,6 +794,15 @@ class FuelCell_PEM(ModelComponent):
         self._outputs_val["P_actual"] = self.p_actual
         self._outputs_val["m_dot_H2_kg_hr"] = self.m_dot_h2_kg_hr
         self._outputs_val["Q_waste_MW"] = self.q_waste_mw
+
+    def time_to_event(self) -> float:
+        """Event hint: time (s) until the power ramp toward the current command is finished."""
+        p_cmd = float(self._inputs_val.get("P_cmd", 0.0))
+        target = min(self.p_nom, max(0.0, p_cmd))
+        gap = abs(target - self.p_actual)
+        if gap <= 1e-12 or self.ramp_rate <= 0:
+            return math.inf
+        return gap / (self.ramp_rate / 60.0)
 
 
 class FuelCell_SOFC(ModelComponent):

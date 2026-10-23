@@ -380,3 +380,14 @@ class ThermalStorageTank(ModelComponent):
         self._outputs_val["Q_actual_MW"] = self.q_actual_mw
         self._outputs_val["SoC"] = self.soc
         self._outputs_val["Q_loss_MW"] = self.q_loss_mw
+
+    def time_to_event(self) -> float:
+        """Event hint: time (s) until the tank is full / empty at the current command."""
+        q_cmd = float(self._inputs_val.get("Q_cmd_MW", 0.0))
+        q_flow = max(-self.max_flow, min(self.max_flow, q_cmd))
+        rate = q_flow / (self.capacity_mwh * 3600.0) - self.loss_rate_s * self.soc   # SoC per second
+        if rate > 0 and self.soc < 1.0:
+            return (1.0 - self.soc) / rate
+        if rate < 0 and self.soc > 0.0 and q_flow < 0:
+            return self.soc / (-rate)
+        return math.inf

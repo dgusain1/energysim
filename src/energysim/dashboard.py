@@ -109,6 +109,11 @@ def _iter_tables(results):
         yield sim_name, t, data
 
 
+def variable_label(sim_name, var, unit=None):
+    """Display label ``'sim.var [unit]'`` (``'sim.var'`` when the unit is unknown)."""
+    return f"{sim_name}.{var} [{unit}]" if unit else f"{sim_name}.{var}"
+
+
 def _build_traces_json(results, max_points=None, divisor=1.0):
     """Convert results ({sim: DataFrame} or Results) -> JSON-ready list of sim descriptors.
 
@@ -117,6 +122,11 @@ def _build_traces_json(results, max_points=None, divisor=1.0):
     ``xs[var]``.  The inputs are never modified.
     """
     sims = []
+    units = {}
+    try:
+        units = dict(getattr(results, 'units', None) or {})
+    except Exception:
+        units = {}
     for sim_name, t, df in _iter_tables(results):
         cols = [c for c in df.columns if str(c).lower() != "time"]
         if not cols:
@@ -136,6 +146,7 @@ def _build_traces_json(results, max_points=None, divisor=1.0):
             "variables": [str(c) for c in cols],
             "time": tt.tolist() if len(xs) < len(cols) else [],
             "data": data,
+            "labels": {str(c): variable_label(sim_name, c, units.get(f"{sim_name}.{c}")) for c in cols},
         }
         if xs:
             entry["xs"] = xs
@@ -481,7 +492,7 @@ function buildVarTree() {
             row.addEventListener('dragstart', onDragStart);
             row.addEventListener('dragend', onDragEnd);
             var vn = el('span', 'vname', v);
-            vn.title = sim.name + '.' + v;
+            vn.title = (sim.labels && sim.labels[v]) || (sim.name + '.' + v);
             row.appendChild(vn);
             var add = el('span', 'add-btn', '+');
             add.addEventListener('click', function(){ clickAdd(sim.name, v); });
@@ -709,7 +720,7 @@ function updatePlot() {
                 y: simData.data[v.varName],
                 type: 'scatter',
                 mode: 'lines',
-                name: escapeHtml(v.sim + '.' + v.varName),
+                name: escapeHtml((simData.labels && simData.labels[v.varName]) || (v.sim + '.' + v.varName)),
                 legendgroup: 'sp' + sp.id,
                 xaxis: xRef,
                 yaxis: yRef,

@@ -6,12 +6,17 @@ Usage
 -----
 energysim run scenario.yaml [--out DIR] [--to-csv] [--dashboard] [--dashboard-path P]
               [--offline] [--no-pbar] [--safe] [--validate-only]
-energysim validate scenario.yaml [--safe]
+energysim validate scenario.yaml [--safe] [-v]
+energysim units [--system default|si] [--set quantity=unit ...] [--json]
 
 ``--out DIR`` writes the run to ``DIR/<YYYYmmdd-HHMMSS>_<hash8>/`` (Parquet or
 CSV per simulator, ``meta.json``, ``scenario.yaml``).  ``--to-csv`` also
 exports CSV files (into ``<run dir>/csv``; implies ``--out runs`` when no
 ``--out`` is given).  ``--dashboard`` writes the HTML dashboard and opens it.
+
+``-v`` / ``--verbose`` (``run`` and ``validate``) also prints the unit system
+(name and hash) and every connection's unit conversion.  ``energysim units``
+prints the default unit per quantity of a unit system.
 
 ``--safe`` refuses simulator types that execute arbitrary code (external,
 script, matlab, powerfactory), dotted-import model references and pickle
@@ -108,7 +113,68 @@ def create_parser() -> argparse.ArgumentParser:
         help="Safe mode: refuse code-executing simulator types, dotted imports and pickle models.",
     )
 
+    for p in (run_parser, val_parser):
+        p.add_argument(
+            "-v", "--verbose",
+            action="store_true",
+            help="Print the unit system (name + hash) and every connection's unit conversion.",
+        )
+
+    # units command
+    units_parser = subparsers.add_parser(
+        "units",
+        help="Print the default unit per quantity of a unit system.",
+    )
+    units_parser.add_argument(
+        "--system",
+        default="default",
+        choices=["default", "si"],
+        help="Unit system preset (default: the energysim default system).",
+    )
+    units_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="QUANTITY=UNIT",
+        help="Override the default unit of a quantity (repeatable), e.g. --set active_power=MW.",
+    )
+    units_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the unit system as JSON (name, hash, defaults, table).",
+    )
+
     return parser
+
+
+def _units_command(args) -> int:
+    import json
+    from .units import UnitSystem
+    try:
+        system = UnitSystem.coerce(args.system)
+        overrides = {}
+        for item in args.set:
+            if "=" not in item:
+                raise ValueError(f"--set expects QUANTITY=UNIT, got {item!r}")
+            q, u = item.split("=", 1)
+            overrides[q.strip()] = u.strip()
+        if overrides:
+            system = system.with_overrides(overrides)
+    except (ValueError, TypeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        data = system.to_dict()
+        data["table"] = system.table()
+        print(json.dumps(data, indent=2))
+    else:
+        print(system.format_table())
+    return 0
+
+
+def _print_units(w) -> None:
+    report = w.validate(raise_on_error=False)
+    print(report.format_units())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -119,6 +185,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
 
+    if args.command == "units":
+        return _units_command(args)
+
     if args.command == "validate":
         scenario_path = os.path.abspath(args.scenario)
         if not os.path.exists(scenario_path):
@@ -128,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
             w = world.from_yaml(scenario_path, safe=args.safe)
             report = w.validate(raise_on_error=False)
             print(report)
+            if args.verbose:
+                print(report.format_units())
             return 0 if report.is_valid else 1
         except Exception as e:
             print(f"Validation failed with error: {e}", file=sys.stderr)
@@ -144,6 +215,8 @@ def main(argv: list[str] | None = None) -> int:
 
             # Pre-flight validate
             report = w.validate(raise_on_error=False)
+            if args.verbose:
+                print(report.format_units())
             if report.warnings:
                 print("Validation Warnings:")
                 for warn in report.warnings:

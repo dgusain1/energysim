@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 
 _UNSAFE_NAME_CHARS = re.compile(r'[^A-Za-z0-9_.\-]')
@@ -30,138 +30,38 @@ def safe_filename_component(name: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Unit Conversion Utilities
+# Unit Conversion Utilities (thin wrappers around energysim.units)
 # ---------------------------------------------------------------------------
 #
-# Each unit maps to (dimension, factor, offset) such that
-#     value_in_base = value * factor + offset
-# Conversion is only allowed within one dimension.  Unknown units raise
-# ``ValueError`` (never a silent factor of 1.0).
+# ``energysim.units`` is the single source of truth for units.  The names
+# below are kept for backwards compatibility and delegate to it:
 #
-# Lookup is case-sensitive first (so 'MV' megavolt != 'mV' millivolt); a
-# case-insensitive fallback is used only when it is unambiguous
-# (e.g. 'mw' -> MW, 'kvar' -> kvar; 'mv' is rejected as ambiguous).
+# * lookup is case-sensitive first (so 'MV' megavolt != 'mV' millivolt); a
+#   spelling-insensitive fallback is used only when it is unambiguous;
+# * unknown units raise ``ValueError`` (never a silent factor of 1.0);
+# * conversion is only allowed within one dimension.
 
-class UnitDef(NamedTuple):
-    dimension: str
-    factor: float
-    offset: float = 0.0
-
-
-_UNITS: Dict[str, UnitDef] = {}
+from .units import (  # noqa: E402  (re-exported)
+    UnitDef, KNOWN_UNITS, parse_unit, is_known_unit, infer_unit_from_name,
+    get_unit_conversion as _units_get_unit_conversion,
+)
 
 
-def _reg(dimension: str, factor: float, *names: str, offset: float = 0.0) -> None:
-    for n in names:
-        _UNITS[n] = UnitDef(dimension, factor, offset)
-
-
-# active power (base W)
-_reg('power', 1.0, 'W', 'watt', 'watts')
-_reg('power', 1e3, 'kW', 'kilowatt', 'kilowatts')
-_reg('power', 1e6, 'MW', 'megawatt', 'megawatts')
-_reg('power', 1e9, 'GW', 'gigawatt', 'gigawatts')
-# reactive power (base var)
-_reg('reactive_power', 1.0, 'var', 'vars')
-_reg('reactive_power', 1e3, 'kvar', 'kvars')
-_reg('reactive_power', 1e6, 'Mvar', 'mvars')
-# voltage (base V)
-_reg('voltage', 1e-3, 'mV', 'millivolt', 'millivolts')
-_reg('voltage', 1.0, 'V', 'volt', 'volts')
-_reg('voltage', 1e3, 'kV', 'kilovolt', 'kilovolts')
-_reg('voltage', 1e6, 'MV', 'megavolt', 'megavolts')
-# per-unit: its own dimension, never converted to/from volts
-_reg('per_unit', 1.0, 'pu', 'p.u.')
-# energy (base J)
-_reg('energy', 1.0, 'J', 'joule', 'joules')
-_reg('energy', 1e3, 'kJ')
-_reg('energy', 1e6, 'MJ')
-_reg('energy', 1e9, 'GJ')
-_reg('energy', 3.6e3, 'Wh')
-_reg('energy', 3.6e6, 'kWh')
-_reg('energy', 3.6e9, 'MWh')
-_reg('energy', 3.6e12, 'GWh')
-# mass flow (base kg/s)
-_reg('mass_flow', 1.0, 'kg/s')
-_reg('mass_flow', 1.0 / 3600.0, 'kg/h')
-_reg('mass_flow', 1000.0 / 3600.0, 't/h')
-# volume flows: actual and normal volume are separate dimensions
-_reg('volume_flow', 1.0, 'm3/s', 'm³/s')
-_reg('volume_flow', 1.0 / 3600.0, 'm3/h', 'm³/h')
-_reg('normal_volume_flow', 1.0, 'Nm3/h', 'Nm³/h')
-# pressure (base Pa)
-_reg('pressure', 1.0, 'Pa')
-_reg('pressure', 1e3, 'kPa')
-_reg('pressure', 1e5, 'bar')
-_reg('pressure', 1e6, 'MPa')
-# temperature (base K; degC is affine)
-_reg('temperature', 1.0, 'K', 'kelvin')
-_reg('temperature', 1.0, 'degC', '°C', 'celsius', offset=273.15)
-# time (base s)
-_reg('time', 1.0, 's', 'sec')
-_reg('time', 60.0, 'min')
-_reg('time', 3600.0, 'h', 'hr')
-# dimensionless
-_reg('dimensionless', 1.0, '-', '1')
-_reg('dimensionless', 0.01, '%')
-
-_UNITS_LOWER: Dict[str, List[str]] = {}
-for _name in _UNITS:
-    _UNITS_LOWER.setdefault(_name.lower(), []).append(_name)
-
-KNOWN_UNITS = tuple(_UNITS)
-
-
-def parse_unit(unit: str) -> UnitDef:
-    """Return the :class:`UnitDef` for *unit*; raise ``ValueError`` if unknown or ambiguous."""
-    if not isinstance(unit, str) or not unit.strip():
-        raise ValueError(f"Invalid unit {unit!r}.")
-    u = unit.strip()
-    if u in _UNITS:
-        return _UNITS[u]
-    candidates = _UNITS_LOWER.get(u.lower(), [])
-    defs = {_UNITS[c] for c in candidates}
-    if len(defs) == 1:
-        return _UNITS[candidates[0]]
-    if len(defs) > 1:
-        raise ValueError(
-            f"Ambiguous unit '{unit}': could be any of {sorted(candidates)}. Use the exact spelling."
-        )
-    raise ValueError(f"Unknown unit '{unit}'. Known units: {', '.join(KNOWN_UNITS)}")
-
-
-def is_known_unit(unit: str) -> bool:
-    """True if *unit* is a recognised (unambiguous) unit string."""
-    try:
-        parse_unit(unit)
-        return True
-    except ValueError:
-        return False
-
-
-def get_unit_conversion(from_unit: Optional[str], to_unit: Optional[str]) -> Tuple[float, float]:
+def get_unit_conversion(from_unit: Optional[str], to_unit: Optional[str],
+                        quantity: Optional[str] = None) -> Tuple[float, float]:
     """Return ``(scale, offset)`` with ``value_to = value_from * scale + offset``.
 
     If either unit is ``None`` / empty, no conversion is applied (``(1.0, 0.0)``).
     Unknown units raise ``ValueError``; units of different dimensions raise
     ``ValueError`` ("Incompatible unit conversion").  Affine units
-    (degC <-> K) are supported through the offset.
+    (degC <-> K) are supported through the offset.  Delegates to
+    :func:`energysim.units.get_unit_conversion`.
     """
-    if not from_unit or not to_unit:
-        return 1.0, 0.0
-    a = parse_unit(from_unit)
-    b = parse_unit(to_unit)
-    if a.dimension != b.dimension:
-        raise ValueError(
-            f"Incompatible unit conversion: cannot convert '{from_unit}' ({a.dimension}) "
-            f"to '{to_unit}' ({b.dimension})."
-        )
-    scale = a.factor / b.factor
-    offset = (a.offset - b.offset) / b.factor
-    return scale, offset
+    return _units_get_unit_conversion(from_unit, to_unit, quantity)
 
 
-def get_unit_scale(from_unit: Optional[str], to_unit: Optional[str]) -> float:
+def get_unit_scale(from_unit: Optional[str], to_unit: Optional[str],
+                   quantity: Optional[str] = None) -> float:
     """
     Linear multiplication factor converting a value from `from_unit` to `to_unit`.
 
@@ -169,31 +69,13 @@ def get_unit_scale(from_unit: Optional[str], to_unit: Optional[str]) -> float:
     unknown units, incompatible dimensions, or affine conversions (degC <-> K;
     use :func:`get_unit_conversion` for those).
     """
-    scale, offset = get_unit_conversion(from_unit, to_unit)
+    scale, offset = get_unit_conversion(from_unit, to_unit, quantity)
     if offset != 0.0:
         raise ValueError(
             f"Conversion '{from_unit}' -> '{to_unit}' needs an offset; use get_unit_conversion()."
         )
     return scale
 
-
-# Explicit unit suffixes recognised in (the last segment of) variable names.
-# Order matters: longer suffixes first.
-_SUFFIX_UNITS = (
-    ('_nm3_h', 'Nm3/h'), ('_m3_h', 'm3/h'),
-    ('_kg_s', 'kg/s'), ('_kg_h', 'kg/h'), ('_t_h', 't/h'),
-    ('_mwh', 'MWh'), ('_kwh', 'kWh'), ('_gwh', 'GWh'), ('_wh', 'Wh'),
-    ('_mvar', 'Mvar'), ('_kvar', 'kvar'),
-    ('_gw', 'GW'), ('_mw', 'MW'), ('_kw', 'kW'),
-    ('_kv', 'kV'), ('_pu', 'pu'),
-    ('_degc', 'degC'), ('_kpa', 'kPa'), ('_mpa', 'MPa'), ('_bar', 'bar'),
-)
-
-# Dotted tool-specific attribute names (OpenDSS / PowerFactory)
-_DOTTED_UNITS = (
-    ('.pgini', 'MW'), ('.plini', 'MW'), ('.qgini', 'Mvar'), ('.qlini', 'Mvar'),
-    ('.m:u', 'pu'), ('.kw', 'kW'), ('.kvar', 'kvar'), ('.kv', 'kV'),
-)
 
 # Names that conventionally denote active power: p, p_cmd, P_set, p_load, pgen, power, ...
 _POWER_NAME = re.compile(
@@ -219,24 +101,23 @@ def infer_variable_unit(var_name: str, sim_type: str = '', default_unit: Optiona
     determined explicitly.
 
     1. Conventional suffixes (``_mw``, ``_kw``, ``_kv``, ``_pu``, ``_kwh``,
-       ``_degc``, ...) and tool attribute names (``.kW``, ``.pgini``, ...).
+       ``_degc``, ...) and tool attribute names (``.kW``, ``.pgini``, ...),
+       see :func:`energysim.units.infer_unit_from_name`.
     2. Only for variables whose *name* looks like active power (``p``,
        ``p_cmd``, ``P_set``, ``power`` ...): the simulator's native power unit
        (pandapower/PyPSA/PowerFactory: MW, OpenDSS: kW, FMU: W), else
        ``default_unit``.
-    3. Otherwise ``None`` -- the world will not auto-scale such a variable.
-    """
-    v_lower = var_name.strip().lower()
-    if 'vm_pu' in v_lower:
-        return 'pu'
-    for suf, unit in _DOTTED_UNITS:
-        if v_lower.endswith(suf):
-            return unit
-    last = v_lower.split('.')[-1]
-    for suf, unit in _SUFFIX_UNITS:
-        if last.endswith(suf):
-            return unit
+    3. Otherwise ``None``.
 
+    The world itself uses the full resolution order (declared -> component ->
+    connection -> suffix -> default unit by quantity), see
+    :meth:`energysim.world.resolve_variable_unit`.
+    """
+    if 'vm_pu' in var_name.strip().lower():
+        return 'pu'
+    unit = infer_unit_from_name(var_name)
+    if unit is not None:
+        return unit
     if looks_like_power(var_name):
         st = (sim_type or '').strip().lower()
         if st in _NATIVE_POWER_UNIT:

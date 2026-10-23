@@ -386,6 +386,10 @@ class FmuCsAdapter(_FmuAdapterBase):
         self.input.apply(time)
         return self.fmu.doStep(currentCommunicationPoint=time, communicationStepSize=stepsize)
 
+    def step_partial(self, time, dt):
+        """Shorter final communication step (event-driven macro steps)."""
+        return self.step_v2(time, dt)
+
     def step(self, time):
         # step ahead in time
         self.input.apply(time)
