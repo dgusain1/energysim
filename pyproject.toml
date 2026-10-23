@@ -60,4 +60,13 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_pypsa: needs the optional 'pypsa' package",
+    "requires_pandapower: needs the optional 'pandapower' package",
+    "requires_opendss: needs the optional 'opendssdirect.py' package",
+    "requires_fmu: needs 'fmpy' and the downloadable Reference-FMUs (skipped when offline)",
+    "requires_octave: needs 'oct2py' and a GNU Octave installation",
+    "requires_matlab: needs the MATLAB Engine for Python and a MATLAB licence",
+    "requires_powerfactory: needs DIgSILENT PowerFactory and a licence (manual only)",
+]
 
