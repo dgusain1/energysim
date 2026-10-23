@@ -64,9 +64,10 @@ def test_clean_venv_install_import_and_cli(wheel, tmp_path):
                         "simulators:\n  - {name: a, type: signal, step_size: 10, signal: '2*t'}\n")
     r = _run([str(py), "-m", "energysim.cli", "validate", str(scenario)], cwd=str(work))
     assert r.returncode == 0 and "PASSED" in r.stdout
-    r = _run([str(py), "-m", "energysim.cli", "run", str(scenario), "--no-pbar"], cwd=str(work))
+    out_dir = work / "runs"
+    r = _run([str(py), "-m", "energysim.cli", "run", str(scenario), "--no-pbar", "--out", str(out_dir)], cwd=str(work))
     assert r.returncode == 0, r.stderr
-    assert (work / "r.h5").exists()
+    assert any((d / "meta.json").exists() for d in out_dir.iterdir())
     scripts = venv / ("Scripts" if os.name == "nt" else "bin")
     exe = scripts / ("energysim.exe" if os.name == "nt" else "energysim")
     assert exe.exists()
