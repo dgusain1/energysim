@@ -28,7 +28,7 @@ thermal inertia or workload dynamics). Validity: T_amb -10..40 C,
 | Variable | Unit | Description |
 |---|---|---|
 | `P_it_cmd_MW` | MW | - |
-| `T_amb` | degC | - |
+| `T_amb` | degC | Ambient wet/dry-bulb temperature |
 
 ## Outputs
 
@@ -36,8 +36,8 @@ thermal inertia or workload dynamics). Validity: T_amb -10..40 C,
 |---|---|---|
 | `P_total_grid_MW` | MW | - |
 | `P_it_MW` | MW | - |
-| `P_cooling_MW` | MW | - |
-| `PUE` | 1 | - |
+| `P_cooling_MW` | MW | Active power consumed solely by chillers and HVAC |
+| `PUE` | 1 | Operating Power Usage Effectiveness |
 | `Q_waste_heat_MW` | MW | - |
 
 ## Validity and notes

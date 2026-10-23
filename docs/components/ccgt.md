@@ -38,19 +38,19 @@ Validity: T_amb -20..45 C, loads between MSG and rated.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
-| `T_amb` | degC | - |
+| `P_cmd` | MW | Active power generation dispatch order |
+| `T_amb` | degC | Ambient compressor inlet air temperature |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `P_gt` | MW | - |
-| `P_st` | MW | - |
-| `fuel_consumption_MMBtu_hr` | MMBtu/h | - |
-| `CO2_emissions_t_hr` | t/h | - |
-| `Q_condenser_MW` | MW | - |
+| `P_actual` | MW | Total combined active power delivered to the transmission bus |
+| `P_gt` | MW | Gas turbine electrical power output |
+| `P_st` | MW | Steam turbine electrical power output |
+| `fuel_consumption_MMBtu_hr` | MMBtu/h | Natural gas fuel firing rate |
+| `CO2_emissions_t_hr` | t/h | Instantaneous carbon dioxide emission rate |
+| `Q_condenser_MW` | MW | Cooling tower / condenser heat rejection load |
 | `state` | - | - |
 
 ## Validity and notes

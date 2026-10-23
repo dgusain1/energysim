@@ -45,20 +45,20 @@ branches). Models:
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
-| `T_amb` | degC | - |
+| `P_cmd` | MW | Active power setpoint (positive = charge, negative = discharge) |
+| `T_amb` | degC | Ambient surrounding temperature for convective cooling |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `SoC` | 1 | - |
-| `T_batt` | degC | - |
-| `SOH` | 1 | - |
-| `V_terminal` | V | - |
-| `I_current` | A | - |
-| `Q_heat_kW` | kW | - |
+| `P_actual` | MW | Actual active power delivered to or absorbed from the grid |
+| `SoC` | 1 | Current battery state of charge fraction |
+| `T_batt` | degC | Internal lumped battery pack temperature |
+| `SOH` | 1 | Remaining battery state of health capacity fraction |
+| `V_terminal` | V | DC bus terminal voltage across the cell string |
+| `I_current` | A | DC battery current (positive = charging) |
+| `Q_heat_kW` | kW | Ohmic joule heat dissipation generated inside the pack |
 
 ## Validity and notes
 

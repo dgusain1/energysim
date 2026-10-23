@@ -17,8 +17,8 @@ default curve is illustrative, not fitted to any particular stack.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'PEM_Electrolyzer'` | - | - |
-| `p_nominal_mw` | `float` | `5.0` | MW | - |
+| `name` | `str` | `'PEM_Electrolyzer'` | - | Unique component name identifier |
+| `p_nominal_mw` | `float` | `5.0` | MW | Nominal rated electrical power consumption |
 | `cell_area_cm2` | `float` | `1000.0` | cm2 | - |
 | `n_cells` | `int` | `1500` | - | - |
 | `t_stack_nom_c` | `float` | `70.0` | degC | - |
@@ -31,17 +31,17 @@ default curve is illustrative, not fitted to any particular stack.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Electrical power command allocated to the electrolyzer |
 | `T_cooling_in` | degC | - |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `m_dot_H2_kg_hr` | kg/h | - |
+| `P_actual` | MW | Actual active power absorbed from the power network |
+| `m_dot_H2_kg_hr` | kg/h | Mass flow rate of high-purity hydrogen produced |
 | `m_dot_H2O_kg_hr` | kg/h | - |
-| `Q_waste_MW` | MW | - |
+| `Q_waste_MW` | MW | Thermal power dissipated into cooling water system |
 | `T_stack` | degC | - |
 | `specific_consumption_kWh_kg` | kWh/kg | - |
 | `I_stack_A` | A | - |
@@ -73,7 +73,9 @@ and only refreshes the outputs.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: stack power between min_turndown * p_nominal_mw and p_nominal_mw (the polarization
+curve ends at 2.5 A/cm2); steady-state electrochemistry with no temperature dependence of the cell voltage
+and no degradation; dynamics are limited to the ramp limit and the lumped stack thermal mass.
 
 ## Usage example
 

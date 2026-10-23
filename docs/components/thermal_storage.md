@@ -20,7 +20,7 @@ Validity: capacity-level studies at hours-to-days timescales.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'ThermalTank'` | - | - |
+| `name` | `str` | `'ThermalTank'` | - | Unique component name identifier |
 | `capacity_mwh_th` | `float` | `50.0` | MWh_th | - |
 | `max_flow_rate_mw_th` | `float` | `10.0` | MW_th | - |
 | `loss_pct_per_day` | `float` | `2.0` | %/day | - |
@@ -38,7 +38,7 @@ Validity: capacity-level studies at hours-to-days timescales.
 | Variable | Unit | Description |
 |---|---|---|
 | `Q_actual_MW` | MW | - |
-| `SoC` | 1 | - |
+| `SoC` | 1 | Thermal state of charge |
 | `Q_loss_MW` | MW | - |
 
 ## Validity and notes

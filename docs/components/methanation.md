@@ -21,9 +21,9 @@ Reaction heat is 165 kJ per mol CH4 (exothermic, at 25 degC). Stateless.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'Methanation'` | - | - |
+| `name` | `str` | `'Methanation'` | - | Unique component name identifier |
 | `max_h2_feed_kg_hr` | `float` | `200.0` | kg/h | - |
-| `conversion_efficiency` | `float` | `0.95` | - | - |
+| `conversion_efficiency` | `float` | `0.95` | - | Chemical conversion yield factor |
 | `step_size` | `float` | `1.0` | s | - |
 
 ## Inputs
@@ -36,7 +36,7 @@ Reaction heat is 165 kJ per mol CH4 (exothermic, at 25 degC). Stateless.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `m_dot_CH4_kg_hr` | kg/h | - |
+| `m_dot_CH4_kg_hr` | kg/h | Synthetic natural gas production mass flow rate |
 | `m_dot_CO2_consumed_kg_hr` | kg/h | - |
 | `Q_reaction_MW` | MW | - |
 | `m_dot_H2_unreacted_kg_hr` | kg/h | - |
@@ -45,7 +45,8 @@ Reaction heat is 165 kJ per mol CH4 (exothermic, at 25 degC). Stateless.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: steady state with a constant conversion_efficiency independent of load, temperature and
+pressure; CO2 is assumed available; H2 feed up to max_h2_feed_kg_hr.
 
 ## Usage example
 

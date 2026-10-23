@@ -16,7 +16,7 @@ rotor self-discharges proportionally to its SoC. SoC is limited to
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'Flywheel'` | - | - |
+| `name` | `str` | `'Flywheel'` | - | Unique component name identifier |
 | `power_max_mw` | `float` | `0.5` | MW | - |
 | `energy_capacity_kwh` | `float` | `125.0` | kWh | - |
 | `soc_init` | `float` | `0.5` | 1 | - |
@@ -28,14 +28,14 @@ rotor self-discharges proportionally to its SoC. SoC is limited to
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Active power setpoint (positive = charge, negative = discharge) |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `SoC` | 1 | - |
+| `P_actual` | MW | Net active power exchanged with the grid |
+| `SoC` | 1 | Rotational kinetic energy state of charge, (omega / omega_max)^2 |
 
 ## Validity and notes
 

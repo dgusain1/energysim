@@ -18,9 +18,9 @@ Validity: T_amb 5..45 C, constant-COP part-load behaviour.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'ElectricChiller'` | - | - |
+| `name` | `str` | `'ElectricChiller'` | - | Unique component name identifier |
 | `q_cooling_max_mw` | `float` | `5.0` | MW | - |
-| `cop_nominal` | `float` | `5.5` | - | - |
+| `cop_nominal` | `float` | `5.5` | - | Design Coefficient of Performance |
 | `step_size` | `float` | `1.0` | s | - |
 
 ### Inputs
@@ -70,7 +70,7 @@ waste heat (heat consumed = cooling / COP). No electrical parasitics.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'AbsorptionChiller'` | - | - |
+| `name` | `str` | `'AbsorptionChiller'` | - | Unique component name identifier |
 | `q_cooling_max_mw` | `float` | `5.0` | MW | - |
 | `cop_thermal` | `float` | `0.85` | - | - |
 | `step_size` | `float` | `1.0` | s | - |
@@ -87,11 +87,12 @@ waste heat (heat consumed = cooling / COP). No electrical parasitics.
 | Variable | Unit | Description |
 |---|---|---|
 | `Q_cool_actual_MW` | MW | - |
-| `Q_heat_consumed_MW` | MW | - |
+| `Q_heat_consumed_MW` | MW | Waste heat consumed (Absorption Chiller) |
 
 ### Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: constant thermal COP independent of source and sink temperatures; cooling between 0 and
+q_cooling_max_mw, limited by the available waste heat; steady state.
 
 ### Usage example
 

@@ -80,6 +80,33 @@ class PEMElectrolyzer(ModelComponent):
 
     A step with ``dt == 0`` leaves the dynamic state (power, stack temperature) unchanged
     and only refreshes the outputs.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    p_nominal_mw : float
+        Nominal rated electrical power consumption
+
+    Inputs
+    ------
+    P_cmd : MW
+        Electrical power command allocated to the electrolyzer
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual active power absorbed from the power network
+    m_dot_H2_kg_hr : kg/h
+        Mass flow rate of high-purity hydrogen produced
+    Q_waste_MW : MW
+        Thermal power dissipated into cooling water system
+
+    Notes
+    -----
+    Validity: stack power between min_turndown * p_nominal_mw and p_nominal_mw (the polarization
+    curve ends at 2.5 A/cm2); steady-state electrochemistry with no temperature dependence of the cell voltage
+    and no degradation; dynamics are limited to the ramp limit and the lumped stack thermal mass.
     """
 
     units = {
@@ -232,6 +259,34 @@ class AlkalineElectrolyzer(ModelComponent):
     safety). ``ramp_rate_pct_per_s`` (percent of nominal per second, ``None`` = unlimited)
     limits power changes. ``state`` is a string output: OFF (never stepped with dt>0),
     STANDBY or RUNNING. A step with ``dt == 0`` leaves the dynamic state unchanged.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    p_nominal_mw : float
+        Nominal rated plant power
+    min_turndown_pct : float
+        Strict safety turndown limit (typically 20-25%)
+
+    Inputs
+    ------
+    P_cmd : MW
+        Power dispatch command
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual active power absorbed
+    m_dot_H2_kg_hr : kg/h
+        Hydrogen mass production rate
+    state : 1
+        Operating status ('RUNNING', 'CUTOFF_TRIP', 'OFF')
+
+    Notes
+    -----
+    Validity: between min_turndown_pct and 100 % of p_nominal_mw (below that the plant is in STANDBY);
+    system-level steady-state specific consumption with no stack temperature, pressure or degradation model.
     """
 
     units = {
@@ -306,6 +361,31 @@ class SOECElectrolyzer(ModelComponent):
 
     ``operating_temp_c`` is only a validity guard (600-900 degC, ``ValueError`` otherwise);
     it does not enter the calculation. Stateless: ``dt`` has no effect.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    p_nominal_mw : float
+        Nominal electrical stack power rating
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power setpoint
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual electrical power consumed
+    m_dot_H2_kg_hr : kg/h
+        Hydrogen production rate
+
+    Notes
+    -----
+    Validity: operating_temp_c between 600 and 900 degC (enforced at construction); steady state,
+    constant specific electricity consumption independent of load and temperature; the heat for steam
+    generation is supplied externally.
     """
 
     units = {
@@ -386,6 +466,26 @@ class H2Compressor(ModelComponent):
     ``isentropic_efficiency``). ``Q_intercool_kW`` is the heat removed in the
     ``n_stages - 1`` intercoolers (cooling gas from the stage outlet temperature to
     ``t_intercool_c``); the after-cooler is not counted. Stateless: ``dt`` has no effect.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Inputs
+    ------
+    m_dot_in_kg_hr : kg/h
+        Inlet mass flow rate of hydrogen to compress
+
+    Outputs
+    -------
+    m_dot_out_kg_hr : kg/h
+        High-pressure delivery flow rate
+
+    Notes
+    -----
+    Validity: ideal-gas hydrogen (gamma = 1.41, no compressibility correction), equal stage pressure
+    ratios, steady-state flow up to max_flow_kg_hr; no start-up or surge behaviour.
     """
 
     units = {
@@ -482,6 +582,41 @@ class H2StorageTank(ModelComponent):
     ``p_min_bar`` is only used to define SoC (it is not a withdrawal limit). A step with
     ``dt == 0`` leaves the mass unchanged; rejected / unserved then report the flow that
     could not be handled given the current fill level.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    volume_m3 : float
+        Internal geometrical tank volume
+    p_max_bar : float
+        Maximum allowable working pressure (MAWP)
+    p_min_bar : float
+        Minimum residual suction pressure
+    p_init_bar : float
+        Initial storage tank pressure
+
+    Inputs
+    ------
+    m_dot_in_kg_hr : kg/h
+        Inflow mass flow rate entering the tank (from electrolyzer/compressor)
+    m_dot_out_kg_hr : kg/h
+        Outflow mass flow rate dispatched to industrial loads or fuel cells
+
+    Outputs
+    -------
+    pressure_bar : bar
+        Current internal tank pressure
+    mass_stored_kg : kg
+        Total mass of hydrogen currently stored in the vessel
+    SoC : 1
+        Fill level between p_min_bar (0) and p_max_bar (1)
+
+    Notes
+    -----
+    Validity: single-node, isothermal tank (gas temperature fixed at t_gas_c) with the linear
+    compressibility Z = 1 + 0.0006 p[bar]; intended for pressures up to about 350 bar at roughly ambient
+    temperature; no thermal effects of filling or discharging.
     """
 
     units = {
@@ -581,6 +716,26 @@ class FuelCell_PEM(ModelComponent):
     Output power ramps toward the command at ``ramp_rate_mw_min``. When idle (zero power)
     no fuel is consumed and no heat is produced. A step with ``dt == 0`` leaves the power
     state unchanged.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power dispatch setpoint
+
+    Outputs
+    -------
+    P_actual : MW
+        Net active power delivered to the electrical bus
+
+    Notes
+    -----
+    Validity: constant electrical efficiency independent of load, power between 0 and p_nominal_mw,
+    ramp limited to ramp_rate_mw_min; no degradation or stack-temperature model.
     """
 
     units = {
@@ -638,6 +793,26 @@ class FuelCell_SOFC(ModelComponent):
     electricity (``electrical_efficiency``), recovered CHP heat (``thermal_efficiency``)
     and unrecovered losses ``Q_loss_MW``; the sum of the two efficiencies must not
     exceed 1. Idle: no fuel, no heat. Stateless: ``dt`` has no effect.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power dispatch setpoint
+
+    Outputs
+    -------
+    P_actual : MW
+        Net active power delivered to the electrical bus
+
+    Notes
+    -----
+    Validity: constant efficiencies independent of load, power between 0 and p_nominal_mw; no ramp
+    limit and no thermal-cycling or start-up model.
     """
 
     units = {
@@ -705,6 +880,23 @@ class MethanationReactor(ModelComponent):
         H2_fed + CO2_consumed == CH4 + H2O + H2_unreacted
 
     Reaction heat is 165 kJ per mol CH4 (exothermic, at 25 degC). Stateless.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    conversion_efficiency : float
+        Chemical conversion yield factor
+
+    Outputs
+    -------
+    m_dot_CH4_kg_hr : kg/h
+        Synthetic natural gas production mass flow rate
+
+    Notes
+    -----
+    Validity: steady state with a constant conversion_efficiency independent of load, temperature and
+    pressure; CO2 is assumed available; H2 feed up to max_h2_feed_kg_hr.
     """
 
     units = {

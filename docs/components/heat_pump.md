@@ -31,16 +31,16 @@ Validity: source -10..60 C, sink 30..120 C, lift 10..90 K.
 | Variable | Unit | Description |
 |---|---|---|
 | `Q_heat_cmd_MW` | MW | - |
-| `T_source` | degC | - |
-| `T_sink` | degC | - |
+| `T_source` | degC | Dynamic evaporator heat source inlet temperature |
+| `T_sink` | degC | Dynamic condenser delivery temperature |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
 | `P_elec_MW` | MW | - |
-| `Q_heat_MW` | MW | - |
-| `COP` | 1 | - |
+| `Q_heat_MW` | MW | Useful thermal heat injected into heat network |
+| `COP` | 1 | Actual operating Coefficient of Performance |
 | `Q_absorbed_source_MW` | MW | - |
 
 ## Validity and notes

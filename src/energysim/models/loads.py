@@ -33,6 +33,18 @@ class DataCenterLoad(ModelComponent):
         Base Power Usage Effectiveness at mild ambient temperatures (<=15 C).
     pue_curve : Curve1D, optional
         PUE vs ambient dry-bulb temperature.
+
+    Inputs
+    ------
+    T_amb : degC
+        Ambient wet/dry-bulb temperature
+
+    Outputs
+    -------
+    P_cooling_MW : MW
+        Active power consumed solely by chillers and HVAC
+    PUE : 1
+        Operating Power Usage Effectiveness
     """
 
     units = {
@@ -103,6 +115,25 @@ class IndustrialProcessSteam(ModelComponent):
 
     Quasi-static: demand = setpoint (>= 0), deficit = max(0, demand - supply),
     thermal demand = demand x enthalpy. No header pressure dynamics.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    nominal_demand_t_hr : float
+        Nominal process steam demand
+
+    Outputs
+    -------
+    steam_demand_t_hr : t/h
+        Process steam demand
+    steam_deficit_t_hr : t/h
+        Unmet steam demand
+
+    Notes
+    -----
+    Validity: quasi-static demand header; no pressure, temperature or condensate-return dynamics;
+    constant specific enthalpy.
     """
 
     units = {

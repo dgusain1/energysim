@@ -24,7 +24,7 @@ isentropic work (ideal gas, constant gamma = 1.41, no compressibility correction
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'H2Compressor'` | - | - |
+| `name` | `str` | `'H2Compressor'` | - | Unique component name identifier |
 | `max_flow_kg_hr` | `float` | `500.0` | kg/h | - |
 | `p_suction_bar` | `float` | `30.0` | bar | - |
 | `p_discharge_bar` | `float` | `350.0` | bar | - |
@@ -38,19 +38,20 @@ isentropic work (ideal gas, constant gamma = 1.41, no compressibility correction
 
 | Variable | Unit | Description |
 |---|---|---|
-| `m_dot_in_kg_hr` | kg/h | - |
+| `m_dot_in_kg_hr` | kg/h | Inlet mass flow rate of hydrogen to compress |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
 | `P_elec_kW` | kW | - |
-| `m_dot_out_kg_hr` | kg/h | - |
+| `m_dot_out_kg_hr` | kg/h | High-pressure delivery flow rate |
 | `Q_intercool_kW` | kW | - |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: ideal-gas hydrogen (gamma = 1.41, no compressibility correction), equal stage pressure
+ratios, steady-state flow up to max_flow_kg_hr; no start-up or surge behaviour.
 
 ## Usage example
 

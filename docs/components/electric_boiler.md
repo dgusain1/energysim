@@ -14,9 +14,9 @@ Constant efficiency, ramp-limited electric input. Validity: 0 to p_max_mw.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'ElectricBoiler'` | - | - |
+| `name` | `str` | `'ElectricBoiler'` | - | Unique component name identifier |
 | `p_max_mw` | `float` | `20.0` | MW | - |
-| `efficiency` | `float` | `0.99` | 1 | - |
+| `efficiency` | `float` | `0.99` | 1 | Conversion thermal efficiency |
 | `ramp_rate_mw_min` | `float` | `40.0` | MW/min | - |
 | `step_size` | `float` | `1.0` | s | - |
 
@@ -24,14 +24,14 @@ Constant efficiency, ramp-limited electric input. Validity: 0 to p_max_mw.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Electrical consumption power request |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `Q_thermal_MW` | MW | - |
+| `P_actual` | MW | Actual active power absorbed |
+| `Q_thermal_MW` | MW | Useful steam or hot water thermal power delivered |
 
 ## Validity and notes
 

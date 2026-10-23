@@ -17,10 +17,10 @@ scaling the request, so SoC integrates exactly what the stack exchanged.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'VRFB'` | - | - |
+| `name` | `str` | `'VRFB'` | - | Unique component name identifier |
 | `stack_p_max_mw` | `float` | `1.0` | MW | - |
 | `tank_capacity_mwh` | `float` | `6.0` | MWh | - |
-| `soc_init` | `float` | `0.5` | 1 | - |
+| `soc_init` | `float` | `0.5` | 1 | Initial state of charge fraction of the electrolyte |
 | `stack_efficiency` | `float` | `0.85` | - | - |
 | `pump_base_loss_kw` | `float` | `10.0` | kW | - |
 | `pump_var_loss_kw` | `float` | `30.0` | kW | - |
@@ -30,14 +30,14 @@ scaling the request, so SoC integrates exactly what the stack exchanged.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Active power setpoint (positive = charge, negative = discharge) |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `SoC` | 1 | - |
+| `P_actual` | MW | Net active power delivered to or absorbed from the grid |
+| `SoC` | 1 | Current electrolyte state of charge fraction |
 | `P_parasitic_kW` | kW | - |
 
 ## Validity and notes

@@ -42,17 +42,17 @@ transients, no turbine inertia dynamics, no humidity or altitude effects.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
-| `T_amb` | degC | - |
+| `P_cmd` | MW | Dispatch setpoint |
+| `T_amb` | degC | Compressor inlet air temperature |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `fuel_consumption_MMBtu_hr` | MMBtu/h | - |
-| `Q_exhaust_MW` | MW | - |
-| `state` | - | - |
+| `P_actual` | MW | Delivered active power |
+| `fuel_consumption_MMBtu_hr` | MMBtu/h | Fuel gas consumption rate |
+| `Q_exhaust_MW` | MW | Thermal energy in exhaust flue gas |
+| `state` | - | Operating state string |
 
 ## Validity and notes
 

@@ -24,11 +24,11 @@ could not be handled given the current fill level.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'H2Storage'` | - | - |
-| `volume_m3` | `float` | `50.0` | m3 | - |
-| `p_max_bar` | `float` | `350.0` | bar | - |
-| `p_min_bar` | `float` | `20.0` | bar | - |
-| `p_init_bar` | `float` | `150.0` | bar | - |
+| `name` | `str` | `'H2Storage'` | - | Unique component name identifier |
+| `volume_m3` | `float` | `50.0` | m3 | Internal geometrical tank volume |
+| `p_max_bar` | `float` | `350.0` | bar | Maximum allowable working pressure (MAWP) |
+| `p_min_bar` | `float` | `20.0` | bar | Minimum residual suction pressure |
+| `p_init_bar` | `float` | `150.0` | bar | Initial storage tank pressure |
 | `t_gas_c` | `float` | `20.0` | degC | - |
 | `step_size` | `float` | `1.0` | s | - |
 
@@ -36,22 +36,24 @@ could not be handled given the current fill level.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `m_dot_in_kg_hr` | kg/h | - |
-| `m_dot_out_kg_hr` | kg/h | - |
+| `m_dot_in_kg_hr` | kg/h | Inflow mass flow rate entering the tank (from electrolyzer/compressor) |
+| `m_dot_out_kg_hr` | kg/h | Outflow mass flow rate dispatched to industrial loads or fuel cells |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `pressure_bar` | bar | - |
-| `mass_stored_kg` | kg | - |
-| `SoC` | 1 | - |
+| `pressure_bar` | bar | Current internal tank pressure |
+| `mass_stored_kg` | kg | Total mass of hydrogen currently stored in the vessel |
+| `SoC` | 1 | Fill level between p_min_bar (0) and p_max_bar (1) |
 | `m_dot_rejected_kg_hr` | kg/h | - |
 | `m_dot_unserved_kg_hr` | kg/h | - |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: single-node, isothermal tank (gas temperature fixed at t_gas_c) with the linear
+compressibility Z = 1 + 0.0006 p[bar]; intended for pressures up to about 350 bar at roughly ambient
+temperature; no thermal effects of filling or discharging.
 
 ## Usage example
 

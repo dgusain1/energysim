@@ -41,6 +41,20 @@ class IndustrialHeatPump(ModelComponent):
         Nominal source temperature in C (e.g. ambient air, river, waste water).
     t_sink_nom_c : float, default 75.0
         Nominal sink delivery temperature in C (district heat or process water).
+
+    Inputs
+    ------
+    T_source : degC
+        Dynamic evaporator heat source inlet temperature
+    T_sink : degC
+        Dynamic condenser delivery temperature
+
+    Outputs
+    -------
+    Q_heat_MW : MW
+        Useful thermal heat injected into heat network
+    COP : 1
+        Actual operating Coefficient of Performance
     """
 
     units = {
@@ -108,6 +122,25 @@ class ElectricBoiler(ModelComponent):
     Electrode / Electric Resistance Boiler for rapid steam generation.
 
     Constant efficiency, ramp-limited electric input. Validity: 0 to p_max_mw.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    efficiency : float
+        Conversion thermal efficiency
+
+    Inputs
+    ------
+    P_cmd : MW
+        Electrical consumption power request
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual active power absorbed
+    Q_thermal_MW : MW
+        Useful steam or hot water thermal power delivered
     """
 
     units = {"P_cmd": "MW", "P_actual": "MW", "Q_thermal_MW": "MW"}
@@ -158,6 +191,13 @@ class ElectricChiller(ModelComponent):
     COP degrades linearly with ambient temperature (1.5 % per K above 25 C) and
     is clamped to [2, 8]; it is evaluated continuously, also when idle.
     Validity: T_amb 5..45 C, constant-COP part-load behaviour.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    cop_nominal : float
+        Design Coefficient of Performance
     """
 
     units = {
@@ -213,6 +253,21 @@ class AbsorptionChiller(ModelComponent):
 
     Constant thermal COP; cooling is limited by capacity and by the available
     waste heat (heat consumed = cooling / COP). No electrical parasitics.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Outputs
+    -------
+    Q_heat_consumed_MW : MW
+        Waste heat consumed (Absorption Chiller)
+
+    Notes
+    -----
+    Validity: constant thermal COP independent of source and sink temperatures; cooling between 0 and
+    q_cooling_max_mw, limited by the available waste heat; steady state.
     """
 
     units = {
@@ -265,6 +320,16 @@ class ThermalStorageTank(ModelComponent):
     is exactly the integral of ``Q_actual_MW - Q_loss_MW``.
 
     Validity: capacity-level studies at hours-to-days timescales.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Outputs
+    -------
+    SoC : 1
+        Thermal state of charge
     """
 
     units = {"Q_cmd_MW": "MW", "Q_actual_MW": "MW", "SoC": "1", "Q_loss_MW": "MW"}

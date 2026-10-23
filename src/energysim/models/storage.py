@@ -82,6 +82,30 @@ class BatteryBESS(ModelComponent):
     Validity: meaningful for roughly 0-45 C pack temperature, SoC between ~5 and
     95 %, and |P| <= p_max_mw. SOH is floored at 0.5. ``Q_heat_kW`` is DC joule
     heat only (inverter losses are not included).
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power setpoint (positive = charge, negative = discharge)
+    T_amb : degC
+        Ambient surrounding temperature for convective cooling
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual active power delivered to or absorbed from the grid
+    SoC : 1
+        Current battery state of charge fraction
+    T_batt : degC
+        Internal lumped battery pack temperature
+    SOH : 1
+        Remaining battery state of health capacity fraction
+    V_terminal : V
+        DC bus terminal voltage across the cell string
+    I_current : A
+        DC battery current (positive = charging)
+    Q_heat_kW : kW
+        Ohmic joule heat dissipation generated inside the pack
     """
 
     units = {
@@ -284,6 +308,25 @@ class FlowBattery(ModelComponent):
     Validity: an energy-bucket model; no electrolyte imbalance, crossover or
     temperature dependence. ``P_actual`` is the grid-side power including
     pump parasitics (positive = import).
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    soc_init : float
+        Initial state of charge fraction of the electrolyte
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power setpoint (positive = charge, negative = discharge)
+
+    Outputs
+    -------
+    P_actual : MW
+        Net active power delivered to or absorbed from the grid
+    SoC : 1
+        Current electrolyte state of charge fraction
     """
 
     units = {
@@ -369,6 +412,23 @@ class Flywheel(ModelComponent):
     -----
     Validity: seconds-to-minutes duty cycles; no speed-dependent power limit
     or bearing/windage model beyond the lumped self-discharge.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power setpoint (positive = charge, negative = discharge)
+
+    Outputs
+    -------
+    P_actual : MW
+        Net active power exchanged with the grid
+    SoC : 1
+        Rotational kinetic energy state of charge, (omega / omega_max)^2
     """
 
     units = {

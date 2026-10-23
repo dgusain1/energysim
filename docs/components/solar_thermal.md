@@ -16,9 +16,9 @@ incidence-angle modifier. Validity: G > 10 W/m2, dT 0-100 K.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'SolarThermal'` | - | - |
-| `area_m2` | `float` | `1000.0` | m2 | - |
-| `eta0` | `float` | `0.8` | 1 | - |
+| `name` | `str` | `'SolarThermal'` | - | Unique component name identifier |
+| `area_m2` | `float` | `1000.0` | m2 | Total collector aperture area |
+| `eta0` | `float` | `0.8` | 1 | Optical peak efficiency factor |
 | `a1_w_m2_k` | `float` | `3.5` | W/m2/K | - |
 | `a2_w_m2_k2` | `float` | `0.015` | W/m2/K2 | - |
 | `step_size` | `float` | `1.0` | s | - |
@@ -28,8 +28,8 @@ incidence-angle modifier. Validity: G > 10 W/m2, dT 0-100 K.
 | Variable | Unit | Description |
 |---|---|---|
 | `G_solar` | W/m2 | - |
-| `T_in` | degC | - |
-| `T_amb` | degC | - |
+| `T_in` | degC | Inlet heat transfer fluid temperature |
+| `T_amb` | degC | Ambient temperature |
 
 ## Outputs
 

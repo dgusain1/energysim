@@ -19,7 +19,7 @@ state unchanged.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'PEM_FuelCell'` | - | - |
+| `name` | `str` | `'PEM_FuelCell'` | - | Unique component name identifier |
 | `p_nominal_mw` | `float` | `1.0` | MW | - |
 | `electrical_efficiency` | `float` | `0.5` | - | - |
 | `ramp_rate_mw_min` | `float` | `2.0` | MW/min | - |
@@ -29,19 +29,20 @@ state unchanged.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Active power dispatch setpoint |
 
 ### Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
+| `P_actual` | MW | Net active power delivered to the electrical bus |
 | `m_dot_H2_kg_hr` | kg/h | - |
 | `Q_waste_MW` | MW | - |
 
 ### Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: constant electrical efficiency independent of load, power between 0 and p_nominal_mw,
+ramp limited to ramp_rate_mw_min; no degradation or stack-temperature model.
 
 ### Usage example
 
@@ -72,7 +73,7 @@ exceed 1. Idle: no fuel, no heat. Stateless: ``dt`` has no effect.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'SOFC_FuelCell'` | - | - |
+| `name` | `str` | `'SOFC_FuelCell'` | - | Unique component name identifier |
 | `p_nominal_mw` | `float` | `1.0` | MW | - |
 | `electrical_efficiency` | `float` | `0.6` | - | - |
 | `thermal_efficiency` | `float` | `0.25` | - | - |
@@ -82,20 +83,21 @@ exceed 1. Idle: no fuel, no heat. Stateless: ``dt`` has no effect.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Active power dispatch setpoint |
 
 ### Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
+| `P_actual` | MW | Net active power delivered to the electrical bus |
 | `m_dot_H2_kg_hr` | kg/h | - |
 | `Q_chp_MW` | MW | - |
 | `Q_loss_MW` | MW | - |
 
 ### Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: constant efficiencies independent of load, power between 0 and p_nominal_mw; no ramp
+limit and no thermal-cycling or start-up model.
 
 ### Usage example
 

@@ -15,8 +15,8 @@ thermal demand = demand x enthalpy. No header pressure dynamics.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'SteamHeader'` | - | - |
-| `nominal_demand_t_hr` | `float` | `100.0` | t/h | - |
+| `name` | `str` | `'SteamHeader'` | - | Unique component name identifier |
+| `nominal_demand_t_hr` | `float` | `100.0` | t/h | Nominal process steam demand |
 | `enthalpy_kj_kg` | `float` | `2800.0` | kJ/kg | - |
 | `step_size` | `float` | `1.0` | s | - |
 
@@ -31,13 +31,14 @@ thermal demand = demand x enthalpy. No header pressure dynamics.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `steam_demand_t_hr` | t/h | - |
-| `steam_deficit_t_hr` | t/h | - |
+| `steam_demand_t_hr` | t/h | Process steam demand |
+| `steam_deficit_t_hr` | t/h | Unmet steam demand |
 | `Q_demand_MW_th` | MW | - |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: quasi-static demand header; no pressure, temperature or condensate-return dynamics;
+constant specific enthalpy.
 
 ## Usage example
 

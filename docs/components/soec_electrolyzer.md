@@ -23,8 +23,8 @@ it does not enter the calculation. Stateless: ``dt`` has no effect.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'SOEC_Electrolyzer'` | - | - |
-| `p_nominal_mw` | `float` | `2.0` | MW | - |
+| `name` | `str` | `'SOEC_Electrolyzer'` | - | Unique component name identifier |
+| `p_nominal_mw` | `float` | `2.0` | MW | Nominal electrical stack power rating |
 | `operating_temp_c` | `float` | `750.0` | degC | - |
 | `spec_elec_kwh_kg` | `float` | `38.0` | kWh/kg | - |
 | `spec_steam_kg_per_kg_h2` | `float` | `9.0` | kg/kg H2 | - |
@@ -35,21 +35,23 @@ it does not enter the calculation. Stateless: ``dt`` has no effect.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Active power setpoint |
 | `steam_available_kg_hr` | kg/h | - |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `m_dot_H2_kg_hr` | kg/h | - |
+| `P_actual` | MW | Actual electrical power consumed |
+| `m_dot_H2_kg_hr` | kg/h | Hydrogen production rate |
 | `steam_consumed_kg_hr` | kg/h | - |
 | `Q_steam_MW_th` | MW | - |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: operating_temp_c between 600 and 900 degC (enforced at construction); steady state,
+constant specific electricity consumption independent of load and temperature; the heat for steam
+generation is supplied externally.
 
 ## Usage example
 

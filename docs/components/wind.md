@@ -43,7 +43,7 @@ wake, turbulence, icing or yaw-misalignment effects.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
+| `P_actual` | MW | Net active power delivered to the collector substation |
 
 ## Validity and notes
 

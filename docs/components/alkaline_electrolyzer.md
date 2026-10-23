@@ -27,9 +27,9 @@ STANDBY or RUNNING. A step with ``dt == 0`` leaves the dynamic state unchanged.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'AEL_Electrolyzer'` | - | - |
-| `p_nominal_mw` | `float` | `10.0` | MW | - |
-| `min_turndown_pct` | `float` | `25.0` | % | - |
+| `name` | `str` | `'AEL_Electrolyzer'` | - | Unique component name identifier |
+| `p_nominal_mw` | `float` | `10.0` | MW | Nominal rated plant power |
+| `min_turndown_pct` | `float` | `25.0` | % | Strict safety turndown limit (typically 20-25%) |
 | `spec_consumption_kwh_kg` | `float` | `53.0` | kWh/kg | - |
 | `part_load_penalty` | `float` | `0.15` | - | - |
 | `ramp_rate_pct_per_s` | `Optional[float]` | `None` | %/s | - |
@@ -39,19 +39,20 @@ STANDBY or RUNNING. A step with ``dt == 0`` leaves the dynamic state unchanged.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Power dispatch command |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
-| `m_dot_H2_kg_hr` | kg/h | - |
-| `state` | 1 | - |
+| `P_actual` | MW | Actual active power absorbed |
+| `m_dot_H2_kg_hr` | kg/h | Hydrogen mass production rate |
+| `state` | 1 | Operating status ('RUNNING', 'CUTOFF_TRIP', 'OFF') |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: between min_turndown_pct and 100 % of p_nominal_mw (below that the plant is in STANDBY);
+system-level steady-state specific consumption with no stack temperature, pressure or degradation model.
 
 ## Usage example
 

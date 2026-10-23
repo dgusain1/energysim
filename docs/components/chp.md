@@ -21,7 +21,7 @@ Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'CHP_Turbine'` | - | - |
+| `name` | `str` | `'CHP_Turbine'` | - | Unique component name identifier |
 | `p_max_mw` | `float` | `50.0` | MW | - |
 | `power_loss_coefficient_beta` | `float` | `0.18` | - | - |
 | `step_size` | `float` | `1.0` | s | - |
@@ -37,7 +37,7 @@ Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
+| `P_actual` | MW | Actual electricity generated |
 | `Q_heat_delivered_MW` | MW | - |
 
 ## Validity and notes

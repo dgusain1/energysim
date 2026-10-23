@@ -16,8 +16,8 @@ electrical and heat-recovery efficiency must not exceed 1.
 
 | Parameter | Type | Default | Unit | Description |
 |---|---|---|---|---|
-| `name` | `str` | `'Genset'` | - | - |
-| `p_rated_mw` | `float` | `10.0` | MW | - |
+| `name` | `str` | `'Genset'` | - | Unique component name identifier |
+| `p_rated_mw` | `float` | `10.0` | MW | Rated electrical power output |
 | `electrical_efficiency` | `float` | `0.44` | - | - |
 | `heat_recovery_efficiency` | `float` | `0.42` | - | - |
 | `step_size` | `float` | `1.0` | s | - |
@@ -26,13 +26,13 @@ electrical and heat-recovery efficiency must not exceed 1.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_cmd` | MW | - |
+| `P_cmd` | MW | Power dispatch request |
 
 ## Outputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `P_actual` | MW | - |
+| `P_actual` | MW | Delivered electrical power |
 | `fuel_consumption_MMBtu_hr` | MMBtu/h | - |
 | `Q_thermal_MW` | MW | - |
 

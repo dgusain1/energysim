@@ -61,6 +61,24 @@ class GasTurbine_OCGT(ModelComponent):
         Minimum running time (after synchronisation) before a stop is allowed.
     min_downtime_sec : float, default 1800.0
         Minimum offline time before a restart is allowed.
+
+    Inputs
+    ------
+    P_cmd : MW
+        Dispatch setpoint
+    T_amb : degC
+        Compressor inlet air temperature
+
+    Outputs
+    -------
+    P_actual : MW
+        Delivered active power
+    fuel_consumption_MMBtu_hr : MMBtu/h
+        Fuel gas consumption rate
+    Q_exhaust_MW : MW
+        Thermal energy in exhaust flue gas
+    state : -
+        Operating state string
     """
 
     units = {
@@ -221,6 +239,28 @@ class CombinedCycle_CCGT(ModelComponent):
         Minimum running / offline time (0 disables).
     ambient_derate_curve : Curve1D, optional
         Capacity multiplier vs ambient temperature in degC.
+
+    Inputs
+    ------
+    P_cmd : MW
+        Active power generation dispatch order
+    T_amb : degC
+        Ambient compressor inlet air temperature
+
+    Outputs
+    -------
+    P_actual : MW
+        Total combined active power delivered to the transmission bus
+    P_gt : MW
+        Gas turbine electrical power output
+    P_st : MW
+        Steam turbine electrical power output
+    fuel_consumption_MMBtu_hr : MMBtu/h
+        Natural gas fuel firing rate
+    CO2_emissions_t_hr : t/h
+        Instantaneous carbon dioxide emission rate
+    Q_condenser_MW : MW
+        Cooling tower / condenser heat rejection load
     """
 
     units = {
@@ -350,6 +390,23 @@ class ReciprocatingGenset(ModelComponent):
     Fixed electrical and heat-recovery efficiencies (no part-load curve, no
     start-up delay or ramp limit). Validity: 0 to rated power; the sum of
     electrical and heat-recovery efficiency must not exceed 1.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+    p_rated_mw : float
+        Rated electrical power output
+
+    Inputs
+    ------
+    P_cmd : MW
+        Power dispatch request
+
+    Outputs
+    -------
+    P_actual : MW
+        Delivered electrical power
     """
 
     units = {
@@ -409,6 +466,16 @@ class CHP_SteamTurbine(ModelComponent):
     tail or part-load efficiency are modelled.
 
     Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power.
+
+    Parameters
+    ----------
+    name : str
+        Unique component name identifier
+
+    Outputs
+    -------
+    P_actual : MW
+        Actual electricity generated
     """
 
     units = {
