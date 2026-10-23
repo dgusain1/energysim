@@ -40,3 +40,25 @@ carbon_capture,test_carbon_capture_energy_per_tonne,captured_mass_flow_t_h,90,an
 carbon_capture,test_carbon_capture_energy_per_tonne,reboiler_GJ_per_tonne,3,analytic unit conversion MW_th -> GJ/h,rel:1e-12,"typical amine 2.5-4 GJ/t asserted as a sanity band"
 carbon_capture,test_carbon_capture_energy_per_tonne,parasitic_kWh_per_tonne,120,analytic unit conversion MW -> kWh/h,rel:1e-12,
 absorption_chiller,test_absorption_chiller_energy_balance,thermal_cop,0.7,analytic: Q_cool = COP_th * Q_heat,rel:1e-12,
+pv_pvlib,test_pv_vs_pvlib,cell_temperature_vs_noct_sam_K,pvlib.temperature.noct_sam,cross-check: pvlib 0.16.1 (NOCT 45 degC; module efficiency 0.18),abs:0.5,"G 200-1000 W/m2, 20 degC, 1 m/s; models differ in wind and efficiency terms"
+pv_pvlib,test_pv_vs_pvlib,cell_temperature_vs_sapm_K,pvlib.temperature.sapm_cell,cross-check: pvlib SAPM open-rack glass/glass parameters,abs:1.5,"documented tolerance: SAPM is a different empirical model"
+pv_pvlib,test_pv_vs_pvlib,dc_power_vs_pvwatts_dc_MW,pvlib.pvsystem.pvwatts_dc,cross-check: pvlib PVWatts DC model (gamma -0.0038/K),rel:1e-9,"identical equation at identical cell temperature"
+pv_pvlib,test_pv_vs_pvlib,ac_power_vs_pvwatts_inverter_MW,pvlib.inverter.pvwatts,cross-check: pvlib PVWatts inverter (eta_nom 0.96),rel:3e-2,"generic efficiency curve vs PVWatts curve; documented tolerance"
+pandapower,test_pandapower_case9_voltages_vs_textbook,case9_vm_pu_vs_matpower,MATPOWER case9 voltages,MATPOWER manual case9 solved voltage magnitudes (3 decimals),abs:1.0e-3,pandapower.networks.case9 AC power flow
+pandapower,test_pandapower_via_energysim_matches_direct_runpp,energysim_vs_direct_runpp_vm_pu,direct pp.runpp,self-consistency: world-driven run equals direct runpp with the same load,abs:1e-9,includes kW->MW connection unit conversion
+pandapower,test_pandapower_two_bus_vs_independent_solver,two_bus_vm_pu_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-6,
+pandapower,test_pandapower_two_bus_vs_independent_solver,two_bus_angle_deg_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-5,
+pypsa,test_pypsa_direct_two_bus_vs_independent_solver,two_bus_vm_pu_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-6,
+pypsa,test_pypsa_via_energysim_matches_direct_pypsa,energysim_vs_direct_pypsa_vm_pu,direct n.pf(),self-consistency: world-driven run equals direct PyPSA call,abs:1e-9,xfail when the adapter cannot import pypsa.pf (PyPSA >= 1)
+pypsa,test_pypsa_via_energysim_matches_direct_pypsa,energysim_vs_direct_pypsa_slack_P_MW,direct n.pf(),self-consistency: world-driven run equals direct PyPSA call,abs:1e-9,
+orchestrator,test_cascade_converges_first_order,jacobi_cascade_convergence_order,1,"analytic: A x'=ax, B y'=cy+dx with exact subsystem integration; only coupling error remains",abs:0.1,"observed order from h=0.25 and 0.125; zero-order hold coupling is first order"
+orchestrator,test_cascade_converges_first_order,gauss-seidel_cascade_convergence_order,1,analytic cascade as above,abs:0.1,"Gauss-Seidel is also first order for one-way coupling"
+orchestrator,test_gauss_seidel_order_not_below_jacobi,gauss_seidel_order_minus_jacobi_order,0,self-consistency,abs:0.15,"difference of observed orders; asserted within +-0.15 (GS must not be worse)"
+orchestrator,test_cyclic_system_jacobi_first_order_and_gs_degenerates_to_jacobi,cyclic_jacobi_convergence_order,1,analytic: x(t)=expm(M t) x0 for a two-way coupled 2x2 linear system,abs:0.1,"scipy.linalg.expm reference"
+orchestrator,test_cyclic_system_jacobi_first_order_and_gs_degenerates_to_jacobi,cyclic_gs_equals_jacobi,Jacobi result,documented behaviour: loops use a one-step delay in both schemes,rel:1e-12,
+orchestrator,test_linear_extrapolation_improves_prediction_of_smooth_signal,zero_order_hold_prediction_order,1,analytic: hold error ~ h*|s'|,abs:0.15,"prediction of the end-of-step signal value"
+orchestrator,test_linear_extrapolation_improves_prediction_of_smooth_signal,linear_extrapolation_prediction_order,2,analytic: linear extrapolation error ~ h^2*|s''|,abs:0.3,
+orchestrator,test_chain_conservation_pv_bess_electrolyzer_tank,chain_bess_energy_residual_MWh,0,analytic energy conservation (property test; 4 seeds),abs:1e-9,"max over steps"
+orchestrator,test_chain_conservation_pv_bess_electrolyzer_tank,chain_electrolyzer_energy_relative_residual,0,self-consistency: P = Q_waste + m_H2/eta_F*HHV (V_tn=1.48 V vs HHV 141.8 MJ/kg),abs:3e-3,
+orchestrator,test_chain_conservation_pv_bess_electrolyzer_tank,chain_tank_mass_residual_kg,0,analytic mass conservation (property test),abs:1e-9,"max over steps"
+orchestrator,test_chain_conservation_pv_bess_electrolyzer_tank,chain_hydrogen_end_to_end_kg,stored mass change,analytic mass conservation across electrolyzer and tank,abs:1e-6,
