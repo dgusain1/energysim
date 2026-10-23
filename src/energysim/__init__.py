@@ -26,6 +26,7 @@ from .csv_adapter import csv_simulator
 from .signalAdapter import signal_adapter
 from .opendssAdapter import opendss_adapter
 from .ParameterSweep import Sweep
+from .ensemble import Ensemble, EnsembleResults, noisy_signal, NoisyInput
 from .results import Results, register_kpi
 from .dashboard import generate_dashboard
 
@@ -47,6 +48,10 @@ __all__ = [
     "world",
     "World",
     "Sweep",
+    "Ensemble",
+    "EnsembleResults",
+    "NoisyInput",
+    "noisy_signal",
     "SimulatorAdapter",
     "SimEntry",
     "ModelComponent",
