@@ -38,7 +38,6 @@ def run_simulation():
         start_time=0,
         stop_time=86400,
         t_macro=900,
-        res_filename="btm_industrial_results.h5",
         logging=False,
     )
 
@@ -111,14 +110,14 @@ def run_simulation():
 
     # 6. Execute Co-Simulation
     print("\nRunning 24-hour Multi-Energy Co-Simulation...")
-    sim_world.simulate(pbar=True, record_all=False)
+    results = sim_world.simulate(pbar=True, record_all=False)
 
     # 7. Analyze and Print Summary Report
-    results = sim_world.results(to_csv=False)
-    df_pv = results["solar_pv"]
+    # (each table ends with a row at stop_time; drop it for per-step energy sums)
+    df_pv = results["solar_pv"].iloc[:-1]
     df_bess = results["bess"]
-    df_ccgt = results["ccgt"]
-    df_h2 = results["electrolyzer"]
+    df_ccgt = results["ccgt"].iloc[:-1]
+    df_h2 = results["electrolyzer"].iloc[:-1]
     df_tank = results["h2_tank"]
 
     # At macro step (900s = 0.25h), energy = sum(P_MW) * 0.25h

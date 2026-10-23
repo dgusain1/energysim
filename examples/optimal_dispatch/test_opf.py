@@ -61,9 +61,7 @@ connections = {
 my_world.add_connections(connections)
 
 print("Running…")
-my_world.simulate(pbar=True, record_all=False)
-
-res = my_world.results(to_csv=False, dashboard=False)
+res = my_world.simulate(pbar=True, record_all=False)
 
 print("\n=== GRID RESULTS (first 20 + last 5 rows) ===")
 g = res["grid1"]

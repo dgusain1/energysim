@@ -241,12 +241,11 @@ def run():
     print("  Duration: 24 h | Macro step: 15 min | Steps: 96")
     print("=" * 60)
 
-    w.simulate(pbar=True, record_all=False)
+    res = w.simulate(pbar=True, record_all=False)
 
     # ────────────────────────────────────────────────────────────
     #  7. Results
     # ────────────────────────────────────────────────────────────
-    res = w.results(to_csv=False)
 
     print("\n── Result keys ──")
     for k in res:
@@ -256,7 +255,7 @@ def run():
     try:
         import matplotlib.pyplot as plt
 
-        time_h = res['grid']['time'] / 3600.0
+        time_h = res['grid'].index / 3600.0
 
         # --- Bus voltages ---
         fig1, ax1 = plt.subplots(figsize=(10, 4))
@@ -273,7 +272,7 @@ def run():
 
         # --- P2H / P2G dispatch ---
         fig2, ax2 = plt.subplots(figsize=(10, 4))
-        ctrl = res['dispatch_controller']
+        ctrl = res['dispatch_controller'].reset_index()
         ax2.plot(ctrl['time'] / 3600.0, ctrl['P2H_cmd'], label='P2H command')
         ax2.plot(ctrl['time'] / 3600.0, ctrl['P2G_cmd'], label='P2G command')
         ax2.plot(ctrl['time'] / 3600.0, ctrl['ren_surplus'],
@@ -288,7 +287,7 @@ def run():
 
         # --- Renewable generation ---
         fig3, ax3 = plt.subplots(figsize=(10, 4))
-        wdata = res['weather']
+        wdata = res['weather'].reset_index()
         ax3.plot(wdata['time'] / 3600.0, wdata['wind_power'], label='Wind')
         ax3.plot(wdata['time'] / 3600.0, wdata['pv_power'], label='PV')
         ax3.fill_between(wdata['time'] / 3600.0, 0, wdata['wind_power'],

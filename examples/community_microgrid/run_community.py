@@ -25,6 +25,7 @@ Usage
   python run_community.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -225,29 +226,21 @@ def run():
     print(f"             + MPC dispatcher + power-flow grid)")
     print("=" * 60)
 
-    w.simulate(pbar=True)
+    res = w.simulate(pbar=True, out_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'runs'))
 
     # ────────────────────────────────────────────────────
     #  Results
     # ────────────────────────────────────────────────────
-    # Get results dict + open interactive dashboard
-    res = w.results(to_csv=False, dashboard=True)
-
-    # Also export to CSV
-    try:
-        w.results(to_csv=True, dashboard=False)
-    except Exception:
-        pass
+    # Open the interactive dashboard and also export CSV files into the run directory
+    res.dashboard(open=True)
+    res.to_csv(os.path.join(res.run_dir, 'csv'))
+    print(f"  Run directory: {res.run_dir}")
 
     print("\n" + "=" * 60)
     print("  Simulation complete.  Summary")
     print("=" * 60)
-    if isinstance(res, dict):
-        for sim_name, df in res.items():
-            cols = [c for c in df.columns if c != 'time']
-            print(f"  {sim_name:30s}  →  {', '.join(cols)}")
-    else:
-        print(f"  {res}")
+    for sim_name in res.sims:
+        print(f"  {sim_name:30s}  →  {', '.join(res.variables(sim_name))}")
     print("=" * 60)
 
     return res

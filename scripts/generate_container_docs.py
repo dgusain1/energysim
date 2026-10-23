@@ -143,8 +143,8 @@ sim.add_signal("grid_signal", lambda t: 2.5 if 36000 <= t <= 54000 else -2.0)
 sim.add_connections({"grid_signal.y": "home_batteries.p_cmd_kw"})
 
 # 4. Simulate
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+sim.simulate()
+results = sim.last_results
 print(results["home_batteries"].head())
 ```
 """
@@ -222,7 +222,7 @@ sim.add_connections({
     "temp.y": "rooftop_pv.t_ambient",
 })
 
-sim.simulate(dashboard=False)
+sim.simulate()
 ```
 """
 
@@ -391,8 +391,8 @@ sim.add_model("evs", model=ev_fleet, outputs=[
     "total_actual_p_kw", "mean_soc", "min_soc", "max_soc"
 ])
 
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+sim.simulate()
+results = sim.last_results
 
 print("Peak aggregate EV charging demand:", results["evs"]["total_actual_p_kw"].max() / 1000.0, "MW")
 ```
@@ -436,7 +436,7 @@ custom_container = VectorizedFunctionAdapter(
 )
 
 sim.add_model("quick_fleet", model=custom_container, outputs=["total_actual_p", "mean_soc"])
-sim.simulate(dashboard=False)
+sim.simulate()
 ```
 
 ---

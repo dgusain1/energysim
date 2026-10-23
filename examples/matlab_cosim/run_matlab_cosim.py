@@ -155,20 +155,16 @@ def main() -> None:
     # 4.  Run
     # ================================================================
     print("\n── Starting co-simulation ──")
-    sim.simulate(pbar=True)
+    res = sim.simulate(pbar=True)
 
     # ================================================================
     # 5.  Results
     # ================================================================
-    res = sim.results(
-        to_csv=False,
-        dashboard=True,
-        dashboard_path=str(here / "matlab_cosim_dashboard.html"),
-    )
+    res.dashboard(str(here / "matlab_cosim_dashboard.html"), open=True)
 
     print("\n=== Simulation Complete ===")
     for name, df in res.items():
-        print(f"  {name:15s} -> {df.shape[0]} steps, {df.shape[1] - 1} variables")
+        print(f"  {name:15s} -> {df.shape[0]} rows, {df.shape[1]} variables")
 
     print("── Done ──")
 

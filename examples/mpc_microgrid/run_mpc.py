@@ -200,21 +200,17 @@ def main():
     # 4.  Run
     # ================================================================
     print("\n── Starting MPC microgrid co-simulation ──")
-    my_world.simulate(pbar=True, record_all=False)
+    results = my_world.simulate(pbar=True, record_all=False)
 
     # ================================================================
     # 5.  Results
     # ================================================================
-    results = my_world.results(
-        to_csv=False,
-        dashboard=True,
-        dashboard_path=str(HERE / 'mpc_dashboard.html'),
-    )
+    results.dashboard(str(HERE / 'mpc_dashboard.html'), open=True)
 
     print("\n=== Simulation Complete ===")
     for name, df in results.items():
-        print(f"  {name:20s} -> {df.shape[0]:3d} steps, "
-              f"{df.shape[1] - 1} variables")
+        print(f"  {name:20s} -> {df.shape[0]:3d} rows, "
+              f"{df.shape[1]} variables")
 
     return results
 

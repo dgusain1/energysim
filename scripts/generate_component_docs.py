@@ -79,8 +79,8 @@ sim.add_signal("charge_cmd", lambda t: 1.5)  # Charge at 1.5 MW
 sim.add_connections({"charge_cmd.y": "bess.P_cmd"})
 
 # 3. Simulate
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+sim.simulate()
+results = sim.last_results
 print(results["bess"].head())"""
     },
 
@@ -122,7 +122,7 @@ from energysim.models.storage import FlowBattery
 vrfb = FlowBattery(name="vrfb", p_rated_mw=1.0, capacity_mwh=8.0, soc_init=0.4)
 sim = world(start_time=0, stop_time=7200, t_macro=900)
 sim.add_model("vrfb", model=vrfb, outputs=["P_actual", "SoC", "P_pump_kW"])
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "flywheel": {
@@ -203,7 +203,7 @@ sim.add_model("solar_pv", model=pv, outputs=["P_ac", "T_cell"])
 sim.add_signal("irr", lambda t: 950.0 if 21600 <= t <= 64800 else 0.0)
 sim.add_signal("temp", lambda t: 25.0)
 sim.add_connections({"irr.y": "solar_pv.G_poa", "temp.y": "solar_pv.T_amb"})
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "wind": {
@@ -322,7 +322,7 @@ sim = world(start_time=0, stop_time=3600, t_macro=900)
 sim.add_model("pem", model=h2_stack, outputs=["P_actual", "m_dot_H2_kg_hr", "Q_waste_MW"])
 sim.add_signal("power_setpoint", lambda t: 8.5)
 sim.add_connections({"power_setpoint.y": "pem.P_cmd"})
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "alkaline_electrolyzer": {
@@ -462,7 +462,7 @@ sim = world(start_time=0, stop_time=3600, t_macro=900)
 sim.add_model("tank", model=tank, outputs=["pressure_bar", "mass_stored_kg"])
 sim.add_signal("h2_in", lambda t: 150.0)  # 150 kg/hr in
 sim.add_connections({"h2_in.y": "tank.m_dot_in_kg_hr"})
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "fuel_cell": {
@@ -576,7 +576,7 @@ sim = world(start_time=0, stop_time=86400, t_macro=900)
 sim.add_model("ccgt", model=ccgt, outputs=["P_actual", "fuel_consumption_MMBtu_hr", "CO2_emissions_t_hr"])
 sim.add_signal("dispatch", lambda t: 30.0)
 sim.add_connections({"dispatch.y": "ccgt.P_cmd"})
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "ocgt": {
@@ -719,7 +719,7 @@ sim = world(start_time=0, stop_time=3600, t_macro=900)
 sim.add_model("hp", model=hp, outputs=["P_actual", "Q_heat_MW", "COP"])
 sim.add_signal("power_cmd", lambda t: 1.5)
 sim.add_connections({"power_cmd.y": "hp.P_cmd"})
-sim.simulate(dashboard=False)"""
+sim.simulate()"""
     },
 
     "electric_boiler": {

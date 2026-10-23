@@ -60,8 +60,9 @@ Install the core package:
 pip install energysim   # or: uv add energysim
 ```
 
-Only **numpy**, **pandas**, **tqdm**, **tables**, **networkx**, and **pyyaml** are
-required. Simulator-specific packages are optional:
+Only **numpy**, **pandas**, **tqdm**, **networkx**, and **pyyaml** are
+required (`pip install energysim[results]` adds pyarrow for Parquet output,
+`energysim[hdf5]` adds PyTables for `Results.to_hdf`). Simulator-specific packages are optional:
 
 === "pip"
 
@@ -131,10 +132,9 @@ sim.add_signal('load_controller', lambda t: [800.0 + 200.0 * (t / 3600)], power_
 sim.add_connections({'load_controller.y': 'grid.Load1.p_mw'})
 
 # 5. Run co-simulation and view DataFrame results
-sim.simulate()
-results = sim.results(dashboard=False)
+results = sim.simulate()
 
-print(results['grid'][['time', 'Bus2.vm_pu']])
+print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
 ```
 
 ## Parameters
@@ -173,15 +173,19 @@ Type-specific keyword arguments:
 
 ## Results & Dashboard
 
-`my_world.results()` returns a `dict[str, DataFrame]` keyed by simulator
-name. It can also open an interactive HTML dashboard:
+`my_world.simulate()` returns a `Results` object (also kept as
+`my_world.last_results`). Nothing is written to disk unless you ask for it:
 
 ```python
-results = my_world.results(
-    to_csv=False,
-    dashboard=True,
-    dashboard_path='my_dashboard.html',
-)
+res = my_world.simulate()
+res['grid']                   # DataFrame of one simulator (index: time)
+res['grid.Bus2.vm_pu']        # Series of one variable
+res.to_frame(resample='15min')  # wide frame, columns 'sim.var'
+res.summary(); res.kpis()     # statistics, energy integrals (kWh), ...
+res.save('out')               # Parquet (or CSV) + meta.json; Results.load('out')
+res.dashboard('my_dashboard.html', open=True)
+
+world(..., out_dir='runs')    # every run -> runs/<YYYYmmdd-HHMMSS>_<hash8>/
 ```
 
 ## Citing

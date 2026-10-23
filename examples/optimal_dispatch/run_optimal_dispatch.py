@@ -172,22 +172,18 @@ def main():
     # 4.  Run simulation
     # ------------------------------------------------------------------
     print("Starting co-simulation …")
-    my_world.simulate(record_all=False)
+    res = my_world.simulate(record_all=False)
 
     # ------------------------------------------------------------------
-    # 5.  Collect results  (dashboard opens automatically)
+    # 5.  Collect results and open the dashboard
     # ------------------------------------------------------------------
     dashboard_file = str(HERE / "energysim_dashboard.html")
-    res = my_world.results(
-        to_csv=False,
-        dashboard=True,
-        dashboard_path=dashboard_file,
-    )
+    res.dashboard(dashboard_file, open=True)
 
     # Quick summary
     print("\n===  Simulation Results  ===")
     for name, df in res.items():
-        print(f"  {name:8s}  →  {df.shape[0]} time-steps, {df.shape[1]-1} variables")
+        print(f"  {name:8s}  →  {df.shape[0]} rows, {df.shape[1]} variables")
     print(f"\nDashboard saved to: {dashboard_file}")
 
     return res

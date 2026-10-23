@@ -85,8 +85,7 @@ def generate_btm_simulation_figure():
         "electrolyzer.m_dot_H2_kg_hr": "tank.m_dot_in_kg_hr",
     })
 
-    sim.simulate(pbar=False, record_all=False)
-    results = sim.results(to_csv=False, dashboard=False)
+    results = sim.simulate(pbar=False, record_all=False)
 
     df_pv = results["pv"]
     df_bess = results["bess"]
@@ -94,11 +93,7 @@ def generate_btm_simulation_figure():
     df_h2 = results["electrolyzer"]
     df_tank = results["tank"]
 
-    # results() auto-converts the 'time' column to hours when max_t >= 7200s
-    if df_pv["time"].max() > 100.0:
-        hours = df_pv["time"] / 3600.0
-    else:
-        hours = df_pv["time"]
+    hours = df_pv.index / 3600.0   # Results tables are indexed by time in seconds
 
     # Create 4-panel plot
     fig, axes = plt.subplots(2, 2, figsize=(14, 8), dpi=200)

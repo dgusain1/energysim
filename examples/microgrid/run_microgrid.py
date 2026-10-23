@@ -145,17 +145,12 @@ def main():
     my_world.add_connections(connections)
 
     print("Starting microgrid co-simulation ...")
-    my_world.simulate(pbar=True, record_all=False)
-
-    results = my_world.results(
-        to_csv=False,
-        dashboard=True,
-        dashboard_path=str(HERE / 'microgrid_dashboard.html'),
-    )
+    results = my_world.simulate(pbar=True, record_all=False)
+    results.dashboard(str(HERE / 'microgrid_dashboard.html'), open=True)
 
     print("\n=== Simulation Complete ===")
     for name, df in results.items():
-        print(f"  {name:15s} -> {df.shape[0]} steps, {df.shape[1] - 1} variables")
+        print(f"  {name:15s} -> {df.shape[0]} rows, {df.shape[1]} variables")
 
     return results
 

@@ -37,9 +37,11 @@ HERE = Path(__file__).resolve().parent
 # ════════════════════════════════════════════════════════════
 
 def load_cosim_results():
-    """Load co-sim CSVs and dispatcher forecast log if available."""
+    """Load the latest co-sim run (runs/<timestamp>_<hash>/) and dispatcher forecast log if available."""
+    from energysim.results import Results
+
     log_path = HERE / "forecast_log.json"
-    res_dir = HERE / "res"
+    runs_dir = HERE / "runs"
 
     forecast_log = None
     results = {}
@@ -48,10 +50,11 @@ def load_cosim_results():
         with open(log_path) as f:
             forecast_log = json.load(f)
 
-    if res_dir.exists():
-        for csv in res_dir.glob("*.csv"):
-            df = pd.read_csv(csv)
-            results[csv.stem] = df
+    if runs_dir.exists():
+        run_dirs = sorted(d for d in runs_dir.iterdir() if (d / "meta.json").exists())
+        if run_dirs:
+            res = Results.load(run_dirs[-1])
+            results = {sim: res[sim].reset_index() for sim in res.sims}
 
     return forecast_log, results
 

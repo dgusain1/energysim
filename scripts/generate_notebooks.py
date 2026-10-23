@@ -140,8 +140,8 @@ Route the solar irradiance into the PV model, and the dispatch command into the 
 print("Connections established!")
 """),
     md_cell("""## Step 5: Execute Simulation and Plot Results"""),
-    code_cell("""sim.simulate(pbar=True, dashboard=False)
-results = sim.results(dashboard=False)
+    code_cell("""sim.simulate(pbar=True)
+results = sim.last_results
 
 df_pv = results["solar_pv"]
 df_bess = results["battery"]
@@ -153,7 +153,7 @@ display(df_bess.head())
     code_cell("""# Plotting Results
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
 
-hours = df_pv["time"] if df_pv["time"].max() <= 24 else df_pv["time"] / 3600.0
+hours = df_pv.index / 3600.0   # Results tables are indexed by time in seconds
 
 ax1.plot(hours, df_pv["P_ac"], color="orange", lw=2, label="Solar PV (MW)")
 ax1.plot(hours, df_bess["P_actual"], color="blue", lw=2, label="BESS Power (MW)")
@@ -274,8 +274,8 @@ sim.add_connections({
 print("Multi-grid co-simulation canvas ready!")
 """),
     md_cell("""## Step 4: Run Simulation and Analyze Power Flow Results"""),
-    code_cell("""sim.simulate(dashboard=False)
-res = sim.results(dashboard=False)
+    code_cell("""sim.simulate()
+res = sim.last_results
 
 df_grid = res["mv_grid"]
 display(df_grid)
@@ -361,8 +361,8 @@ def pulse_cmd(t):
 sim.add_signal("pulse", signal=pulse_cmd)
 sim.add_connections({"pulse.y": "fast_cap.P_cmd_kW"})
 
-sim.simulate(dashboard=False)
-df_cap = sim.results(dashboard=False)["fast_cap"]
+sim.simulate()
+df_cap = sim.last_results["fast_cap"]
 display(df_cap.head())
 """)
 ]
@@ -450,8 +450,8 @@ sim.add_connections({
     "temp_source.y": "pipe.temp_in",
 })
 
-sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+sim.simulate()
+results = sim.last_results
 display(results["pipe"].head())
 """)
 ]
@@ -553,8 +553,8 @@ sim.add_connections({
 })
 """),
     md_cell("""## Step 3: Run Co-Simulation and Analyze Dispatch"""),
-    code_cell("""sim.simulate(pbar=True, dashboard=False)
-results = sim.results(dashboard=False)
+    code_cell("""sim.simulate(pbar=True)
+results = sim.last_results
 
 print("Co-simulation complete! Results summary:")
 for k, df in results.items():
@@ -609,13 +609,13 @@ sim.add_signal("dr_command", lambda t: 3.5 if 36000 <= t <= 50400 else -2.0)
 sim.add_connections({"dr_command.y": "home_storage.p_cmd_kw"})
 
 t0 = time.time()
-sim.simulate(dashboard=False)
+sim.simulate()
 elapsed = time.time() - t0
 
 print(f"Successfully simulated {N_BATTERIES:,} batteries over 24 hours in {elapsed:.2f} seconds!")
 """),
     md_cell("""## Step 2: Inspect Fleet Results"""),
-    code_cell("""df_fleet = sim.results(dashboard=False)["home_storage"]
+    code_cell("""df_fleet = sim.last_results["home_storage"]
 display(df_fleet.head())
 """)
 ]
@@ -685,8 +685,8 @@ sim.add_connections({"wind_surplus.y": "pem.P_cmd"})
 print("Sector-coupled topology connected!")
 """),
     md_cell("""## Step 3: Simulate and Extract Hydrogen Valley Metrics"""),
-    code_cell("""sim.simulate(dashboard=False)
-results = sim.results(dashboard=False)
+    code_cell("""sim.simulate()
+results = sim.last_results
 display(results["tank"].tail())
 """)
 ]
