@@ -13,7 +13,7 @@ def fmt(x):
     return f"{x:.10g}"
 
 
-def main():
+def render():
     s = U.UnitSystem.default()
     out = []
     w = out.append
@@ -59,13 +59,13 @@ def main():
 
     w("## Declaring units\n")
     w("**Components** declare units of their variables with a `units` attribute:\n")
-    w("```python\nclass MyModel:\n    units = {'p_set': 'kW', 'temp_out': 'degC'}\n```\n")
+    w("```python {.no-test}\nclass MyModel:\n    units = {'p_set': 'kW', 'temp_out': 'degC'}\n```\n")
     w("**External simulators / adapters**:\n")
-    w("```python\nw.add_simulator('plant', 'plant.fmu', step_size=60, units={'P': 'W', 'T': 'K'})\n```\n")
+    w("```python {.no-test}\nw.add_simulator('plant', 'plant.fmu', step_size=60, units={'P': 'W', 'T': 'K'})\n```\n")
     w("**Connections** convert explicitly with `from_unit` / `to_unit`:\n")
-    w("```python\nw.add_connections([\n    {'from': 'plant.P', 'to': 'grid.p_mw', 'from_unit': 'W', 'to_unit': 'MW'},\n])\n```\n")
+    w("```python {.no-test}\nw.add_connections([\n    {'from': 'plant.P', 'to': 'grid.p_mw', 'from_unit': 'W', 'to_unit': 'MW'},\n])\n```\n")
     w("**World default system** (overrides per quantity, or a preset):\n")
-    w("```python\nw = world(..., unit_system={'active_power': 'MW', 'energy': 'MWh'})\nw = world(..., unit_system='si')\n```\n")
+    w("```python {.no-test}\nw = world(..., unit_system={'active_power': 'MW', 'energy': 'MWh'})\nw = world(..., unit_system='si')\n```\n")
     w("**Python API**:\n")
     w("```python\nfrom energysim.units import UnitSystem, resolve_unit, infer_quantity\n\n"
       "us = UnitSystem.default()\nus.to_default(2.0, 'MW')        # 2000.0 (kW)\n"
@@ -78,13 +78,17 @@ def main():
     w("## Where conventions show up\n")
     w("* **Log lines**: the world logs the active unit system (`UnitSystem.describe()`) at start and "
       "every applied conversion, plus a warning for each `unspecified` variable that is connected.")
-    w("* **CLI**: `energysim units` prints `UnitSystem.format_table()` for the default or a chosen system.")
+    w("* **Python**: `UnitSystem.default().format_table()` prints the table above as aligned text.")
     w("* **Results**: `Results.units` maps every output variable to its unit (or `None` when unspecified); "
       "the unit-system name and hash are stored in the result metadata.\n")
 
+    return "\n".join(out) + "\n"
+
+
+def main():
     path = os.path.join(root, "docs", "units.md")
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(out) + "\n")
+        f.write(render())
     print(f"wrote {path}")
 
 

@@ -519,20 +519,20 @@ Default system: `energysim-default` (hash `60b559c9acca`).
 
 **Components** declare units of their variables with a `units` attribute:
 
-```python
+```python {.no-test}
 class MyModel:
     units = {'p_set': 'kW', 'temp_out': 'degC'}
 ```
 
 **External simulators / adapters**:
 
-```python
+```python {.no-test}
 w.add_simulator('plant', 'plant.fmu', step_size=60, units={'P': 'W', 'T': 'K'})
 ```
 
 **Connections** convert explicitly with `from_unit` / `to_unit`:
 
-```python
+```python {.no-test}
 w.add_connections([
     {'from': 'plant.P', 'to': 'grid.p_mw', 'from_unit': 'W', 'to_unit': 'MW'},
 ])
@@ -540,7 +540,7 @@ w.add_connections([
 
 **World default system** (overrides per quantity, or a preset):
 
-```python
+```python {.no-test}
 w = world(..., unit_system={'active_power': 'MW', 'energy': 'MWh'})
 w = world(..., unit_system='si')
 ```
@@ -564,6 +564,6 @@ resolve_unit('y')                # (None, 'unspecified')
 ## Where conventions show up
 
 * **Log lines**: the world logs the active unit system (`UnitSystem.describe()`) at start and every applied conversion, plus a warning for each `unspecified` variable that is connected.
-* **CLI**: `energysim units` prints `UnitSystem.format_table()` for the default or a chosen system.
+* **Python**: `UnitSystem.default().format_table()` prints the table above as aligned text.
 * **Results**: `Results.units` maps every output variable to its unit (or `None` when unspecified); the unit-system name and hash are stored in the result metadata.
 

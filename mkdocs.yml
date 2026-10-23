@@ -87,6 +87,12 @@ nav:
   - Core & Architecture:
       - Orchestration Architecture: architecture.md
       - Engine Features: features.md
+  - Reference:
+      - Units: units.md
+      - Results & KPIs: results.md
+      - Energy Networks (Heat & Gas): networks.md
+      - Control & Optimisation: control.md
+      - Validation: validation.md
   - FAQ: faq.md
 
 markdown_extensions:
