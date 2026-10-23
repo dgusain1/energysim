@@ -73,6 +73,9 @@ markers = [
     "requires_octave: needs 'oct2py' and a GNU Octave installation",
     "requires_matlab: needs the MATLAB Engine for Python and a MATLAB licence",
     "requires_powerfactory: needs DIgSILENT PowerFactory and a licence (manual only)",
+    "validation: physical/analytic validation benchmarks (see docs/validation.md)",
+    "strength: tests demonstrating a product strength",
+    "slow: slow tests (packaging, long runs)",
 ]
 
 [tool.ruff]
