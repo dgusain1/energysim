@@ -57,3 +57,6 @@ es_res.h5
 energysim-brand-kit.zip
 .ruff_cache/
 .pytest_cache/
+
+# Test caches
+tests/.cache/
