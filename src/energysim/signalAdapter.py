@@ -15,6 +15,11 @@ import warnings
 
 class signal_adapter(SimulatorAdapter):
     def __init__(self, signal_name, signal):
+        if not callable(signal):
+            raise TypeError(
+                f"Signal '{signal_name}' must be callable f(t); build string / dict specs with "
+                f"energysim._safeexpr.build_signal (world.add_signal does this automatically)."
+            )
         self.signal_name = signal_name
         self.signal = signal
 

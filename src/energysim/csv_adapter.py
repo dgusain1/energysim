@@ -4,28 +4,34 @@ import pandas as pd
 import numpy as np
 import warnings
 
-from .base import SimulatorAdapter
+from .base import SimulatorAdapter, SimulatorVariableError
 
 
 class csv_simulator(SimulatorAdapter):
 
     def __init__(self, sim_name, sim_loc, step_size=900, outputs=None, delimiter=','):
-        # initalize sim object here
+        self.sim_name = sim_name
         self.df = pd.read_csv(sim_loc, delimiter=delimiter)
         self.step_size = step_size
         self.outputs = outputs or []
-        # analyse the df, and calculate step size
-        assert 'time' in self.df.columns, (
-            'No time column in csv file. Please convert csv file'
-            ' to required format. CSV not added.'
-        )
+        if 'time' not in self.df.columns:
+            raise ValueError(
+                f"CSV simulator '{sim_name}': no 'time' column in {sim_loc!r}. "
+                f"Please convert the csv file to the required format."
+            )
         self.time_array = self.df.time.to_numpy()
         if len(self.time_array) > 1:
             diffs = np.diff(self.time_array)
-            assert np.allclose(diffs, diffs[0], rtol=1e-4, atol=1e-6), (
-                'energysim can only read csv with fixed time intervals.'
-                ' Current file does not have time stamps with fixed'
-                ' interval. Cant add csv simulator.'
+            if not np.allclose(diffs, diffs[0], rtol=1e-4, atol=1e-6):
+                raise ValueError(
+                    f"CSV simulator '{sim_name}': energysim can only read csv files with fixed "
+                    f"time intervals; {sim_loc!r} does not have a fixed interval."
+                )
+        missing = [o for o in self.outputs if o not in self.df.columns]
+        if missing:
+            raise SimulatorVariableError(
+                f"CSV simulator '{sim_name}': column(s) {missing} not found. "
+                f"Available columns: {[c for c in self.df.columns if c != 'time']}"
             )
 
     def init(self):
@@ -40,16 +46,20 @@ class csv_simulator(SimulatorAdapter):
         )
 
     def get_value(self, parameters, time):
-        # this should return a list of values from simulator as a list corresponding to parameters
         # np.searchsorted is O(log N) and handles end-of-array without crashing
         idx = np.searchsorted(self.time_array, time, side='right') - 1
         idx = max(0, min(int(idx), len(self.time_array) - 1))
-        return [self.df.at[idx, ele] for ele in parameters]
+        vals = []
+        for ele in parameters:
+            if ele not in self.df.columns:
+                raise SimulatorVariableError(
+                    f"CSV simulator '{self.sim_name}': column '{ele}' not found. "
+                    f"Available columns: {[c for c in self.df.columns if c != 'time']}"
+                )
+            vals.append(self.df.at[idx, ele])
+        return vals
 
     def step(self, time):
-        # use the time variable (if needed) to step the simulator to t=time
-
-        # return is not required. remove the pass command afterwards.
         pass
 
     def get_available_variables(self):
