@@ -9,12 +9,11 @@ from typing import Any, Optional, List, Dict
 from .csv_adapter import csv_simulator
 from .signalAdapter import signal_adapter
 from .utils import (
-    convert_hdf_to_dict, record_data, create_results_recorder,
     get_unit_conversion, infer_variable_unit, parse_unit,
     resolve_model_reference, looks_like_dotted_import, PICKLE_EXTS, MODEL_FILE_EXTS,
 )
 from ._safeexpr import build_signal
-from .dashboard import generate_dashboard
+from .results import Results, Recorder, make_run_dir, scenario_hash, _have_pyarrow, _versions
 from .base import (
     SimulatorAdapter, SimEntry,
     ConnectionSpecError,
@@ -31,6 +30,8 @@ import importlib
 import importlib.util
 import logging as _logging
 import warnings
+import time as _time
+import datetime as _dt
 from collections import deque
 from fractions import Fraction
 from functools import reduce
@@ -38,8 +39,6 @@ import numpy as np
 import yaml
 from tqdm import tqdm
 import networkx as nx
-import tables as tb
-filters = tb.Filters(complevel=5, complib='zlib')
 
 logger = _logging.getLogger('energysim')
 
@@ -68,7 +67,11 @@ _CONTAINER_TYPES = ('container', 'fleet', 'vectorized', 'battery_fleet', 'buildi
                     'function_fleet')
 
 _WORLD_KEYS = frozenset({'start_time', 'stop_time', 't_macro', 'coupling', 'extrapolation',
-                         'res_filename', 'power_unit', 'logging'})
+                         'power_unit', 'logging', 'start_datetime', 'seed', 'out_dir'})
+RES_FILENAME_REMOVED_MSG = (
+    "'res_filename' was removed in 3.0: simulate() returns a Results object (no HDF5 file is "
+    "written). Use 'out_dir' to persist runs (Parquet/CSV + meta.json) or Results.save()/to_hdf()."
+)
 _REMOVED_WORLD_KEYS = frozenset({'max_iterations', 'convergence_tolerance'})
 
 _ext_counter = itertools.count()
@@ -133,6 +136,12 @@ class world():
         4. ``t_macro`` : (60 by default). Users can specify instance of information exchange.
            ``0`` means "least common multiple of all simulator step sizes".
         5. ``coupling`` : ``'jacobi'`` (default) or ``'gauss-seidel'``.
+        6. ``start_datetime`` : optional wall-clock start (str / datetime); results are
+           then indexed by datetime instead of seconds.
+        7. ``seed`` : optional random seed, stored in the results metadata.
+        8. ``out_dir`` : optional directory; every run then writes
+           ``<out_dir>/<YYYYmmdd-HHMMSS>_<hash8>/`` (Parquet/CSV per simulator,
+           ``meta.json``, ``scenario.yaml``).  By default nothing is written.
 
     >>> my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
 
@@ -173,12 +182,14 @@ class world():
     >>> my_world.simulate(pbar=True, record_all=False)
 
     ``simulate()`` can be called repeatedly; each call starts a fresh run
-    (new results file, ``configure()`` + ``init()`` on every adapter) and
-    ``cleanup()`` is always called on every adapter, even on errors.
+    (``configure()`` + ``init()`` on every adapter) and ``cleanup()`` is
+    always called on every adapter, even on errors.
 
-    Extracting Results
-    ------------------
-    >>> results = my_world.results(to_csv=True)
+    Results
+    -------
+    >>> res = my_world.simulate()          # energysim.results.Results
+    >>> res['sim1.var1']                   # pandas Series indexed by time
+    >>> res.to_frame(); res.summary(); res.kpis(); res.save('out')
 
     Package Info
     ------------
@@ -188,9 +199,12 @@ class world():
 
     """
 
+    #: rows buffered per simulator before they are converted to typed column chunks
+    _results_chunk_rows = 65536
+
     def __init__(self, start_time=0, stop_time=1000, logging=False, t_macro=60,
-                 res_filename='es_res.h5', coupling='jacobi', extrapolation='zero-order',
-                 power_unit='kW'):
+                 coupling='jacobi', extrapolation='zero-order',
+                 power_unit='kW', start_datetime=None, seed=None, out_dir=None):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
@@ -210,7 +224,16 @@ class world():
         self.simulator_connections = {}
         self._parsed_connections = []
         self.simulator_dict = {}
-        self.file_name = res_filename
+        if start_datetime is not None:
+            import pandas as pd
+            try:
+                pd.Timestamp(start_datetime)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"Invalid start_datetime {start_datetime!r}: {exc}") from None
+        self.start_datetime = start_datetime
+        self.seed = seed
+        self.out_dir = out_dir
+        self.last_results = None
         if coupling == 'iterative':
             raise ValueError(ITERATIVE_REMOVED_MSG)
         if coupling not in _COUPLINGS:
@@ -1330,8 +1353,9 @@ class world():
         """Clear all state of the previous run (recorded-output map, exchange history, time grid).
 
         The configured simulators, connections and options are kept;
-        ``results()`` raises until ``simulate()`` is called again.
+        ``last_results`` is cleared.
         """
+        self.last_results = None
         self.sim_dict = {}
         self._exchange_history = {}
         self.macro_tstep = None
@@ -1364,8 +1388,7 @@ class world():
 
     def init(self):
         '''
-        Prepares a fresh run: resets run state, creates the results recorder,
-        calls ``configure(start, stop, macro)`` on every adapter, then
+        Prepares a fresh run: resets run state, calls ``configure(start, stop, macro)`` on every adapter, then
         ``init()`` on every adapter with initial parameters applied before or
         after ``init()`` according to ``adapter.SET_PARAMS_BEFORE_INIT``.
         '''
@@ -1377,7 +1400,6 @@ class world():
         params = self._collect_parameters()
 
         self.sim_dict = {name: list(entry.outputs) for name, entry in self.simulator_dict.items()}
-        create_results_recorder(file_name=self.file_name, sim_dict=self.sim_dict)
 
         for sim_name, entry in self.simulator_dict.items():
             configure = getattr(entry.adapter, 'configure', None)
@@ -1448,9 +1470,9 @@ class world():
 
         return tmp_var
 
-    def simulate(self, pbar=True, record_all=None, validate=True):
+    def simulate(self, pbar=True, record_all=None, validate=True, out_dir=None):
         '''
-        Simulates the world object.
+        Simulates the world object and returns a :class:`~energysim.results.Results`.
 
         Supports two coupling modes (set via ``world(..., coupling=...)``):
         - ``'jacobi'``: Exchange all variables first, then step all simulators.
@@ -1458,9 +1480,17 @@ class world():
           simulator steps, immediately propagate its outputs to downstream
           simulators before they step (algebraic loops use a one-step delay).
 
+        Every simulator gets one row per macro step (taken before stepping;
+        with ``record_all`` one row per micro step) plus a final row at
+        ``stop_time`` holding the state at the end of the run.
+
         ``record_all`` defaults to the value given via ``options({'record_all': ...})``
-        or True.  ``cleanup()`` is always called on every adapter, also when an
-        error occurs.  ``simulate()`` may be called repeatedly.
+        or True.  ``out_dir`` (default: the world's ``out_dir``) persists the run
+        to ``<out_dir>/<YYYYmmdd-HHMMSS>_<hash8>/``; otherwise nothing is written.
+        The results are also stored as ``world.last_results``; if the run
+        fails, the partial results (``meta['status'] == 'failed'``) are stored
+        there and the error is re-raised.  ``cleanup()`` is always called on
+        every adapter.  ``simulate()`` may be called repeatedly.
         '''
         if self.coupling == 'iterative':
             raise ValueError(ITERATIVE_REMOVED_MSG)
@@ -1471,25 +1501,143 @@ class world():
         if validate:
             self.validate(raise_on_error=True)
 
+        self.last_results = None
+        out_dir = self.out_dir if out_dir is None else out_dir
+        scenario = self._scenario_snapshot()
+        digest = scenario_hash(scenario)
+        now = _dt.datetime.now()
+        run_dir = make_run_dir(out_dir, digest, now=now) if out_dir else None
+        stream = run_dir is not None and _have_pyarrow()
+        recorder = Recorder({name: list(entry.outputs) for name, entry in self.simulator_dict.items()},
+                            chunk_rows=self._results_chunk_rows,
+                            stream_dir=run_dir if stream else None)
+        run_info = dict(scenario=scenario, digest=digest, created=now, run_dir=run_dir,
+                        record_all=record_all, t0=_time.perf_counter())
+
+        caught = []
         try:
-            self.init()
-            exec_order = self._execution_order or list(self.simulator_dict.keys())
-            startTime = self.start_time
-            with tb.open_file(filename=self.file_name, mode='a') as hdf_file:
-                for time_idx in tqdm(range(self._total_steps), disable=not pbar):
-                    time = startTime + time_idx * self.macro_tstep
-                    local_stop_time = time + self.macro_tstep
+            with warnings.catch_warnings(record=True) as caught:
+                try:
+                    self.init()
+                    exec_order = self._execution_order or list(self.simulator_dict.keys())
+                    startTime = self.start_time
+                    for time_idx in tqdm(range(self._total_steps), disable=not pbar):
+                        time = startTime + time_idx * self.macro_tstep
+                        local_stop_time = time + self.macro_tstep
 
-                    if self.coupling == 'jacobi':
-                        tmp_dict = self._step_jacobi(exec_order, time, local_stop_time, record_all)
-                    else:
-                        tmp_dict = self._step_gauss_seidel(exec_order, time, local_stop_time, record_all)
+                        if self.coupling == 'jacobi':
+                            tmp_dict = self._step_jacobi(exec_order, time, local_stop_time, record_all)
+                        else:
+                            tmp_dict = self._step_gauss_seidel(exec_order, time, local_stop_time, record_all)
 
-                    record_data(hdf_file, tmp_dict)
+                        for sim_name, rows in tmp_dict.items():
+                            recorder.add_rows(sim_name, rows)
+                    self._record_final_state(recorder)
+                finally:
+                    self._cleanup_all()
+        except BaseException as exc:
+            try:
+                self.last_results = self._finish_results(recorder, run_info, 'failed', caught, exc)
+            except Exception:
+                logger.warning("Could not assemble partial results of the failed run", exc_info=True)
+            raise
         finally:
-            self._cleanup_all()
+            for w in caught:
+                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source)
 
-        return 'Done'
+        self.last_results = self._finish_results(recorder, run_info, 'completed', caught)
+        return self.last_results
+
+    # ------------------------------------------------------------------
+    # Results assembly
+    # ------------------------------------------------------------------
+
+    def _record_final_state(self, recorder):
+        """Append one row per simulator at ``stop_time`` (state at the end of the run)."""
+        t_end = self.stop_time
+        for sim_name, entry in self.simulator_dict.items():
+            outputs = entry.outputs
+            try:
+                row = [t_end] + (list(entry.adapter.get_value(outputs, t_end)) if outputs else [])
+            except Exception as exc:
+                warnings.warn(f"Could not record the final state of '{sim_name}' at t={t_end}: {exc}",
+                              RuntimeWarning, stacklevel=2)
+                continue
+            recorder.add_row(sim_name, row)
+
+    def _scenario_snapshot(self):
+        """Serialisable scenario description used for the metadata and the run hash."""
+        try:
+            scenario = self.to_dict()
+        except Exception as exc:  # pragma: no cover - defensive
+            scenario = {'error': f"scenario not serialisable: {exc}"}
+        scenario.get('world', {}).pop('out_dir', None)
+        return scenario
+
+    def _results_units(self):
+        """``{'sim.var': unit}`` from SimEntry.units, connection units and name inference."""
+        conn_units = {}
+        for conn in self._parsed_connections:
+            out = conn[0]
+            fu = getattr(conn, 'from_unit', None)
+            if fu and not (isinstance(out, tuple) and isinstance(out[0], tuple)):
+                conn_units.setdefault((out[0], out[1]), fu)
+        units = {}
+        for sim_name, entry in self.simulator_dict.items():
+            for var in entry.outputs:
+                u = self._resolve_unit(entry, var)
+                if u is None:
+                    u = conn_units.get((sim_name, var))
+                units[f"{sim_name}.{var}"] = u
+        return units
+
+    def _finish_results(self, recorder, info, status, caught, error=None):
+        frames = recorder.finalize()
+        units = self._results_units()
+        start_dt = None
+        if self.start_datetime is not None:
+            import pandas as pd
+            start_dt = pd.Timestamp(self.start_datetime).isoformat()
+        created = info['created']
+        meta = {
+            'run_id': f"{created.strftime('%Y%m%d-%H%M%S')}_{info['digest'][:8]}",
+            'created': created.isoformat(timespec='seconds'),
+            'status': status,
+            'error': None if error is None else f"{type(error).__name__}: {error}",
+            'wall_time_s': round(_time.perf_counter() - info['t0'], 6),
+            'versions': _versions(),
+            'scenario': info['scenario'],
+            'scenario_sha256': info['digest'],
+            'seed': self.seed,
+            'start_datetime': start_dt,
+            'start_time': self.start_time,
+            'stop_time': self.stop_time,
+            't_macro': self.macro_tstep,
+            'coupling': self.coupling,
+            'extrapolation': self.extrapolation,
+            'record_all': info['record_all'],
+            'units': units,
+            'warnings': [{'category': w.category.__name__, 'message': str(w.message)}
+                         for w in list(caught)[:1000]],
+            'n_rows': {s: recorder.n_rows(s) for s in recorder.columns},
+            'run_dir': info['run_dir'],
+        }
+        res = Results(frames, meta=meta, units=units, start_datetime=self.start_datetime)
+        run_dir = info['run_dir']
+        if run_dir:
+            if recorder.stream_dir is not None:
+                res._write_meta(run_dir, 'parquet', dict(recorder.files))
+            else:
+                warnings.warn("pyarrow is not installed; the run directory stores CSV files instead "
+                              "of Parquet (pip install pyarrow).", UserWarning, stacklevel=3)
+                res.save(run_dir, format='csv')
+            try:
+                scenario_yaml = self.to_yaml()
+            except Exception:
+                scenario_yaml = repr(self.to_dict())
+            with open(os.path.join(run_dir, 'scenario.yaml'), 'w', encoding='utf-8') as f:
+                f.write(scenario_yaml)
+        return res
 
     # ------------------------------------------------------------------
     # Coupling strategies
@@ -1501,8 +1649,7 @@ class world():
         tmp_dict = {}
         for sim_name in exec_order:
             entry = self.simulator_dict[sim_name]
-            tmp_var = self.step_simulator(sim_name, entry, time, record_all, local_stop_time)
-            tmp_dict[sim_name] = np.array(tmp_var)
+            tmp_dict[sim_name] = self.step_simulator(sim_name, entry, time, record_all, local_stop_time)
         return tmp_dict
 
     def _step_gauss_seidel(self, exec_order, time, local_stop_time, record_all):
@@ -1523,8 +1670,7 @@ class world():
             if sim_name not in scc_members:
                 self._exchange_inputs_for(sim_name, time)
             entry = self.simulator_dict[sim_name]
-            tmp_var = self.step_simulator(sim_name, entry, time, record_all, local_stop_time)
-            tmp_dict[sim_name] = np.array(tmp_var)
+            tmp_dict[sim_name] = self.step_simulator(sim_name, entry, time, record_all, local_stop_time)
         return tmp_dict
 
     # ------------------------------------------------------------------
@@ -1578,67 +1724,6 @@ class world():
             ou_sim_name, ou_sim_var, ou_key = output_
             tmp_var1 = self.simulator_dict[ou_sim_name].adapter.get_value([ou_sim_var], t)
             return self.alter_signal(ou_key, tmp_var1)
-
-    def results(self, to_csv=False, dashboard=True, dashboard_path=None):
-        """
-        Processes the results from the cosimulation and provides them in a dict+df form.
-
-        Parameters
-        ----------
-        to_csv : bool
-            If True, export results to CSV files.
-        dashboard : bool
-            If True (default), opens an interactive HTML dashboard in the
-            browser showing all recorded variables.
-        dashboard_path : str or None
-            Optional file path for the dashboard HTML file. If None a
-            temporary file is created.
-        """
-        if not self.sim_dict:
-            raise RuntimeError("No simulation results available. Call simulate() first.")
-        res = convert_hdf_to_dict(file_name=self.file_name, sim_dict=self.sim_dict, to_csv=to_csv)
-
-        # --- Convert raw time (seconds) to a human-readable unit ----
-        if isinstance(res, dict):
-            time_label = self._convert_time_column(res)
-        else:
-            time_label = 'Time (s)'
-
-        if dashboard:
-            try:
-                path = generate_dashboard(
-                    res, output_path=dashboard_path,
-                    auto_open=True, time_label=time_label,
-                )
-                logger.info('Dashboard opened: %s', path)
-            except Exception as e:
-                logger.warning('Could not open dashboard: %s', e)
-        return res
-
-    @staticmethod
-    def _convert_time_column(res):
-        """Auto-detect time unit and convert the *time* column in-place.
-
-        Returns the axis label string (e.g. ``'Time (h)'``).
-        """
-        import pandas as pd
-        max_t = max(
-            (df['time'].max() for df in res.values()
-             if isinstance(df, pd.DataFrame) and 'time' in df.columns and len(df) > 0),
-            default=0,
-        )
-        if max_t >= 7200:        # spans hours → show hours
-            divisor, label = 3600, 'Time (h)'
-        elif max_t >= 120:       # spans minutes → show minutes
-            divisor, label = 60, 'Time (min)'
-        else:
-            divisor, label = 1, 'Time (s)'
-
-        if divisor != 1:
-            for df in res.values():
-                if isinstance(df, pd.DataFrame) and 'time' in df.columns:
-                    df['time'] = df['time'] / divisor
-        return label
 
     def alter_signal(self, op_, tmp):
         '''

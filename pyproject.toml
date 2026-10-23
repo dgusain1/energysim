@@ -25,7 +25,6 @@ dependencies = [
     "numpy",
     "pandas",
     "tqdm",
-    "tables",
     "networkx",
     "pyyaml",
 ]
@@ -36,7 +35,9 @@ powerflow = ["pandapower"]
 pypsa = ["pypsa"]
 opendss = ["opendssdirect.py"]
 plotting = ["matplotlib"]
-all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib"]
+results = ["pyarrow"]
+hdf5 = ["tables"]
+all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib", "pyarrow", "tables"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
 
 [project.scripts]
