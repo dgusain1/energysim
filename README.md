@@ -20,21 +20,115 @@ It bridges electrical power networks with **built-in physical models for green h
 
 ### Key Capabilities
 
-1. **Inbuilt Multi-Energy Physical Components**:
-   - **Storage**: `BatteryBESS` (LFP/NMC ECM + thermal + aging), `FlowBattery` (VRFB), `Flywheel`.
-   - **Renewables**: `PhysicsPV` (5-param + King NOCT), `WindTurbine`, `SolarThermalCollector`.
-   - **Hydrogen & PtX**: `PEMElectrolyzer`, `AlkalineElectrolyzer` (20% turndown cutoff), `SOECElectrolyzer` (steam electrolysis), `H2Compressor`, `H2StorageTank` (350 bar real-gas), `FuelCell_PEM`, `FuelCell_SOFC`, `MethanationReactor`.
-   - **Thermal & Turbomachinery**: `GasTurbine_OCGT` (Cold/Warm/Hot startup timers), `CombinedCycle_CCGT` (HRSG + Rankine steam), `ReciprocatingGenset`, `CHP_SteamTurbine`.
-   - **Heating, Cooling & Carbon**: `IndustrialHeatPump` (Carnot lift COP), `ElectricBoiler`, `Electric/Absorption Chillers`, `CarbonCapture_Amine`.
-   - **Equipment Catalog**: Ready-to-use archetypes from OEM datasheets (`catalog.Tesla_Megapack_2XL`, `catalog.Nel_A1000`, `catalog.GE_7HA_02`, `catalog.ITM_Power_Trident`, etc.).
-2. **Heterogeneous Co-Simulation Adapters**:
-   - **Pandapower** networks — AC/DC power flow and OPF
-   - **PyPSA** networks (Pattern B single-snapshot online dispatch)
-   - **OpenDSS** distribution networks via `OpenDSSDirect.py`
-   - **Functional Mockup Units** (FMI 1.0 / 2.0 Co-Simulation & Model Exchange)
-   - **DIgSILENT PowerFactory** models via Python API
-   - **MATLAB / GNU Octave** `.m` functions (auto-detects engine)
-   - **CSV profiles**, **signal generators**, and custom Python simulators.
+<!-- features:start -->
+<!-- Generated from features.yaml by scripts/generate_readme_features.py. Do not edit by hand. -->
+
+**Simulator adapters**
+
+| Capability | Status | Description |
+|---|---|---|
+| [CSV profile adapter](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Replay time series from a CSV file as a simulator (zero-order hold, strict column checks). |
+| [Signal generators](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Python callables and safe expression strings as signal sources. |
+| [Python script adapter](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Wrap a user Python module as a simulator (disabled in safe mode). |
+| [External simulator interface](https://energysim.readthedocs.io/en/latest/external-simulators/) | stable | Plug any object or factory implementing the adapter contract into a world. |
+| [FMU co-simulation (FMI 1.0 / 2.0)](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Run Co-Simulation FMUs through FMPy with start values, feed-through and re-runs. |
+| [FMU model exchange](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Integrate Model-Exchange FMUs with CVode, including time/state events. |
+| [pandapower networks](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | AC/DC power flow and OPF through pandapower, validated against direct runpp. |
+| [PyPSA networks](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Single-snapshot online power flow / dispatch of PyPSA networks. |
+| [OpenDSS distribution feeders](https://energysim.readthedocs.io/en/latest/add-simulator/) | stable | Unbalanced AC distribution feeders via OpenDSSDirect.py (DC mode rejected). |
+| [DIgSILENT PowerFactory](https://energysim.readthedocs.io/en/latest/add-simulator/) | beta | Load flow / short circuit / RMS through the PowerFactory Python API; CI uses a mock, a licensed run is manual. |
+| [MATLAB / GNU Octave functions](https://energysim.readthedocs.io/en/latest/add-simulator/) | beta | Call .m functions through the MATLAB Engine or Octave (oct2py), auto-detected. |
+| [Uniform adapter contract](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Every adapter kind passes one contract suite and is interchangeable inside a world. |
+
+**Coupling and numerics**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Jacobi coupling](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Default parallel coupling; every stage sees the previous macro step's outputs. |
+| [Gauss-Seidel coupling](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Sequential coupling in topological order so downstream models see fresh upstream outputs. |
+| [Algebraic-loop detection](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Feedback loops are detected, warned about and resolved with a one-step delay. |
+| [Input extrapolation](https://energysim.readthedocs.io/en/latest/architecture/) | stable | Zero-order hold or linear extrapolation of coupled inputs between macro steps. |
+
+**Units**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Unit-aware connections](https://energysim.readthedocs.io/en/latest/units/) | stable | Declared or inferred units are converted automatically across connections; incompatible units raise. |
+| [Strict unit policy](https://energysim.readthedocs.io/en/latest/units/) | stable | A variable with no determinable unit is never silently scaled; a manual scale disables conversion. |
+
+**Scenarios, validation and safety**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Pre-run validation](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | world.validate() reports unknown names, unit clashes and step-size problems before running. |
+| [Command-line interface](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | `energysim validate` and `energysim run` with stable exit codes and --out / --safe flags. |
+| [Safe mode](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Refuses scripts, external code and dotted imports when running untrusted scenario files. |
+| [Declarative YAML scenarios](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Describe a world in YAML, load it with world.from_yaml and round-trip it with to_yaml. |
+| [Glass-box access](https://energysim.readthedocs.io/en/latest/architecture/) | stable | get_adapter / get_model expose the live objects inside a world. |
+
+**Results and visualisation**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Results object](https://energysim.readthedocs.io/en/latest/results/) | stable | Typed per-simulator tables with units and run metadata; nothing is written to disk by default. |
+| [Save and load formats](https://energysim.readthedocs.io/en/latest/results/) | stable | Parquet (CSV fallback), CSV and HDF5 export with a meta.json and reload via Results.load. |
+| [KPIs and summaries](https://energysim.readthedocs.io/en/latest/results/) | stable | Energy integrals, time-weighted means and user-registered KPIs. |
+| [Interactive HTML dashboard](https://energysim.readthedocs.io/en/latest/results/) | stable | Self-contained offline HTML dashboard generated from a Results object. |
+
+**Built-in physical models**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Storage models](https://energysim.readthedocs.io/en/latest/components/bess/) | stable | BatteryBESS (Rint ECM + thermal + aging), FlowBattery (VRFB) and Flywheel. |
+| [Renewable models](https://energysim.readthedocs.io/en/latest/components/pv/) | stable | PhysicsPV (NOCT cell temperature, inverter clipping), WindTurbine and SolarThermalCollector. |
+| [Hydrogen and PtX models](https://energysim.readthedocs.io/en/latest/components/pem_electrolyzer/) | stable | PEM / alkaline / SOEC electrolyzers, H2 compressor and tank, PEM / SOFC fuel cells, methanation. |
+| [Thermal generation models](https://energysim.readthedocs.io/en/latest/components/ocgt/) | stable | OCGT with start-up timers, CCGT (HRSG + steam), reciprocating genset and CHP steam turbine. |
+| [Heating, cooling and thermal storage models](https://energysim.readthedocs.io/en/latest/components/heat_pump/) | stable | Industrial heat pump (Carnot-lift COP), electric boiler, electric / absorption chillers, thermal storage tank. |
+| [Carbon capture](https://energysim.readthedocs.io/en/latest/components/carbon_capture/) | stable | Amine-based post-combustion CarbonCapture_Amine. |
+| [Industrial and data-centre loads](https://energysim.readthedocs.io/en/latest/components/datacenter/) | stable | DataCenterLoad and IndustrialProcessSteam demand models. |
+| [Model framework](https://energysim.readthedocs.io/en/latest/custom-models/) | stable | ModelComponent base with describe(), strict variable access, units on every variable and deterministic re-runs. |
+| [Equipment archetypes](https://energysim.readthedocs.io/en/latest/components/catalog/) | stable | Generic documented archetypes (BESS_2h_2MW, PEM_5MW, ...) with provenance; brand-named aliases are deprecated. |
+
+**Vectorized fleets**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Vectorized fleet containers](https://energysim.readthedocs.io/en/latest/containers/overview/) | stable | Battery, PV and building fleets of N units advanced in one NumPy step, equal to a loop of scalar models. |
+| [Custom vectorized fleets](https://energysim.readthedocs.io/en/latest/containers/custom_fleet/) | stable | Subclass VectorizedContainerAdapter or pass an update function to VectorizedFunctionAdapter. |
+
+**Energy networks**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Energy networks](https://energysim.readthedocs.io/en/latest/networks/) | stable | Producer / consumer / storage graphs with an LP balance, pipe limits, merit order and losses. |
+| [Heat and gas networks](https://energysim.readthedocs.io/en/latest/networks/) | stable | HeatNetwork (transport delay, temperatures) and GasNetwork (MW_LHV / Nm3/h units, linepack). |
+
+**Control and optimisation**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Economic MPC](https://energysim.readthedocs.io/en/latest/control/) | beta | Receding-horizon LP/MILP controller over library blocks (storage, electrolyzer, heat pump, ...). |
+| [OPF and PyPSA controllers](https://energysim.readthedocs.io/en/latest/control/) | beta | pandapower OPF and PyPSA rolling-horizon controllers wrapped as energysim controllers. |
+| [Forecast providers](https://energysim.readthedocs.io/en/latest/control/) | beta | Perfect, persistence, callable and seeded noisy forecasts for controllers. |
+
+**Quality assurance**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Physical validation suite](https://energysim.readthedocs.io/en/latest/validation/) | stable | Analytic, textbook and cross-tool benchmarks with sourced tolerances, published in the docs. |
+| [Clean-install packaging](https://energysim.readthedocs.io/en/latest/faq/) | stable | The wheel ships py.typed and installs and imports cleanly in a fresh venv. |
+
+**Planned and removed**
+
+| Capability | Status | Description |
+|---|---|---|
+| [Iterative (fixed-point) coupling](https://energysim.readthedocs.io/en/latest/architecture/) | removed | Removed in 3.0 because it relied on rollback that adapters never supported; world() now raises. |
+| [Ensembles and parameter sweeps](https://energysim.readthedocs.io/en/latest/results/) | planned | Run many scenario variants and collect them in one Results object. |
+| [Scheduled events](https://energysim.readthedocs.io/en/latest/yaml-cli/) | planned | Time-triggered changes (outages, set-point steps) declared in the scenario. |
+| [State rollback API](https://energysim.readthedocs.io/en/latest/architecture/) | removed | save_state / restore_state were removed; no adapter implements rollback. |
+
+Status legend: `stable` and `beta` features are covered by the test suite listed in `features.yaml`; `planned` features are not implemented yet; `removed` ones raise a clear error.
+<!-- features:end -->
 
 ## Architecture
 
@@ -44,13 +138,14 @@ through this interface:
 
 | Method                              | Description                                       |
 |-------------------------------------|---------------------------------------------------|
-| `init()`                            | Called once before the first time step.            |
+| `configure(start, stop, macro_step)` + `init()` | Called at the start of every run, before the first step. |
+| `set_parameters(params)`            | Apply initial values / parameters (default: `set_value`). |
+| `get_available_variables()`         | Introspection: `{"inputs": [...], "outputs": [...]}`. |
 | `step(time)`                        | Advance the model by one micro-step.              |
 | `advance(start, stop)`              | Advance from *start* to *stop* (loops `step()`).  |
 | `get_value(parameters, time)`       | Query output variables.                           |
 | `set_value(parameters, values)`     | Set input variables.                              |
 | `cleanup()`                         | Release resources after the simulation.           |
-| `save_state()` / `restore_state()`  | State snapshot for iterative coupling.            |
 
 ## Installation
 
@@ -60,35 +155,47 @@ Install the core package:
 pip install energysim   # or: uv add energysim
 ```
 
-Only **numpy**, **pandas**, **tqdm**, **networkx**, and **pyyaml** are
-required (`pip install energysim[results]` adds pyarrow for Parquet output,
-`energysim[hdf5]` adds PyTables for `Results.to_hdf`). Simulator-specific packages are optional:
+Only **numpy**, **pandas**, **tqdm**, **networkx** and **pyyaml** are required. Everything else is an
+optional extra:
 
-=== "pip"
+<!-- extras:start -->
+<!-- Generated from pyproject.toml by scripts/generate_readme_features.py. Do not edit by hand. -->
 
-    ```bash
-    pip install energysim[fmu]         # adds FMPy
-    pip install energysim[powerflow]   # adds pandapower
-    pip install energysim[pypsa]       # adds PyPSA
-    pip install energysim[opendss]     # adds OpenDSSDirect.py
-    pip install energysim[plotting]    # adds matplotlib
-    pip install energysim[all]         # all of the above
-    ```
+With pip:
 
-=== "uv"
+```bash
+pip install energysim            # core: numpy, pandas, tqdm, networkx, pyyaml
+pip install energysim[fmu]       # adds fmpy>=0.3.27,<0.4
+pip install energysim[powerflow] # adds pandapower>=3.0,<4
+pip install energysim[pypsa]     # adds pypsa>=0.30,<2
+pip install energysim[opendss]   # adds opendssdirect.py>=0.9,<1
+pip install energysim[plotting]  # adds matplotlib
+pip install energysim[networks]  # adds scipy
+pip install energysim[control]   # adds scipy>=1.9
+pip install energysim[results]   # adds pyarrow
+pip install energysim[hdf5]      # adds tables
+pip install energysim[all]       # everything above
+```
 
-    ```bash
-    uv add energysim[fmu]         # adds FMPy
-    uv add energysim[powerflow]   # adds pandapower
-    uv add energysim[pypsa]       # adds PyPSA
-    uv add energysim[opendss]     # adds OpenDSSDirect.py
-    uv add energysim[plotting]    # adds matplotlib
-    uv add energysim[all]         # all of the above
-    ```
+With uv:
 
-For the new adapters:
+```bash
+uv add energysim
+uv add energysim[fmu]       # adds fmpy>=0.3.27,<0.4
+uv add energysim[powerflow] # adds pandapower>=3.0,<4
+uv add energysim[pypsa]     # adds pypsa>=0.30,<2
+uv add energysim[opendss]   # adds opendssdirect.py>=0.9,<1
+uv add energysim[plotting]  # adds matplotlib
+uv add energysim[networks]  # adds scipy
+uv add energysim[control]   # adds scipy>=1.9
+uv add energysim[results]   # adds pyarrow
+uv add energysim[hdf5]      # adds tables
+uv add energysim[all]       # everything above
+```
+<!-- extras:end -->
 
-- **OpenDSS**: `pip install energysim[opendss]` (cross-platform).
+Adapters that are not pip extras:
+
 - **PowerFactory**: requires DIgSILENT PowerFactory 2020+ with the Python API enabled. No extra pip package needed.
 - **MATLAB**: requires the MATLAB Engine for Python.
 - **Octave**: `pip install oct2py` / `uv add oct2py` + GNU Octave on PATH.
@@ -139,37 +246,49 @@ print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
 
 ## Parameters
 
+<!-- params:start -->
+<!-- Generated from the signatures by scripts/generate_readme_features.py. Do not edit by hand. -->
+
 ### `world()` parameters
 
-| Parameter                | Default        | Description                                             |
-|--------------------------|----------------|---------------------------------------------------------|
-| `start_time`             | `0`            | Simulation start time in seconds.                       |
-| `stop_time`              | `1000`         | Simulation end time in seconds.                         |
-| `logging`                | `True`         | Print progress messages.                                |
-| `t_macro`                | `60`           | Macro time-step (variable exchange interval).           |
-| `coupling`               | `'jacobi'`     | Coupling strategy: `'jacobi'`, `'gauss-seidel'`, `'iterative'`. |
-| `extrapolation`          | `'zero-order'` | Extrapolation method: `'zero-order'` or `'linear'`.    |
-| `max_iterations`         | `10`           | Max iterations per macro step (iterative only).         |
-| `convergence_tolerance`  | `1e-6`         | Convergence threshold (iterative only).                 |
+| Parameter | Default | Description |
+|---|---|---|
+| `start_time` | `0` | Simulation start time in seconds. |
+| `stop_time` | `1000` | Simulation end time in seconds; `stop_time - start_time` must be a multiple of `t_macro`. |
+| `logging` | `False` | Print INFO progress messages of the `energysim` logger. |
+| `t_macro` | `60` | Macro time-step (variable exchange interval); `0` means the LCM of all simulator step sizes. |
+| `coupling` | `'jacobi'` | Coupling strategy: `'jacobi'` or `'gauss-seidel'`. |
+| `extrapolation` | `'zero-order'` | Input extrapolation between macro steps: `'zero-order'` or `'linear'`. |
+| `power_unit` | `'kW'` | World default power unit used to resolve unit-less power variables. |
+| `start_datetime` | `None` | Optional wall-clock start; results are then indexed by datetime. |
+| `seed` | `None` | Optional random seed, recorded in the results metadata. |
+| `out_dir` | `None` | If set, every run is written to `<out_dir>/<timestamp>_<hash>/`. |
+| `unit_system` | `None` | `None`, `'default'`, `'si'`, an overrides dict or a `UnitSystem`. |
 
 ### `add_simulator()` parameters
 
-| Parameter    | Default  | Description                                          |
-|--------------|----------|------------------------------------------------------|
-| `sim_type`   | —        | `'fmu'`, `'powerflow'`, `'csv'`, `'external'`, `'powerfactory'`, `'matlab'`, `'script'`. |
-| `sim_name`   | —        | Unique identifier for this simulator.                |
-| `sim_loc`    | —        | Path to the model / data file.                       |
-| `inputs`     | —        | List of input variable names.                        |
-| `outputs`    | —        | List of output variable names to record.             |
-| `step_size`  | `1e-3`   | Micro time-step.                                     |
+| Parameter | Default | Description |
+|---|---|---|
+| `sim_type` | `''` | `'fmu'`, `'powerflow'`, `'pypsa'`, `'opendss'`, `'csv'`, `'signal'`, `'external'`, `'powerfactory'`, `'matlab'`, `'script'`, `'model'` or a fleet kind (`'battery_fleet'`, ...). |
+| `sim_name` | `''` | Unique identifier for this simulator. |
+| `sim_loc` | `None` | Path / object of the model (alias of `model`; many other aliases such as `net`, `path` exist). |
+| `inputs` | `None` | List of input variable names. |
+| `outputs` | `None` | List of output variable names to record. |
+| `step_size` | `1` | Micro time-step. |
+| `mode` | `'ac'` | Power-flow mode: `'ac'` or `'dc'`. |
+| `power_unit` | `None` | Power unit of this simulator's variables (default: the world's `power_unit`). |
+| `units` | `None` | Optional `{variable: unit}` mapping that overrides inferred units. |
+| `model` | `None` | Model object, file path or factory. |
+| `allow_import` | `False` | Allow dotted-import model references (`'pandapower.networks.case14'`); refused in safe mode. |
 
 Type-specific keyword arguments:
 
-- **FMU**: `validate` (bool), `variable` (bool)
-- **Powerflow**: `pf` — `'pf'`, `'dcpf'`, `'opf'`, or `'dcopf'`
+- **FMU**: `validate` (bool), `variable` (bool), `solver_name`
+- **Power flow** (`pandapower`, `pypsa`, `opendss`): `mode` - `'ac'` or `'dc'`
 - **CSV**: `delimiter` (str)
-- **PowerFactory**: `pf` — `'ldf'`, `'shc'`, or `'rms'`; `pf_path` (str)
-- **MATLAB/Octave**: `engine` — `'auto'`, `'matlab'`, or `'octave'`
+- **PowerFactory**: `mode` - `'ldf'`, `'shc'` or `'rms'`; `pf_path` (str)
+- **MATLAB / Octave**: `engine` - `'auto'`, `'matlab'` or `'octave'`
+<!-- params:end -->
 
 ## Results & Dashboard
 

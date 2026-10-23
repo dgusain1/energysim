@@ -1,0 +1,439 @@
+# Claim registry: every product claim made in README.md / docs, with the tests that prove it.
+#
+# Enforced by tests/docs/test_claims.py:
+#   * every feature with status stable|beta|experimental lists at least one test;
+#   * every test reference resolves (file exists; `file::name` matches a test function/class,
+#     `*` and `?` wildcards allowed);
+#   * every `docs` path exists.
+# README.md's feature table is generated from this file (python scripts/generate_readme_features.py).
+#
+# status: stable | beta | experimental | planned | removed
+#   planned / removed features need no tests (removed ones list tests proving the removal).
+
+groups:
+  adapters: "Simulator adapters"
+  coupling: "Coupling and numerics"
+  units: "Units"
+  workflow: "Scenarios, validation and safety"
+  results: "Results and visualisation"
+  models: "Built-in physical models"
+  fleets: "Vectorized fleets"
+  networks: "Energy networks"
+  control: "Control and optimisation"
+  quality: "Quality assurance"
+  planned: "Planned and removed"
+
+features:
+  # ------------------------------------------------------------------ adapters
+  - id: adapter-csv
+    group: adapters
+    title: CSV profile adapter
+    description: Replay time series from a CSV file as a simulator (zero-order hold, strict column checks).
+    status: stable
+    since: "1.0"
+    tests: ["tests/test_energysim.py::test_csv_adapter_*", "tests/test_core_fixes.py::test_csv_unknown_column_raises"]
+    docs: docs/add-simulator.md
+  - id: adapter-signal
+    group: adapters
+    title: Signal generators
+    description: Python callables and safe expression strings as signal sources.
+    status: stable
+    since: "1.0"
+    tests: ["tests/test_energysim.py::test_signal_adapter_*", "tests/test_core_fixes.py::test_safe_expression_signals"]
+    docs: docs/add-simulator.md
+  - id: adapter-script
+    group: adapters
+    title: Python script adapter
+    description: Wrap a user Python module as a simulator (disabled in safe mode).
+    status: stable
+    since: "1.0"
+    tests: ["tests/test_energysim.py::test_pyscript_adapter*", "tests/test_core_fixes.py::test_pyscript_*"]
+    docs: docs/add-simulator.md
+  - id: adapter-external
+    group: adapters
+    title: External simulator interface
+    description: Plug any object or factory implementing the adapter contract into a world.
+    status: stable
+    since: "2.0"
+    tests: ["tests/test_core_fixes.py::test_external_*", "tests/test_adapter_contract.py"]
+    docs: docs/external-simulators.md
+  - id: adapter-fmu-cs
+    group: adapters
+    title: FMU co-simulation (FMI 1.0 / 2.0)
+    description: Run Co-Simulation FMUs through FMPy with start values, feed-through and re-runs.
+    status: stable
+    since: "1.0"
+    tests: ["tests/adapters/test_fmu.py::test_cs_*", "tests/adapters/test_fmu.py::test_feedthrough_passes_inputs_to_outputs"]
+    docs: docs/add-simulator.md
+  - id: adapter-fmu-me
+    group: adapters
+    title: FMU model exchange
+    description: Integrate Model-Exchange FMUs with CVode, including time/state events.
+    status: stable
+    since: "2.0"
+    tests: ["tests/adapters/test_fmu.py::test_me_*"]
+    docs: docs/add-simulator.md
+  - id: adapter-pandapower
+    group: adapters
+    title: pandapower networks
+    description: AC/DC power flow and OPF through pandapower, validated against direct runpp.
+    status: stable
+    since: "1.0"
+    tests: ["tests/adapters/test_pandapower.py", "tests/validation/test_crosschecks.py::test_pandapower_*"]
+    docs: docs/add-simulator.md
+  - id: adapter-pypsa
+    group: adapters
+    title: PyPSA networks
+    description: Single-snapshot online power flow / dispatch of PyPSA networks.
+    status: stable
+    since: "2.1"
+    tests: ["tests/adapters/test_pypsa.py", "tests/validation/test_crosschecks.py::test_pypsa_*"]
+    docs: docs/add-simulator.md
+  - id: adapter-opendss
+    group: adapters
+    title: OpenDSS distribution feeders
+    description: Unbalanced AC distribution feeders via OpenDSSDirect.py (DC mode rejected).
+    status: stable
+    since: "2.1"
+    tests: ["tests/adapters/test_opendss.py"]
+    docs: docs/add-simulator.md
+  - id: adapter-powerfactory
+    group: adapters
+    title: DIgSILENT PowerFactory
+    description: Load flow / short circuit / RMS through the PowerFactory Python API; CI uses a mock, a licensed run is manual.
+    status: beta
+    since: "2.1"
+    tests: ["tests/adapters/test_powerfactory_mock.py"]
+    docs: docs/add-simulator.md
+  - id: adapter-matlab-octave
+    group: adapters
+    title: MATLAB / GNU Octave functions
+    description: Call .m functions through the MATLAB Engine or Octave (oct2py), auto-detected.
+    status: beta
+    since: "2.1"
+    tests: ["tests/adapters/test_matlab_octave.py"]
+    docs: docs/add-simulator.md
+  - id: adapter-uniformity
+    group: adapters
+    title: Uniform adapter contract
+    description: Every adapter kind passes one contract suite and is interchangeable inside a world.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_adapter_uniformity.py", "tests/test_adapter_contract.py"]
+    docs: docs/architecture.md
+
+  # ------------------------------------------------------------------ coupling
+  - id: coupling-jacobi
+    group: coupling
+    title: Jacobi coupling
+    description: Default parallel coupling; every stage sees the previous macro step's outputs.
+    status: stable
+    since: "1.0"
+    tests: ["tests/strengths/test_coupling_semantics.py::test_jacobi_*", "tests/validation/test_orchestrator_numerics.py"]
+    docs: docs/architecture.md
+  - id: coupling-gauss-seidel
+    group: coupling
+    title: Gauss-Seidel coupling
+    description: Sequential coupling in topological order so downstream models see fresh upstream outputs.
+    status: stable
+    since: "2.0"
+    tests: ["tests/strengths/test_coupling_semantics.py::test_gauss_seidel_*", "tests/validation/test_orchestrator_numerics.py::test_gauss_seidel_*"]
+    docs: docs/architecture.md
+  - id: coupling-loops
+    group: coupling
+    title: Algebraic-loop detection
+    description: Feedback loops are detected, warned about and resolved with a one-step delay.
+    status: stable
+    since: "2.1"
+    tests: ["tests/strengths/test_coupling_semantics.py::test_scc_*", "tests/strengths/test_coupling_semantics.py::test_feedback_loop_*", "tests/test_core_fixes.py::test_algebraic_loop_warning_advice"]
+    docs: docs/architecture.md
+  - id: extrapolation
+    group: coupling
+    title: Input extrapolation
+    description: Zero-order hold or linear extrapolation of coupled inputs between macro steps.
+    status: stable
+    since: "2.0"
+    tests: ["tests/validation/test_orchestrator_numerics.py::test_linear_extrapolation_*"]
+    docs: docs/architecture.md
+  - id: coupling-iterative
+    group: planned
+    title: Iterative (fixed-point) coupling
+    description: Removed in 3.0 because it relied on rollback that adapters never supported; world() now raises.
+    status: removed
+    since: "2.0"
+    tests: ["tests/strengths/test_removed_features.py"]
+    docs: docs/architecture.md
+
+  # ------------------------------------------------------------------ units
+  - id: unit-system
+    group: units
+    title: Unit-aware connections
+    description: Declared or inferred units are converted automatically across connections; incompatible units raise.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_unit_aware_connections.py", "tests/test_units.py"]
+    docs: docs/units.md
+  - id: unit-strict
+    group: units
+    title: Strict unit policy
+    description: A variable with no determinable unit is never silently scaled; a manual scale disables conversion.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_unit_aware_connections.py::test_unknown_units_are_never_guessed", "tests/strengths/test_unit_aware_connections.py::test_manual_scale_disables_automatic_conversion", "tests/test_core_fixes.py::test_unit_table_and_strictness"]
+    docs: docs/units.md
+
+  # ------------------------------------------------------------------ workflow
+  - id: validation-report
+    group: workflow
+    title: Pre-run validation
+    description: world.validate() reports unknown names, unit clashes and step-size problems before running.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_validation_and_cli.py", "tests/test_energysim.py::test_validation_*"]
+    docs: docs/yaml-cli.md
+  - id: cli
+    group: workflow
+    title: Command-line interface
+    description: "`energysim validate` and `energysim run` with stable exit codes and --out / --safe flags."
+    status: stable
+    since: "2.1"
+    tests: ["tests/strengths/test_validation_and_cli.py::test_run_executes_and_exits_0", "tests/strengths/test_validation_and_cli.py::test_version_flag", "tests/test_energysim.py::test_cli_validate_and_run", "tests/test_results.py::test_cli_out_csv_and_dashboard"]
+    docs: docs/yaml-cli.md
+  - id: safe-mode
+    group: workflow
+    title: Safe mode
+    description: Refuses scripts, external code and dotted imports when running untrusted scenario files.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_validation_and_cli.py::test_safe_mode_*", "tests/test_core_fixes.py::test_safe_mode_rejects_code_execution", "tests/test_core_fixes.py::test_hostile_signal_strings_rejected", "tests/test_core_fixes.py::test_cli_safe_flag"]
+    docs: docs/yaml-cli.md
+  - id: yaml-scenarios
+    group: workflow
+    title: Declarative YAML scenarios
+    description: Describe a world in YAML, load it with world.from_yaml and round-trip it with to_yaml.
+    status: stable
+    since: "2.0"
+    tests: ["tests/test_energysim.py::test_yaml_*", "tests/test_core_fixes.py::test_yaml_signal_specs_and_roundtrip", "tests/test_results.py::test_yaml_world_keys_roundtrip"]
+    docs: docs/yaml-cli.md
+  - id: glass-box
+    group: workflow
+    title: Glass-box access
+    description: get_adapter / get_model expose the live objects inside a world.
+    status: stable
+    since: "2.1"
+    tests: ["tests/test_energysim.py::test_glass_box_get_adapter_and_get_model"]
+    docs: docs/architecture.md
+
+  # ------------------------------------------------------------------ results
+  - id: results-object
+    group: results
+    title: Results object
+    description: Typed per-simulator tables with units and run metadata; nothing is written to disk by default.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_results.py::test_simulate_returns_results_with_final_row", "tests/test_results.py::test_typed_columns", "tests/test_results.py::test_access_api_and_variables", "tests/test_results.py::test_no_files_written_by_default", "tests/test_results.py::test_meta_contents_and_hash_stability"]
+    docs: docs/results.md
+  - id: results-formats
+    group: results
+    title: Save and load formats
+    description: Parquet (CSV fallback), CSV and HDF5 export with a meta.json and reload via Results.load.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_results.py::test_save_load_roundtrip", "tests/test_results.py::test_save_auto_without_pyarrow_falls_back_to_csv", "tests/test_results.py::test_out_dir_run_directory", "tests/test_results.py::test_streaming_equals_memory"]
+    docs: docs/results.md
+  - id: results-kpis
+    group: results
+    title: KPIs and summaries
+    description: Energy integrals, time-weighted means and user-registered KPIs.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_results.py::test_kpis_energy_integral"]
+    docs: docs/results.md
+  - id: dashboard
+    group: results
+    title: Interactive HTML dashboard
+    description: Self-contained offline HTML dashboard generated from a Results object.
+    status: stable
+    since: "2.1"
+    tests: ["tests/test_results.py::test_dashboard_*", "tests/test_core_fixes.py::test_dashboard_escapes_hostile_names"]
+    docs: docs/results.md
+
+  # ------------------------------------------------------------------ models
+  - id: models-storage
+    group: models
+    title: Storage models
+    description: BatteryBESS (Rint ECM + thermal + aging), FlowBattery (VRFB) and Flywheel.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_storage_renewables.py::test_bess_*", "tests/test_models_storage_renewables.py::test_flow_battery_*", "tests/test_models.py::test_flow_battery_and_flywheel"]
+    docs: docs/components/bess.md
+  - id: models-renewables
+    group: models
+    title: Renewable models
+    description: PhysicsPV (NOCT cell temperature, inverter clipping), WindTurbine and SolarThermalCollector.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models.py::test_physics_pv_irradiance_clipping_curtailment", "tests/test_models.py::test_wind_turbine_power_curve", "tests/validation/test_crosschecks.py::test_pv_vs_pvlib"]
+    docs: docs/components/pv.md
+  - id: models-hydrogen
+    group: models
+    title: Hydrogen and PtX models
+    description: PEM / alkaline / SOEC electrolyzers, H2 compressor and tank, PEM / SOFC fuel cells, methanation.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_hydrogen.py", "tests/validation/test_analytic_models.py::test_pem_*", "tests/validation/test_analytic_models.py::test_sabatier_*"]
+    docs: docs/components/pem_electrolyzer.md
+  - id: models-thermal
+    group: models
+    title: Thermal generation models
+    description: OCGT with start-up timers, CCGT (HRSG + steam), reciprocating genset and CHP steam turbine.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_thermal.py"]
+    docs: docs/components/ocgt.md
+  - id: models-hvac
+    group: models
+    title: Heating, cooling and thermal storage models
+    description: Industrial heat pump (Carnot-lift COP), electric boiler, electric / absorption chillers, thermal storage tank.
+    status: stable
+    since: "3.0"
+    tests: ["tests/validation/test_analytic_models.py::test_heatpump_*", "tests/test_models_framework.py"]
+    docs: docs/components/heat_pump.md
+  - id: models-carbon
+    group: models
+    title: Carbon capture
+    description: Amine-based post-combustion CarbonCapture_Amine.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_framework.py::test_init_leaves_state_unchanged_and_outputs_valid", "tests/strengths/test_domain_content.py"]
+    docs: docs/components/carbon_capture.md
+  - id: models-loads
+    group: models
+    title: Industrial and data-centre loads
+    description: DataCenterLoad and IndustrialProcessSteam demand models.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_framework.py::test_init_leaves_state_unchanged_and_outputs_valid", "tests/strengths/test_domain_content.py"]
+    docs: docs/components/datacenter.md
+  - id: models-framework
+    group: models
+    title: Model framework
+    description: ModelComponent base with describe(), strict variable access, units on every variable and deterministic re-runs.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_models_framework.py", "tests/strengths/test_domain_content.py"]
+    docs: docs/custom-models.md
+  - id: catalog
+    group: models
+    title: Equipment archetypes
+    description: Generic documented archetypes (BESS_2h_2MW, PEM_5MW, ...) with provenance; brand-named aliases are deprecated.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_catalog.py"]
+    docs: docs/components/catalog.md
+
+  # ------------------------------------------------------------------ fleets
+  - id: fleets-vectorized
+    group: fleets
+    title: Vectorized fleet containers
+    description: Battery, PV and building fleets of N units advanced in one NumPy step, equal to a loop of scalar models.
+    status: stable
+    since: "2.1"
+    tests: ["tests/strengths/test_vectorized_fleets.py", "tests/test_containers.py"]
+    docs: docs/containers/overview.md
+  - id: fleets-custom
+    group: fleets
+    title: Custom vectorized fleets
+    description: Subclass VectorizedContainerAdapter or pass an update function to VectorizedFunctionAdapter.
+    status: stable
+    since: "2.1"
+    tests: ["tests/test_energysim.py::test_vectorized_function_adapter", "tests/test_core_fixes.py::test_add_simulator_function_container_and_instance"]
+    docs: docs/containers/custom_fleet.md
+
+  # ------------------------------------------------------------------ networks
+  - id: networks-energy
+    group: networks
+    title: Energy networks
+    description: Producer / consumer / storage graphs with an LP balance, pipe limits, merit order and losses.
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_networks.py"]
+    docs: docs/networks.md
+  - id: networks-heat-gas
+    group: networks
+    title: Heat and gas networks
+    description: HeatNetwork (transport delay, temperatures) and GasNetwork (MW_LHV / Nm3/h units, linepack).
+    status: stable
+    since: "3.0"
+    tests: ["tests/test_networks.py::test_heat_*", "tests/test_networks.py::test_gas_*"]
+    docs: docs/networks.md
+
+  # ------------------------------------------------------------------ control
+  - id: control-mpc
+    group: control
+    title: Economic MPC
+    description: Receding-horizon LP/MILP controller over library blocks (storage, electrolyzer, heat pump, ...).
+    status: beta
+    since: "3.0"
+    tests: ["tests/test_control.py::test_a_*", "tests/test_control.py::test_c_*", "tests/test_control.py::test_d_*", "tests/test_control.py::test_e_*", "tests/test_control.py::test_f_*"]
+    docs: docs/control.md
+  - id: control-opf
+    group: control
+    title: OPF and PyPSA controllers
+    description: pandapower OPF and PyPSA rolling-horizon controllers wrapped as energysim controllers.
+    status: beta
+    since: "3.0"
+    tests: ["tests/test_control.py::test_h_*", "tests/test_control.py::test_pypsa_rolling_horizon_first_step_matches_direct_optimize"]
+    docs: docs/control.md
+  - id: control-forecasts
+    group: control
+    title: Forecast providers
+    description: Perfect, persistence, callable and seeded noisy forecasts for controllers.
+    status: beta
+    since: "3.0"
+    tests: ["tests/test_control.py::test_g_forecast_providers", "tests/test_control.py::test_j_noisy_forecast_seed_reproducible"]
+    docs: docs/control.md
+
+  # ------------------------------------------------------------------ quality
+  - id: validation-suite
+    group: quality
+    title: Physical validation suite
+    description: Analytic, textbook and cross-tool benchmarks with sourced tolerances, published in the docs.
+    status: stable
+    since: "3.0"
+    tests: ["tests/validation/test_analytic_models.py", "tests/validation/test_crosschecks.py", "tests/validation/test_orchestrator_numerics.py"]
+    docs: docs/validation.md
+  - id: packaging
+    group: quality
+    title: Clean-install packaging
+    description: The wheel ships py.typed and installs and imports cleanly in a fresh venv.
+    status: stable
+    since: "3.0"
+    tests: ["tests/strengths/test_packaging.py"]
+    docs: docs/faq.md
+
+  # ------------------------------------------------------------------ planned / removed
+  - id: ensemble
+    group: planned
+    title: Ensembles and parameter sweeps
+    description: Run many scenario variants and collect them in one Results object.
+    status: planned
+    since: "3.0"
+    tests: []
+    docs: docs/results.md
+  - id: events
+    group: planned
+    title: Scheduled events
+    description: Time-triggered changes (outages, set-point steps) declared in the scenario.
+    status: planned
+    since: "3.0"
+    tests: []
+    docs: docs/yaml-cli.md
+  - id: rollback
+    group: planned
+    title: State rollback API
+    description: save_state / restore_state were removed; no adapter implements rollback.
+    status: removed
+    since: "2.0"
+    tests: ["tests/strengths/test_removed_features.py::test_no_rollback_*"]
+    docs: docs/architecture.md
