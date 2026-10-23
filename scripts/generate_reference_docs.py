@@ -648,7 +648,7 @@ def render_results() -> str:
             "| Reload | `Results.load(path)` | - |", "",
             "## Ensembles", "",
             "A `Results` object can hold several runs (`is_ensemble`, `res.run(i)`, `Results.concat`). "
-            "Parameter sweeps and ensembles are tracked as *planned* in `features.yaml`.", ""]
+            "`Ensemble` and `Sweep` build such objects from many runs; see [Ensembles and sweeps](ensemble.md).", ""]
     return "\n".join(out)
 
 
