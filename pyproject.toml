@@ -28,15 +28,20 @@ dependencies = [
     "tqdm",
     "tables",
     "networkx",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
 fmu = ["fmpy>=0.3"]
 powerflow = ["pandapower"]
 pypsa = ["pypsa"]
+opendss = ["opendssdirect.py"]
 plotting = ["matplotlib"]
-all = ["fmpy>=0.3", "pandapower", "pypsa", "matplotlib"]
+all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
+
+[project.scripts]
+energysim = "energysim.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/dgusain1/energysim"
@@ -53,3 +58,7 @@ dev = [
     "mkdocs-material",
     "mkdocs-material-extensions",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["test_energysim.py", "test_models.py"]
+

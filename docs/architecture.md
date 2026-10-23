@@ -6,7 +6,7 @@ This page describes the internal architecture of `energysim` (v2.2+).
 
 `energysim` follows a **coordinator–adapter** pattern:
 
-- The **coordinator** (`world` class in `__init__.py`) manages the
+- The **coordinator** (`world` class in `world.py`, exposed via `__init__.py`) manages the
   simulation loop, time progression, variable exchange, dependency
   ordering, coupling strategy, and results collection.
 - Each simulator is wrapped in an **adapter** that conforms to the
@@ -28,6 +28,7 @@ instead of `sys.exit()` calls:
 | `SimulatorVariableError`           | Invalid variable name or type mismatch.                  |
 | `SimulatorElementNotFoundError`    | Named element not found in a network.                    |
 | `ConnectionError`                  | Malformed or invalid connection specification.           |
+| `ValidationError`                  | World pre-flight semantic or graph check failure.        |
 
 Import them as:
 
@@ -37,6 +38,7 @@ from energysim.base import (
     SimulatorVariableError,
     SimulatorElementNotFoundError,
     ConnectionError,
+    ValidationError,
 )
 ```
 
@@ -76,7 +78,8 @@ Defined in `energysim.base`, the abstract base class provides:
 | `FmuCsAdapter`       | `'fmu'`          | FMI Co-Simulation (1.0 & 2.0)                    |
 | `FmuMeAdapter`       | `'fmu'`          | FMI Model Exchange with ODE solver               |
 | `pp_adapter`         | `'powerflow'`    | Pandapower network                               |
-| `pypsa_adapter`      | `'powerflow'`    | PyPSA network (experimental)                     |
+| `pypsa_adapter`      | `'pypsa'`        | PyPSA network (Pattern B online dispatch)        |
+| `opendss_adapter`    | `'opendss'`      | OpenDSS distribution network (OpenDSSDirect.py)  |
 | `csv_simulator`      | `'csv'`          | Time-indexed CSV data (read-only)                |
 | `signal_adapter`     | *(via add_signal)*| User-defined Python function (read-only)        |
 | `pyScriptAdapter`    | `'script'`       | Standalone Python script                         |

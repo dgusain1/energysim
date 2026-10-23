@@ -1,10 +1,13 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Jun  6 13:56:32 2019
-
-@author: digvijaygusain
-
 PyPSA adapter for energysim.
+
+LIMITATION NOTE (Pattern B - Single-Snapshot Mode):
+This adapter operates in Pattern B (Single Snapshot Online Dispatch/Power Flow).
+At each co-simulation macro time step, the PyPSA network evaluates a single snapshot.
+Multi-period lookahead time series optimization (e.g., continuous multi-day LOPF
+with inter-temporal storage/SOC linkages) is evaluated sequentially snapshot-by-snapshot
+within the co-simulation loop rather than solving the entire multi-period time-horizon
+simultaneously.
 """
 
 import logging
@@ -13,21 +16,66 @@ from .base import SimulatorAdapter, SimulatorElementNotFoundError
 
 
 class pypsa_adapter(SimulatorAdapter):
+    """
+    Adapter for PyPSA networks in energysim.
 
-    def __init__(self, network_name, net_loc, inputs=[], outputs=[], logger_level='CRITICAL'):
+    Design Characteristic / Limitation (Pattern B):
+    Operates on a single active snapshot at each macro time step. Multi-snapshot
+    lookahead horizons are evaluated sequentially step-by-step.
+    """
+
+    def __init__(self, network_name, net_loc=None, inputs=None, outputs=None, mode='ac', pf=None, logger_level='CRITICAL', model=None):
         import pypsa  # lazy import: pypsa is optional and has heavy dependencies
         pypsa.pf.logger.setLevel(getattr(logging, logger_level.upper(), logging.CRITICAL))
         self.network_name = network_name
-        self.net_loc = net_loc
-        self.network = pypsa.Network()
-        self.network.import_from_csv_folder(net_loc)
-        assert len(self.network.snapshots) == 1, "Only one snapshot is supported."
+        target = model if model is not None else net_loc
+        if target is None:
+            raise ValueError(f"No network or model specified for PyPSA simulator '{network_name}'.")
+
+        from .utils import resolve_model_reference
+        target = resolve_model_reference(target)
+
+        # Standardized powerflow mode: strictly 'ac' or 'dc'
+        raw_mode = (mode if (mode != 'ac' or pf is None) else pf) or 'ac'
+        raw_mode = raw_mode.lower()
+        if raw_mode in ('ac', 'pf'):
+            self.mode = 'ac'
+        elif raw_mode in ('dc', 'dcpf', 'lpf'):
+            self.mode = 'dc'
+        else:
+            raise ValueError(
+                f"Unsupported calculation mode '{raw_mode}'. "
+                f"energysim only supports 'ac' and 'dc' power flow modes."
+            )
+        self.pf = self.mode  # backward compatibility alias
+
+        if hasattr(target, 'snapshots') and hasattr(target, 'buses'):
+            self.network = target
+            self.net_loc = getattr(target, 'name', None) or network_name
+        elif isinstance(target, str):
+            self.net_loc = target
+            self.network = pypsa.Network()
+            if target.endswith('.nc'):
+                self.network.import_from_netcdf(target)
+            else:
+                self.network.import_from_csv_folder(target)
+        elif callable(target):
+            self.network = target()
+            self.net_loc = getattr(self.network, 'name', None) or network_name
+        else:
+            self.network = target
+            self.net_loc = network_name
+
+        assert len(self.network.snapshots) == 1, (
+            "Pattern B limitation: Only one snapshot is supported per co-simulation step."
+        )
+        inputs = inputs or []
+        outputs = outputs or []
         self.new_inputs, self.new_outputs = self.process_powerflow_ipop(self.network, inputs, outputs)
         self.outputs = outputs
 
     def init(self):
-        self.network.lpf()
-        self.network.pf(use_seed=True)
+        self.step(0)
 
     def set_value(self, parameters, values):
         for parameter, value in zip(parameters, values):
@@ -95,9 +143,11 @@ class pypsa_adapter(SimulatorAdapter):
         pass
 
     def step(self, time):
-        #        pypsa.pf.logger.setLevel(logging.CRITICAL)
-        self.network.lpf()
-        self.network.pf(use_seed=True)
+        if self.mode == 'ac':
+            self.network.lpf()
+            self.network.pf(use_seed=True)
+        else:
+            self.network.lpf()
 
     def process_powerflow_ipop(self, network, inputs, outputs):
         new_inputs = []

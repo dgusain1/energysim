@@ -1,0 +1,36 @@
+# energysim Declarative Scenario Specification
+# ============================================
+# This file defines a complete multi-energy co-simulation without writing Python code.
+# Run with: energysim run microgrid_scenario.yaml --dashboard
+
+world:
+  start_time: 0
+  stop_time: 3600
+  t_macro: 60
+  coupling: jacobi              # Options: jacobi, gauss-seidel, iterative
+  extrapolation: zero-order     # Options: zero-order, linear
+  res_filename: microgrid_res.h5
+  logging: true
+
+simulators:
+  # 1. Solar PV irradiance signal generator
+  - name: solar_pv
+    type: signal
+    step_size: 1.0
+    options:
+      # Simple sine wave simulating diurnal irradiance
+      signal: "lambda t: max(0.0, 1000.0 * __import__('math').sin(3.14159 * t / 3600.0))"
+
+  # 2. Building thermal load / energy management
+  - name: building_load
+    type: signal
+    step_size: 60.0
+    options:
+      signal: "lambda t: 50.0 + 20.0 * (t / 3600.0)"
+
+connections:
+  # Route solar PV output to building with 10% scaling factor (e.g. 10% rooftop efficiency)
+  - from: solar_pv.y
+    to: building_load.y
+    scale: 0.1
+    offset: 0.0

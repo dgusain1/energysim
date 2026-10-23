@@ -16,9 +16,12 @@ from .base import (
     SimulatorVariableError,
     SimulatorElementNotFoundError,
     ConnectionError,
+    ValidationError,
+    ValidationReport,
 )
 from .csv_adapter import csv_simulator
 from .signalAdapter import signal_adapter
+from .opendssAdapter import opendss_adapter
 from .ParameterSweep import Sweep
 from .utils import (
     convert_to_df,
@@ -30,6 +33,16 @@ from .utils import (
 )
 from .dashboard import generate_dashboard
 
+from .container import (
+    VectorizedContainerAdapter,
+    BatteryFleetAdapter,
+    BuildingFleetAdapter,
+    PVFleetAdapter,
+    VectorizedFunctionAdapter,
+)
+from . import models
+from .models.common import ModelComponent, Curve1D, Surface2D
+
 __version__ = "2.1.9.1"
 
 __all__ = [
@@ -38,12 +51,24 @@ __all__ = [
     "Sweep",
     "SimulatorAdapter",
     "SimEntry",
+    "ModelComponent",
+    "Curve1D",
+    "Surface2D",
+    "models",
+    "VectorizedContainerAdapter",
+    "BatteryFleetAdapter",
+    "BuildingFleetAdapter",
+    "PVFleetAdapter",
+    "VectorizedFunctionAdapter",
     "EnergysimError",
     "SimulatorVariableError",
     "SimulatorElementNotFoundError",
     "ConnectionError",
+    "ValidationError",
+    "ValidationReport",
     "csv_simulator",
     "signal_adapter",
+    "opendss_adapter",
     "generate_dashboard",
     "convert_to_df",
     "convert_to_csv",
@@ -53,3 +78,4 @@ __all__ = [
     "create_results_recorder",
     "__version__",
 ]
+

@@ -115,6 +115,76 @@ my_world.add_connections({'signal.y': 'csv_data.temperature'})
 #   Connection to 'temperature' will be silently ignored.
 ```
 
+### Pre-flight semantic validation
+
+Before running a long simulation, you can audit the entire simulation topology using `my_world.validate()`:
+
+```python
+report = my_world.validate(raise_on_error=False)
+if not report.is_valid:
+    for err in report.errors:
+        print(f"ERROR: {err}")
+for warn in report.warnings:
+    print(f"WARNING: {warn}")
+```
+
+Audits performed:
+- **Step-size Divisibility**: Emits warnings if simulator micro-step sizes do not divide the macro synchronization interval `t_macro` evenly.
+- **Unregistered Simulators & Read-Only Targets**: Detects unknown simulators or connections targeting read-only data sources.
+- **Algebraic Loops & Coupling Strategy**: Analyzes strongly connected components (SCCs) and verifies that appropriate coupling (`iterative` or `jacobi`) is configured when cycles exist.
+
+By default, `my_world.simulate(validate=True)` runs this check automatically at startup.
+
+### Physical units abstraction & inline scaling
+
+`energysim` features an engineering units abstraction layer with a default baseline unit of **`'kW'`**. It automatically resolves unit conversions across domains without requiring manual scaling factors.
+
+#### Automatic unit conversion
+
+When simulators have known or inferable units (for example, OpenDSS kW, Pandapower/PyPSA MW, and FMU W), `energysim` infers the physical dimension and scales values transparently during macro time-step exchanges:
+
+- **Power**: `W`, `kW`, `MW`, `GW`
+- **Reactive Power**: `var`, `kvar`, `mvar`
+- **Voltage**: `V`, `kV`, `mV`
+- **Energy**: `Wh`, `kWh`, `MWh`, `GWh`, `J`, `kJ`, `MJ`
+
+#### Explicit connection units
+
+You can explicitly declare source and target units on any connection:
+
+```python
+# Convert from kW (chp) to MW (grid) automatically
+my_world.add_connections({
+    'chp.power': {'to': 'grid.Gen1.p_mw', 'from_unit': 'kW', 'to_unit': 'MW'}
+})
+```
+
+#### Simulator-level unit declaration
+
+You can specify the default power unit or custom variable unit mappings per simulator:
+
+```python
+my_world.add_simulator(
+    sim_type='fmu',
+    sim_name='chp',
+    sim_loc='chp.fmu',
+    power_unit='kW',
+    units={'heat_flow': 'kW', 'gas_consumption': 'm3/h'},
+    outputs=['electric_power', 'heat_flow'],
+)
+```
+
+#### Inline scaling and offsets ($y = x \cdot \text{scale} + \text{offset}$)
+
+For custom unit systems or non-standard variables, pass explicit `scale` and `offset`:
+
+```python
+# Explicit custom scaling (bypasses automatic unit scaling)
+my_world.add_connections({
+    'chp.power_w': {'to': 'grid.Gen1.p_mw', 'scale': 1e-6, 'offset': 0.0}
+})
+```
+
 ---
 
 ## Dependency graph & algebraic loops
@@ -158,6 +228,9 @@ Currently implemented in:
 - **ppAdapter** — returns element.variable names from gen, load, sgen, bus, and ext_grid tables.
 - **csAdapter** — returns all variable names from the FMU's model description.
 - **csv_adapter** — returns column names from the CSV file.
+- **pypsa_adapter** — returns bus, generator, load, and branch variable names.
+- **opendss_adapter** — returns bus, load, generator, line, and circuit metrics.
+- **pyScriptAdapter** — returns configured inputs and outputs.
 
 ---
 
@@ -221,28 +294,28 @@ my_world.options(options)
 
 ---
 
-## Optimal Power Flow
+## AC and DC Power Flow Modes
 
-Pandapower networks can run OPF instead of standard power flow.
-Specify `pf='opf'` (or `'dcopf'`) when adding the simulator:
+`energysim` focuses strictly on time-series dynamic co-simulation and standardizes power flow calculations across all supported power grid engines (Pandapower, PyPSA, OpenDSS, DIgSILENT PowerFactory) to two canonical modes:
+
+- **`mode='ac'`** (default) — Full non-linear AC power flow (e.g. Newton-Raphson in Pandapower/PowerFactory, snapshot in OpenDSS, AC non-linear in PyPSA).
+- **`mode='dc'`** — Linearized DC power flow for fast active-power approximations.
 
 ```python
+# Configure DC power flow
 my_world.add_simulator(
-    sim_type='powerflow', sim_name='grid',
+    sim_type='powerflow',
+    sim_name='grid',
     sim_loc='network.p',
-    inputs=['WF.p_mw'], outputs=['Bus1.vm_pu'],
-    step_size=300, pf='opf')
+    inputs=['WF.p_mw'],
+    outputs=['Bus1.vm_pu'],
+    step_size=300,
+    mode='dc',
+)
 ```
 
-For OPF, ensure the network has proper cost functions and that
-controllable loads have `controllable=True` set. This can be done
-after the simulator is added:
-
-```python
-net = my_world.simulator_dict["grid"].adapter.network
-idx = net.load[net.load["name"] == "FlexLoad"].index
-net.load.loc[idx, "controllable"] = True
-```
+!!! note "Scope of Co-Simulation"
+    Higher-level static optimizations (such as OPF/LOPF) and specialized dynamic transient solvers (such as electromagnetic RMS or short-circuit calculations) are intentionally excluded from the core time-step synchronization loop. Co-simulation coordinates dynamic multi-energy exchanges; if optimization is required, external supervisory controllers or PyScript adapters should be coupled into the simulation loop.
 
 ---
 
@@ -312,8 +385,8 @@ sweep.export_to_csv('sweep_results.csv')
 
 DIgSILENT PowerFactory models (2020+) can be coupled into
 co-simulations using the `'powerfactory'` sim type. The adapter
-supports load flow (`'ldf'`), short-circuit (`'shc'`), and RMS
-transient (`'rms'`) calculation modes.
+supports AC load flow (`mode='ac'`) and DC load flow (`mode='dc'`)
+calculation modes (mapped to PowerFactory `ComLdf`).
 
 Variable naming convention:
 
@@ -331,7 +404,7 @@ my_world.add_simulator(
     inputs=['Load1.plini', 'Load2.plini'],
     outputs=['Bus1.m:u', 'Line1.m:loading'],
     step_size=900,
-    pf='ldf',
+    mode='ac',
     pf_path=r'C:\DIgSILENT\PowerFactory 2024\Python\3.11')
 ```
 
@@ -437,8 +510,9 @@ calling `sys.exit()`:
 | Exception                         | When raised                                                 |
 |-----------------------------------|-------------------------------------------------------------|
 | `ConnectionError`                 | Malformed connection string, missing simulator name         |
-| `SimulatorVariableError`          | Invalid variable name or type in a pandapower / FMU adapter |
+| `SimulatorVariableError`          | Invalid variable name or type in an adapter                 |
 | `SimulatorElementNotFoundError`   | Named element not found in a network                        |
+| `ValidationError`                 | World pre-flight semantic or graph check failure            |
 | `EnergysimError`                  | General energysim error (base class)                        |
 
 These can be caught and handled in user code:
@@ -454,20 +528,41 @@ except SimulatorVariableError as e:
 
 ---
 
-## Accessing simulator internals
+## Accessing simulator internals ("Glass-Box" Co-Simulation)
 
-After adding a simulator, its internal adapter object is accessible via
-the `simulator_dict`:
+`energysim` follows a "Glass-Box" co-simulation philosophy: while it handles the orchestration, the underlying domain-specific models remain directly accessible to users before, during, or after execution.
+
+### Direct Glass-Box Accessors
+
+Use `world.get_model()` and `world.get_adapter()`:
 
 ```python
-# Access the pandapower network object
-net = my_world.simulator_dict["grid"].adapter.network
+# Access the native engine/network model directly
+net = my_world.get_model("grid")           # Returns pandapowerNet or pypsa.Network
+dss = my_world.get_model("distribution")   # Returns OpenDSSDirect module
+app = my_world.get_model("powerfactory")    # Returns DIgSILENT Application object
+df  = my_world.get_model("weather")         # Returns pandas DataFrame
 
-# Access an FMU adapter
-fmu = my_world.simulator_dict["plant"].adapter
+# Access the simulator adapter wrapper
+adapter = my_world.get_adapter("grid")
 ```
 
-Each entry in `simulator_dict` is a `SimEntry` dataclass with:
+| Simulator Type | `world.get_model(name)` returns | Description |
+| :--- | :--- | :--- |
+| `'powerflow'` | `pandapowerNet` | Native Pandapower network structure |
+| `'pypsa'` | `pypsa.Network` | Native PyPSA network object |
+| `'opendss'` | `OpenDSSDirect` module | Direct OpenDSS interface handle |
+| `'powerfactory'` | `Application` object | DIgSILENT PowerFactory root COM / Python object |
+| `'csv'` | `pandas.DataFrame` | Loaded time-series profile data |
+| `'fmu'` | `fmi2Component` | Active FMU simulation handle |
+| `'matlab'` | `MatlabEngine` or `Oct2Py` | Underlying MATLAB / Octave engine session |
+| `'script'` | Python module / callable | Executed script namespace |
+| `'signal'` | `callable` | Signal generation function |
+| `'container'` | `VectorizedContainerAdapter` | Underlying state/input NumPy dictionaries |
+
+### Simulator Registry (`simulator_dict`)
+
+Each registered simulator is also stored in `simulator_dict` as a `SimEntry` dataclass:
 
 | Attribute         | Description                                              |
 |-------------------|----------------------------------------------------------|
@@ -475,6 +570,17 @@ Each entry in `simulator_dict` is a `SimEntry` dataclass with:
 | `.outputs`        | List of output variable names.                           |
 | `.inputs`         | List of input variable names (populated from connections).|
 | `.step_size`      | Micro time-step.                                         |
-| `.sim_type`       | `'fmu'`, `'pf'`, `'csv'`, `'signal'`, etc.              |
+| `.sim_type`       | `'fmu'`, `'powerflow'`, `'pypsa'`, `'opendss'`, `'container'`, etc. |
+| `.mode`           | Standardized power-flow mode (`'ac'` or `'dc'`).         |
+| `.power_unit`     | Default power unit for this simulator (e.g. `'kW'`, `'MW'`). |
+| `.units`          | Mapping of variable names to specific physical units.    |
 | `.variable_step`  | Whether variable stepping is enabled (FMU only).         |
-| `.pf_mode`        | Power-flow mode (powerflow only).                        |
+
+---
+
+## High-performance mass fleets (Vectorized Containers)
+
+For simulating thousands of edge devices (such as 1,000 EVs or 500 heat pumps) without coordinator bottleneck or multi-process overhead, use `energysim`'s built-in **Vectorized Container Simulators**.
+
+See the comprehensive [Vectorized Containers guide](containers/overview.md) for architecture, vector operations, and examples.
+

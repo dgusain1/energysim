@@ -37,39 +37,47 @@ from .base import SimulatorAdapter
 class pf_adapter(SimulatorAdapter):
     """Adapter for DIgSILENT PowerFactory (2020+ Python API)."""
 
-    def __init__(self, project_name, pf_loc=None, inputs=None,
-                 outputs=None, pf='ldf', pf_path=None):
+    def __init__(self, project_name=None, pf_loc=None, inputs=None,
+                 outputs=None, mode='ac', pf=None, pf_path=None, model=None):
         """
         Parameters
         ----------
-        project_name : str
+        project_name : str or None
             Name of the PowerFactory project to activate.
         pf_loc : str or None
-            Not used directly (project is opened by name inside PF).
-            Kept for API symmetry with other adapters.
+            Backward-compatible location / project name argument.
+        model : str or None
+            PowerFactory project name identifier.
         inputs : list[str]
             Input variables in ``"ElementName.attribute"`` format.
         outputs : list[str]
             Output variables to record.
-        pf : str
-            Calculation type: ``'ldf'`` (load flow, default),
-            ``'shc'`` (short circuit), or ``'rms'`` (RMS simulation).
+        mode : str
+            Calculation mode: ``'ac'`` (AC load flow, default) or ``'dc'`` (DC load flow).
         pf_path : str or None
             Path to the PowerFactory Python directory, e.g.
             ``r"C:\\DIgSILENT\\PowerFactory 2024\\Python\\3.11"``.
             If *None*, ``powerfactory`` must already be importable.
         """
-        self.project_name = project_name
-        self.pf_loc = pf_loc
+        self.project_name = project_name or model or pf_loc
+        self.pf_loc = pf_loc or self.project_name
         self.inputs = inputs or []
         self.outputs = outputs or []
-        self.pf = pf.lower()
         self.pf_path = pf_path
 
-        assert self.pf in ('ldf', 'shc', 'rms'), (
-            f"Unknown calculation type '{self.pf}'. "
-            f"Choose from 'ldf', 'shc', 'rms'."
-        )
+        # Standardized powerflow mode: strictly 'ac' or 'dc'
+        raw_mode = (mode if (mode != 'ac' or pf is None) else pf) or 'ac'
+        raw_mode = raw_mode.lower()
+        if raw_mode in ('ac', 'ldf', 'pf'):
+            self.mode = 'ac'
+        elif raw_mode in ('dc', 'dcpf'):
+            self.mode = 'dc'
+        else:
+            raise ValueError(
+                f"Unsupported calculation mode '{raw_mode}'. "
+                f"energysim only supports 'ac' and 'dc' power flow modes."
+            )
+        self.pf = self.mode  # backward compatibility alias
 
         # Populated by init()
         self._app = None
@@ -105,20 +113,19 @@ class pf_adapter(SimulatorAdapter):
             )
         self._project = self._app.GetActiveProject()
 
-        # Get the calculation command object
-        if self.pf == 'ldf':
-            self._calc_cmd = self._app.GetFromStudyCase('ComLdf')
-        elif self.pf == 'shc':
-            self._calc_cmd = self._app.GetFromStudyCase('ComShc')
-        elif self.pf == 'rms':
-            self._calc_cmd = self._app.GetFromStudyCase('ComInc')
-            self._sim_cmd = self._app.GetFromStudyCase('ComSim')
+        # Get the calculation command object (ComLdf for both AC and DC load flow)
+        self._calc_cmd = self._app.GetFromStudyCase('ComLdf')
 
         if self._calc_cmd is None:
             raise RuntimeError(
-                f"Could not find calculation command for mode "
-                f"'{self.pf}' in the active study case."
+                f"Could not find calculation command 'ComLdf' in the active study case."
             )
+
+        # Set AC (0) vs DC (2) load flow option in PowerFactory ComLdf
+        if self.mode == 'dc':
+            self._calc_cmd.SetAttribute('iopt_net', 2)
+        else:
+            self._calc_cmd.SetAttribute('iopt_net', 0)
 
         # Build element cache from all calc-relevant objects
         self._build_element_cache()
@@ -199,8 +206,4 @@ class pf_adapter(SimulatorAdapter):
 
     def _run_calculation(self):
         """Execute the active calculation command."""
-        if self.pf == 'rms':
-            self._calc_cmd.Execute()      # ComInc (initialise)
-            self._sim_cmd.Execute()       # ComSim (simulate)
-        else:
-            self._calc_cmd.Execute()
+        self._calc_cmd.Execute()

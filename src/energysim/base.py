@@ -35,6 +35,50 @@ class ConnectionError(EnergysimError):
     """A connection specification is invalid."""
 
 
+class ValidationError(EnergysimError):
+    """A world pre-flight validation check failed."""
+
+
+@dataclass
+class ValidationReport:
+    """Detailed summary of world.validate() execution."""
+    is_valid: bool
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        lines = [f"ValidationReport: {'PASSED' if self.is_valid else 'FAILED'}"]
+        if self.errors:
+            lines.append(f"  Errors ({len(self.errors)}):")
+            for e in self.errors:
+                lines.append(f"    - {e}")
+        if self.warnings:
+            lines.append(f"  Warnings ({len(self.warnings)}):")
+            for w in self.warnings:
+                lines.append(f"    - {w}")
+        return "\n".join(lines)
+
+
+class ParsedConnection(tuple):
+    """
+    Parsed connection tuple (output, input) with scale, offset, and unit attributes.
+    Supports unpacking as (output, input) for 100% backwards compatibility.
+    """
+    scale: float
+    offset: float
+    from_unit: Optional[str]
+    to_unit: Optional[str]
+
+    def __new__(cls, parsed_output: Any, parsed_input: Any, scale: float = 1.0, offset: float = 0.0,
+                from_unit: Optional[str] = None, to_unit: Optional[str] = None):
+        instance = super().__new__(cls, (parsed_output, parsed_input))
+        instance.scale = float(scale)
+        instance.offset = float(offset)
+        instance.from_unit = from_unit
+        instance.to_unit = to_unit
+        return instance
+
+
 # ---------------------------------------------------------------------------
 # Abstract base class
 # ---------------------------------------------------------------------------
@@ -171,10 +215,31 @@ class SimulatorAdapter(ABC):
 class SimEntry:
     """Holds everything the ``world`` needs to know about one simulator."""
 
-    sim_type: str                       # 'fmu', 'pf', 'csv', 'signal', 'external', 'script'
+    sim_type: str                       # 'fmu', 'powerflow', 'pypsa', 'opendss', 'csv', 'signal', 'external', 'script'
     adapter: SimulatorAdapter           # the adapter instance
     step_size: float                    # micro-step size
     outputs: List[str]                  # variable names to record
     inputs: List[str] = field(default_factory=list)
     variable_step: bool = False         # only relevant for CS FMUs today
-    pf_mode: Optional[str] = None       # 'pf'/'opf'/… for powerflow adapters
+    mode: Optional[str] = None          # 'ac' or 'dc' for powerflow adapters
+    power_unit: str = 'kW'              # default physical unit for power in this simulator
+    units: Dict[str, str] = field(default_factory=dict)  # per-variable unit overrides
+    model: Any = None                   # model reference: in-memory object, file path, project name, or callable
+
+    @property
+    def sim_loc(self) -> Any:
+        """Backward compatibility alias for model."""
+        return self.model
+
+    @sim_loc.setter
+    def sim_loc(self, val: Any):
+        self.model = val
+
+    @property
+    def pf_mode(self) -> Optional[str]:
+        """Backward compatibility alias for mode."""
+        return self.mode
+
+    @pf_mode.setter
+    def pf_mode(self, val: Optional[str]):
+        self.mode = val

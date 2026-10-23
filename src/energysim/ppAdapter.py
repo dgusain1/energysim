@@ -22,18 +22,41 @@ from .base import SimulatorAdapter, SimulatorVariableError, SimulatorElementNotF
 
 class pp_adapter(SimulatorAdapter):
 
-    def __init__(self, network_name, net_loc, inputs=None, outputs=None, pf='pf'):
+    def __init__(self, network_name, net_loc=None, inputs=None, outputs=None, mode='ac', pf=None, model=None):
         '''
         Initialises the pandapower network adapter for energysim cosimulaiton object.
         Specify the following:
                 network_name: unique name for your network
-                net_loc: location of the pandapower network file (specified as pickle file)
+                net_loc: location of the pandapower network file (specified as pickle file or json)
+                model: in-memory pandapowerNet instance, factory callable, or import path
                 inputs: list of all inputs. Specified as object_name.variable
                 outputs: list of all output variables to record.
+                mode: power flow calculation mode: 'ac' (default) or 'dc'.
         '''
         self.network_name = network_name
-        self.net_loc = net_loc
-        self.network = pp.from_pickle(net_loc)
+        target = model if model is not None else net_loc
+        if target is None:
+            raise ValueError(f"No network or model specified for pandapower simulator '{network_name}'.")
+
+        from .utils import resolve_model_reference
+        target = resolve_model_reference(target)
+
+        if hasattr(target, 'bus') and hasattr(target, 'line'):
+            self.network = target
+            self.net_loc = getattr(target, 'name', None) or network_name
+        elif isinstance(target, str):
+            self.net_loc = target
+            if target.endswith('.json'):
+                self.network = pp.from_json(target)
+            else:
+                self.network = pp.from_pickle(target)
+        elif callable(target):
+            self.network = target()
+            self.net_loc = getattr(self.network, 'name', None) or network_name
+        else:
+            self.network = target
+            self.net_loc = network_name
+
         all_names_exist = self.check_names(self.network)
         assert all_names_exist, (
             "All load, generator, sgen, bus, and external grid"
@@ -42,8 +65,20 @@ class pp_adapter(SimulatorAdapter):
         self.inputs = inputs or []
         self.outputs = outputs or []
         self.new_inputs, self.new_outputs = self.process_powerflow_ipop(self.network, self.inputs, self.outputs)
-        self.pf = pf
-        assert self.pf in ['pf', 'dcpf', 'opf', 'dcopf'], "PF option not recognized"
+        
+        # Standardized powerflow mode: strictly 'ac' or 'dc'
+        raw_mode = (mode if (mode != 'ac' or pf is None) else pf) or 'ac'
+        raw_mode = raw_mode.lower()
+        if raw_mode in ('ac', 'pf'):
+            self.mode = 'ac'
+        elif raw_mode in ('dc', 'dcpf'):
+            self.mode = 'dc'
+        else:
+            raise ValueError(
+                f"Unsupported calculation mode '{raw_mode}'. "
+                f"energysim only supports 'ac' and 'dc' power flow modes."
+            )
+        self.pf = self.mode  # backward compatibility alias
 
         # Build name→index caches so set_value/get_value avoid repeated
         # list(network.*.name) + idxmax() lookups on every call.
@@ -67,14 +102,10 @@ class pp_adapter(SimulatorAdapter):
         return True
 
     def init(self):
-        if self.pf == 'pf':
+        if self.mode == 'ac':
             pp.runpp(self.network, numba=_NUMBA)
-        elif self.pf == 'dcpf':
-            pp.rundcpp(self.network, numba=_NUMBA)
-        elif self.pf == 'opf':
-            pp.runopp(self.network, numba=_NUMBA)
         else:
-            pp.rundcopp(self.network, numba=_NUMBA)
+            pp.rundcpp(self.network, numba=_NUMBA)
 
     def check_input_var(self, ele, var):
         tmp = 'res_' + ele
@@ -173,14 +204,10 @@ class pp_adapter(SimulatorAdapter):
         pass
 
     def step(self, time):
-        if self.pf == 'pf':
+        if self.mode == 'ac':
             a = pp.runpp(self.network, numba=_NUMBA)
-        elif self.pf == 'dcpf':
-            a = pp.rundcpp(self.network, numba=_NUMBA)
-        elif self.pf == 'opf':
-            a = pp.runopp(self.network, numba=_NUMBA)
         else:
-            a = pp.rundcopp(self.network, numba=_NUMBA)
+            a = pp.rundcpp(self.network, numba=_NUMBA)
         return a
 
     def process_powerflow_ipop(self, network, inputs, outputs):

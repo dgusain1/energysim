@@ -3,20 +3,31 @@
 World cosimulation canvas for energysim.
 """
 
+from __future__ import annotations
+from typing import Any, Optional, List, Dict, Union
+
 from .csv_adapter import csv_simulator
 from .signalAdapter import signal_adapter
-from .utils import convert_hdf_to_dict, record_data, create_results_recorder
+from .utils import (
+    convert_hdf_to_dict, record_data, create_results_recorder,
+    get_unit_scale, infer_variable_unit,
+)
 from .dashboard import generate_dashboard
 from .base import (
     SimulatorAdapter, SimEntry,
     EnergysimError, SimulatorVariableError,
     SimulatorElementNotFoundError, ConnectionError,
+    ValidationError, ValidationReport,
+    ParsedConnection,
 )
+import os
 import sys
+import re
 import math
 import warnings
 from collections import deque
 import numpy as np
+import yaml
 from tqdm import tqdm
 from functools import reduce
 import importlib
@@ -110,11 +121,12 @@ class world():
 
     def __init__(self, start_time=0, stop_time=1000, logging=False, t_macro=60,
                  res_filename='es_res.h5', coupling='jacobi', extrapolation='zero-order',
-                 max_iterations=10, convergence_tolerance=1e-6):
+                 max_iterations=10, convergence_tolerance=1e-6, power_unit='kW'):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
         self.exchange = t_macro
+        self.power_unit = power_unit
         self.modify_signal = False
         self.modify_dict = {}
         self.init_dict = {}
@@ -143,160 +155,393 @@ class world():
         self._dep_graph = None
         self._cycle_sccs = []  # strongly connected components with cycles
 
-    def add_signal(self, sim_name, signal, step_size=1):
+    def get_adapter(self, sim_name: str):
+        """Retrieve the SimulatorAdapter instance for a registered simulator."""
+        if sim_name not in self.simulator_dict:
+            raise KeyError(f"Simulator '{sim_name}' not registered in world.")
+        return self.simulator_dict[sim_name].adapter
+
+    def get_model(self, sim_name: str):
+        """
+        Access the underlying native simulator/domain model object for 'glass-box' inspection or control.
+        - Pandapower: returns `adapter.network` (the pandapower network DataFrame collection)
+        - PyPSA: returns `adapter.network` (the PyPSA Network instance)
+        - OpenDSS: returns `adapter._dss` (opendssdirect module handle)
+        - PowerFactory: returns `adapter._project` (active PowerFactory project)
+        - FMU: returns `adapter.fmu`
+        - MATLAB: returns `adapter.engine`
+        - Script: returns `adapter._module`
+        - CSV: returns `adapter.data` (pandas DataFrame)
+        - Signal: returns `adapter.signal`
+        - External: returns `adapter`
+        """
+        adapter = self.get_adapter(sim_name)
+        if hasattr(adapter, 'network'):
+            return adapter.network
+        if hasattr(adapter, '_dss'):
+            return adapter._dss or adapter._get_dss()
+        if hasattr(adapter, '_project'):
+            return adapter._project
+        if hasattr(adapter, 'fmu'):
+            return adapter.fmu
+        if hasattr(adapter, 'engine'):
+            return adapter.engine
+        if hasattr(adapter, '_module'):
+            return adapter._module
+        if hasattr(adapter, 'df'):
+            return adapter.df
+        if hasattr(adapter, 'data'):
+            return adapter.data
+        if hasattr(adapter, 'signal'):
+            return adapter.signal
+        return getattr(adapter, 'model', adapter)
+
+    def add_signal(self, sim_name, signal, step_size=1, power_unit=None, units=None):
+        if isinstance(signal, str):
+            signal = eval(signal)  # evaluate string lambda if loaded from YAML
         if sim_name not in self.simulator_dict.keys():
             signal_obj = signal_adapter(signal_name=sim_name, signal=signal)
             self.simulator_dict[sim_name] = SimEntry(
                 sim_type='signal', adapter=signal_obj, step_size=step_size,
-                outputs=['y'], inputs=[]
+                outputs=['y'], inputs=[],
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=signal,
             )
 
-    def add_simulator(self, sim_type='', sim_name='', sim_loc='', inputs=None, outputs=None, step_size=1, **kwargs):
+    def add_simulator(self, sim_type='', sim_name='', sim_loc=None, inputs=None, outputs=None, step_size=1,
+                      mode='ac', power_unit=None, units=None, model=None, **kwargs):
         """
         Method to add simulator to ``world()`` object. ``add_simulator()`` takes the following arguments as inputs :
 
-        1. ``sim_type`` : 'fmu', 'powerflow', 'csv', 'external', 'powerfactory', 'matlab'
-        2. ``sim_name`` : It is essential that you assign the simulator a unique name.
-        3. ``sim_loc`` : Use a raw string address of simulator location.
-        4. ``outputs`` : specify the outputs that need to be recorded during simulation from the simulator.
-        5. ``inputs`` : specify the inputs for the simulator.
-        6. ``step_size`` : step size for simulator (set to 1e-3 by default).
-        7. ``kwargs`` : Multiple options for FMUs and powerflow networks :
-            - For FMUs, users can specify the following :
-                - variable : boolean argument for variable stepping in simulation. Default is False.
-                - validate : boolean argument for validating FMUs. Default is False.
-            - For powerflow network, users can specify :
-                - pf : 'pf' or 'opf' to toggle powerflow or
-                  optimal power flow when available. Currently
-                  only available for pandapower.
-            - For PowerFactory, users can specify :
-                - pf : 'ldf', 'shc', or 'rms' for load flow, short
-                  circuit, or RMS simulation.
-                - pf_path : path to the PowerFactory Python directory.
-            - For MATLAB/Octave, users can specify :
-                - engine : 'auto' (default), 'matlab', or 'octave'.
+        1. ``sim_type`` : 'fmu', 'powerflow', 'pypsa', 'opendss', 'csv', 'external', 'powerfactory', 'matlab', 'script'
+        2. ``sim_name`` : Unique name identifier for the simulator.
+        3. ``model`` : In-memory Python object, file path, project name, or callable factory.
+        4. ``sim_loc`` : Backward-compatible alias for ``model``.
+        5. ``outputs`` : Specify the outputs to record during simulation.
+        6. ``inputs`` : Specify the inputs for the simulator.
+        7. ``step_size`` : Micro step size for simulator (set to 1 by default).
+        8. ``mode`` : Powerflow calculation mode: 'ac' (default) or 'dc'.
+        9. ``power_unit`` : Physical unit for power (default: 'kW', or native simulator unit).
+        10. ``units`` : Optional dictionary mapping variable name -> unit string.
         """
         if inputs is None:
             inputs = []
         if outputs is None:
             outputs = []
 
-        if sim_type.lower() == 'fmu':
-            solver_name = 'Cvode'
-            if 'variable' in kwargs.keys():
-                variable = kwargs['variable']
-            else:
-                variable = False
-            if 'validate' in kwargs.keys():
-                validate = kwargs['validate']
-            else:
-                validate = False
-            self.add_fmu(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size,
-                         solver_name=solver_name, variable=variable, validate=validate)
+        # Backward compatibility for legacy 'pf' parameter
+        if 'pf' in kwargs:
+            mode = kwargs.pop('pf')
 
-        elif sim_type.lower() == 'powerflow':
-            if 'pf' in kwargs.keys():
-                pf = kwargs['pf']
-            else:
-                pf = 'pf'
+        target_model = model if model is not None else sim_loc
+        if target_model is None:
+            for k in ('net', 'path', 'network', 'fmu_path', 'csv_path', 'dss_path', 'project_name', 'script_path'):
+                if k in kwargs and kwargs[k] is not None:
+                    target_model = kwargs.pop(k)
+                    break
 
-            self.add_powerflow(sim_name, sim_loc, inputs=inputs, outputs=outputs, step_size=step_size, pf=pf)
-
-        elif sim_type.lower() == 'csv':
-            if 'delimiter' in kwargs.keys():
-                delimiter = kwargs['delimiter']
+        # Normalize calculation mode (energysim supports 'ac' and 'dc')
+        if mode:
+            m_low = mode.lower()
+            if m_low in ('ac', 'pf', 'ldf', 'snapshot'):
+                mode = 'ac'
+            elif m_low in ('dc', 'dcpf', 'lpf', 'direct'):
+                mode = 'dc'
             else:
-                delimiter = ','
+                raise ValueError(
+                    f"Unsupported calculation mode '{mode}'. "
+                    f"energysim only supports 'ac' and 'dc' power flow modes."
+                )
+
+        st = sim_type.lower()
+        if st == 'fmu':
+            solver_name = kwargs.get('solver_name', 'Cvode')
+            variable = kwargs.get('variable', False)
+            validate = kwargs.get('validate', True)
+            self.add_fmu(sim_name, fmu_loc=target_model, model=target_model, inputs=inputs, outputs=outputs, step_size=step_size,
+                         solver_name=solver_name, variable=variable, validate=validate,
+                         power_unit=power_unit, units=units)
+
+        elif st in ('powerflow', 'pandapower'):
+            self.add_powerflow(sim_name, net_loc=target_model, model=target_model, inputs=inputs, outputs=outputs, step_size=step_size,
+                               mode=mode, power_unit=power_unit, units=units, **kwargs)
+
+        elif st == 'pypsa':
+            self.add_pypsa(sim_name, net_loc=target_model, model=target_model, inputs=inputs, outputs=outputs, step_size=step_size,
+                           mode=mode, power_unit=power_unit, units=units, **kwargs)
+
+        elif st == 'opendss':
+            self.add_opendss(sim_name, dss_loc=target_model, model=target_model, inputs=inputs, outputs=outputs, step_size=step_size,
+                             mode=mode, power_unit=power_unit, units=units, **kwargs)
+
+        elif st in ('script', 'pyscript'):
+            self.add_script(sim_name, script_loc=target_model, model=target_model, inputs=inputs, outputs=outputs, step_size=step_size,
+                            power_unit=power_unit, units=units, **kwargs)
+
+        elif st == 'signal':
+            signal_func = target_model if callable(target_model) else kwargs.get('signal', None)
+            self.add_signal(sim_name, signal_func, step_size=step_size,
+                            power_unit=power_unit, units=units)
+
+        elif st == 'csv':
+            delimiter = kwargs.get('delimiter', ',')
             self.add_csv(
                 csv_name=sim_name,
-                csv_location=sim_loc,
+                csv_location=target_model,
+                model=target_model,
                 step_size=step_size,
                 outputs=outputs,
-                delimiter=delimiter)
+                delimiter=delimiter,
+                power_unit=power_unit,
+                units=units)
 
-        elif sim_type.lower() == 'external':
+        elif st == 'external':
             self.add_external_simulator(
                 sim_name=sim_name,
-                sim_loc=sim_loc,
+                sim_loc=target_model,
+                model=target_model,
                 inputs=inputs,
                 outputs=outputs,
-                step_size=step_size)
+                step_size=step_size,
+                power_unit=power_unit,
+                units=units)
 
-        elif sim_type.lower() == 'powerfactory':
-            pf_mode = kwargs.get('pf', 'ldf')
+        elif st == 'powerfactory':
             pf_path = kwargs.get('pf_path', None)
             self.add_powerfactory(
                 sim_name=sim_name,
-                sim_loc=sim_loc,
+                sim_loc=target_model,
+                model=target_model,
                 inputs=inputs,
                 outputs=outputs,
                 step_size=step_size,
-                pf=pf_mode,
-                pf_path=pf_path)
+                mode=mode,
+                pf_path=pf_path,
+                power_unit=power_unit,
+                units=units)
 
-        elif sim_type.lower() == 'matlab':
+        elif st in ('container', 'fleet', 'vectorized', 'battery_fleet', 'building_fleet', 'pv_fleet'):
+            self.add_container(
+                sim_name=sim_name,
+                container=target_model,
+                kind=kwargs.get('kind', st),
+                size=kwargs.get('size', 100),
+                step_size=step_size,
+                inputs=inputs,
+                outputs=outputs,
+                power_unit=power_unit,
+                units=units,
+                **kwargs,
+            )
+
+        elif st in ('model', 'component') or isinstance(target_model, SimulatorAdapter):
+            self.add_model(
+                sim_name=sim_name,
+                model=target_model,
+                inputs=inputs,
+                outputs=outputs,
+                step_size=step_size,
+                power_unit=power_unit,
+                units=units,
+                **kwargs,
+            )
+
+        elif st == 'matlab':
             engine = kwargs.get('engine', 'auto')
             self.add_matlab(
                 sim_name=sim_name,
-                sim_loc=sim_loc,
+                sim_loc=target_model,
+                model=target_model,
                 inputs=inputs,
                 outputs=outputs,
                 step_size=step_size,
-                engine=engine)
+                engine=engine,
+                power_unit=power_unit,
+                units=units)
 
         else:
             print(
                 f"Simulator type {sim_type} not recognized."
-                f" Possible sim_type are 'external', 'fmu',"
-                f" 'powerflow', 'csv', 'powerfactory', 'matlab'."
+                f" Possible sim_type are 'container', 'fleet', 'model', 'external', 'fmu', 'powerflow', 'pypsa',"
+                f" 'opendss', 'script', 'signal', 'csv', 'powerfactory', 'matlab'."
             )
             print(f"Simulator {sim_name} not added")
 
-    def add_external_simulator(self, sim_name, sim_loc, inputs, outputs, step_size=900):
-        sys.path.append(sim_loc)
+    def add_model(self, sim_name, model=None, inputs=None, outputs=None, step_size=1,
+                  power_unit=None, units=None, **kwargs):
+        """
+        Add an inbuilt physical model component (or any custom SimulatorAdapter instance) to the world.
+        """
+        assert sim_name is not None, "No name specified for model simulator."
+        target = model if model is not None else kwargs.get('sim_loc', None)
+        assert target is not None, f"No model instance or factory provided for '{sim_name}'."
+
+        if callable(target) and not isinstance(target, SimulatorAdapter):
+            target = target(**kwargs)
+
+        adapter = target
+        adapter.step_size = step_size
+
+        eff_inputs = list(inputs) if inputs is not None and len(inputs) > 0 else list(getattr(adapter, 'inputs', []))
+        eff_outputs = list(outputs) if outputs is not None and len(outputs) > 0 else list(getattr(adapter, 'outputs', []))
+        adapter.inputs = eff_inputs
+        adapter.outputs = eff_outputs
+
+        if sim_name not in self.simulator_dict.keys():
+            self.simulator_dict[sim_name] = SimEntry(
+                sim_type='model', adapter=adapter, step_size=step_size,
+                outputs=eff_outputs, inputs=eff_inputs,
+                power_unit=power_unit or getattr(adapter, 'power_unit', self.power_unit),
+                units=units or getattr(adapter, 'units', {}),
+                model=target,
+            )
+            if self.logging:
+                print(f"Added model simulator '{sim_name}' to the world")
+        else:
+            print(f"Please specify a unique name for simulator. {sim_name} already exists.")
+
+    def add_container(
+        self,
+        sim_name: Optional[str] = None,
+        container: Any = None,
+        kind: Optional[str] = None,
+        size: int = 100,
+        step_size: float = 900.0,
+        inputs: Optional[List[str]] = None,
+        outputs: Optional[List[str]] = None,
+        power_unit: Optional[str] = None,
+        units: Optional[Dict[str, str]] = None,
+        model: Any = None,
+        **kwargs
+    ):
+        """
+        Add a Vectorized Container Simulator to the world.
+
+        Parameters
+        ----------
+        sim_name : str, optional
+            Unique name identifier for the container simulator (or pass via name=...).
+        container : VectorizedContainerAdapter or None
+            An existing container adapter instance, or class.
+        kind : str, optional
+            Fleet type: 'battery', 'building', 'pv', or 'function' (or pass via fleet_type=...).
+        size : int
+            Number of entities in the container (default: 100).
+        step_size : float
+            Micro-step size in seconds.
+        """
+        sim_name = sim_name or kwargs.pop('name', None) or kwargs.pop('sim_name', None)
+        if not sim_name:
+            raise ValueError("sim_name (or name) must be specified for container/fleet simulator.")
+
+        kind = kind or kwargs.pop('fleet_type', None) or kwargs.pop('kind', None)
+        from .container import (
+            VectorizedContainerAdapter,
+            BatteryFleetAdapter,
+            BuildingFleetAdapter,
+            PVFleetAdapter,
+            VectorizedFunctionAdapter,
+        )
+
+        target = container or model
+        adapter = None
+
+        if isinstance(target, VectorizedContainerAdapter):
+            adapter = target
+            adapter.name = sim_name
+            if step_size:
+                adapter.step_size = step_size
+        elif isinstance(target, type) and issubclass(target, VectorizedContainerAdapter):
+            adapter = target(name=sim_name, size=size, step_size=step_size, **kwargs)
+        else:
+            k_low = (kind or '').lower()
+            if 'battery' in k_low:
+                adapter = BatteryFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
+            elif 'building' in k_low or 'thermal' in k_low:
+                adapter = BuildingFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
+            elif 'pv' in k_low or 'solar' in k_low:
+                adapter = PVFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
+            elif 'function' in k_low or callable(kwargs.get('update_func')):
+                adapter = VectorizedFunctionAdapter(
+                    name=sim_name, size=size,
+                    update_func=kwargs.get('update_func'),
+                    initial_states=kwargs.get('initial_states', {}),
+                    inputs=inputs,
+                    step_size=step_size,
+                )
+            else:
+                adapter = VectorizedContainerAdapter(
+                    name=sim_name, size=size, step_size=step_size, inputs=inputs, outputs=outputs
+                )
+
+        if outputs:
+            adapter.outputs = list(outputs)
+        if inputs:
+            adapter.inputs = list(inputs)
+
+        # Default outputs: use all available scalar aggregations if none provided
+        if not adapter.outputs:
+            avail = adapter.get_available_variables()
+            adapter.outputs = [v for v in avail['outputs'] if v.startswith(('total_', 'mean_'))]
+
+        if sim_name not in self.simulator_dict:
+            self.simulator_dict[sim_name] = SimEntry(
+                sim_type='container',
+                adapter=adapter,
+                step_size=adapter.step_size,
+                outputs=adapter.outputs,
+                inputs=adapter.inputs,
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=adapter,
+            )
+            if self.logging:
+                print(f"Added Vectorized Container Simulator '{sim_name}' (size={adapter.size}) to the world")
+        else:
+            print(f"Please specify a unique name for simulator. {sim_name} already exists.")
+
+    # Convenience alias for add_container
+    add_fleet = add_container
+
+    def add_external_simulator(self, sim_name, sim_loc=None, inputs=None, outputs=None, step_size=900,
+                               power_unit=None, units=None, model=None, **kwargs):
+        target = model if model is not None else sim_loc
+        if isinstance(target, str) and target:
+            sys.path.append(target)
         tmp = importlib.import_module(sim_name)
         external_simulator = tmp.external_simulator
+        inputs = inputs or []
+        outputs = outputs or []
         # check that the sim_name is unique
         if sim_name not in self.simulator_dict.keys():
             simulator = external_simulator(inputs=inputs, outputs=outputs)
             simulator.step_size = step_size
             self.simulator_dict[sim_name] = SimEntry(
                 sim_type='external', adapter=simulator, step_size=step_size,
-                outputs=outputs, inputs=inputs
+                outputs=outputs, inputs=inputs,
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=target,
             )
             if self.logging:
                 print("Added external simulator '%s' to the world" % (sim_name))
         else:
             print(f"Please specify a unique name for simulator. {sim_name} already exists.")
 
-    def add_powerfactory(self, sim_name, sim_loc, inputs=None,
-                         outputs=None, step_size=900, pf='ldf',
-                         pf_path=None):
-        """Add a DIgSILENT PowerFactory model to the co-simulation.
-
-        Parameters
-        ----------
-        sim_name : str
-            Unique name AND PowerFactory project name.
-        sim_loc : str
-            Not used (PF projects are opened by name).  Pass ``''``.
-        inputs : list[str]
-            Input variables as ``'ElementName.attribute'``.
-        outputs : list[str]
-            Output variables to record.
-        step_size : int
-            Step size in seconds.
-        pf : str
-            Calculation type: ``'ldf'``, ``'shc'``, or ``'rms'``.
-        pf_path : str or None
-            Path to the PowerFactory Python directory.
-        """
+    def add_powerfactory(self, sim_name, sim_loc=None, inputs=None,
+                         outputs=None, step_size=900, mode='ac', pf=None,
+                         pf_path=None, power_unit=None, units=None,
+                         project_name=None, model=None, **kwargs):
+        """Add a DIgSILENT PowerFactory model to the co-simulation."""
+        p_name = project_name or model or sim_loc or sim_name
         from .pfAdapter import pf_adapter  # lazy import
         adapter = pf_adapter(
-            project_name=sim_name,
-            pf_loc=sim_loc,
+            project_name=p_name,
+            pf_loc=sim_loc or p_name,
             inputs=inputs or [],
             outputs=outputs or [],
+            mode=mode,
             pf=pf,
             pf_path=pf_path,
         )
@@ -305,37 +550,25 @@ class world():
             self.simulator_dict[sim_name] = SimEntry(
                 sim_type='powerfactory', adapter=adapter,
                 step_size=step_size, outputs=outputs or [],
-                inputs=inputs or [], pf_mode=pf,
+                inputs=inputs or [], mode=adapter.mode,
+                power_unit=power_unit or 'MW',
+                units=units or {},
+                model=p_name,
             )
             if self.logging:
                 print(f"Added PowerFactory simulator '{sim_name}' to the world")
         else:
             print(f"Please specify a unique name for simulator. {sim_name} already exists.")
 
-    def add_matlab(self, sim_name, sim_loc, inputs=None, outputs=None,
-                   step_size=60, engine='auto'):
-        """Add a MATLAB / Octave .m function to the co-simulation.
-
-        Parameters
-        ----------
-        sim_name : str
-            Unique name.  Must also be the function name (matches
-            the ``.m`` filename without extension).
-        sim_loc : str
-            Directory containing the ``.m`` file.
-        inputs : list[str]
-            Input variable names (order must match function args).
-        outputs : list[str]
-            Output variable names (order must match function returns).
-        step_size : int
-            Step size in seconds.
-        engine : str
-            ``'auto'``, ``'matlab'``, or ``'octave'``.
-        """
+    def add_matlab(self, sim_name, sim_loc=None, inputs=None, outputs=None,
+                   step_size=60, engine='auto', power_unit=None, units=None,
+                   script_path=None, model=None, **kwargs):
+        """Add a MATLAB / Octave .m function to the co-simulation."""
+        target = model if model is not None else (script_path if script_path is not None else sim_loc)
         from .matlabAdapter import matlab_adapter  # lazy import
         adapter = matlab_adapter(
             func_name=sim_name,
-            script_loc=sim_loc,
+            script_loc=target,
             inputs=inputs or [],
             outputs=outputs or [],
             engine=engine,
@@ -346,50 +579,135 @@ class world():
                 sim_type='matlab', adapter=adapter,
                 step_size=step_size, outputs=outputs or [],
                 inputs=inputs or [],
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=target,
             )
             if self.logging:
                 print(f"Added MATLAB/Octave simulator '{sim_name}' to the world")
         else:
             print(f"Please specify a unique name for simulator. {sim_name} already exists.")
 
-    def add_powerflow(self, network_name, net_loc, inputs=None, outputs=None, pf='pf', step_size=900, **kwargs):
+    def add_powerflow(self, network_name=None, net_loc=None, inputs=None, outputs=None, mode='ac', pf=None, step_size=900,
+                      power_unit=None, units=None, net=None, path=None, model=None, **kwargs):
+        network_name = network_name or kwargs.pop('sim_name', None)
+        target = model if model is not None else (net if net is not None else (path if path is not None else (net_loc if net_loc is not None else kwargs.pop('sim_loc', None))))
         assert network_name is not None, "No name specified for power flow model. Name must be specified."
-        assert net_loc is not None, "No location specified for power flow model. Can't read without."
-        if inputs is None:
-            inputs = []
-        if outputs is None:
-            outputs = []
-        from .pypsaAdapter import pypsa_adapter  # lazy: pypsa has heavy optional deps
+        assert target is not None, "No network model or location specified for power flow model."
+        inputs = inputs or []
+        outputs = outputs or []
         from .ppAdapter import pp_adapter         # lazy: pandapower has heavy optional deps
-        try:
-            network = pypsa_adapter(network_name, net_loc, inputs=inputs, outputs=outputs,
-                                    logger_level=kwargs.get('logger', 'DEBUG'))
-        except Exception as e:
-            if self.logging:
-                print(f"pypsa_adapter failed ({e}), falling back to pp_adapter.")
-            network = pp_adapter(network_name, net_loc, inputs=inputs, outputs=outputs, pf=pf)
+        network = pp_adapter(network_name, net_loc=target, inputs=inputs, outputs=outputs, mode=mode, pf=pf, model=target)
         network.step_size = step_size
         if network_name not in self.simulator_dict.keys():
             self.simulator_dict[network_name] = SimEntry(
-                sim_type='pf', adapter=network, step_size=step_size,
-                outputs=outputs, inputs=inputs, pf_mode=pf
+                sim_type='powerflow', adapter=network, step_size=step_size,
+                outputs=outputs, inputs=inputs, mode=network.mode,
+                power_unit=power_unit or 'MW',
+                units=units or {},
+                model=target,
             )
             if self.logging:
                 print("Added powerflow simulator '%s' to the world" % (network_name))
         else:
             print(f"Please specify a unique name for simulator. {network_name} already exists.")
 
+    def add_pypsa(self, network_name=None, net_loc=None, inputs=None, outputs=None, mode='ac', pf=None, step_size=900,
+                  power_unit=None, units=None, network=None, path=None, model=None, **kwargs):
+        """Add a PyPSA network simulator to the world (Pattern B single-snapshot mode)."""
+        network_name = network_name or kwargs.pop('sim_name', None)
+        target = model if model is not None else (network if network is not None else (path if path is not None else (net_loc if net_loc is not None else kwargs.pop('sim_loc', None))))
+        assert network_name is not None, "No name specified for PyPSA model."
+        assert target is not None, "No network model or location specified for PyPSA model."
+        inputs = inputs or []
+        outputs = outputs or []
+        from .pypsaAdapter import pypsa_adapter
+        network_adapter = pypsa_adapter(
+            network_name, net_loc=target, inputs=inputs, outputs=outputs, mode=mode, pf=pf,
+            logger_level=kwargs.get('logger', 'CRITICAL'), model=target
+        )
+        network_adapter.step_size = step_size
+        if network_name not in self.simulator_dict.keys():
+            self.simulator_dict[network_name] = SimEntry(
+                sim_type='pypsa', adapter=network_adapter, step_size=step_size,
+                outputs=outputs, inputs=inputs, mode=network_adapter.mode,
+                power_unit=power_unit or 'MW',
+                units=units or {},
+                model=target,
+            )
+            if self.logging:
+                print(f"Added PyPSA simulator '{network_name}' to the world (Pattern B single-snapshot mode)")
+        else:
+            print(f"Please specify a unique name for simulator. {network_name} already exists.")
+
+    def add_opendss(self, dss_name=None, dss_loc=None, inputs=None, outputs=None, mode='ac', pf=None, step_size=900,
+                    power_unit=None, units=None, dss_path=None, model=None, **kwargs):
+        """Add an OpenDSS distribution network simulator to the world via OpenDSSDirect.py."""
+        dss_name = dss_name or kwargs.pop('sim_name', None)
+        target = model if model is not None else (dss_path if dss_path is not None else (dss_loc if dss_loc is not None else kwargs.pop('sim_loc', None)))
+        assert dss_name is not None, "No name specified for OpenDSS model."
+        assert target is not None, "No DSS path or model specified for OpenDSS simulator."
+        inputs = inputs or []
+        outputs = outputs or []
+        from .opendssAdapter import opendss_adapter
+        dss_obj = opendss_adapter(dss_name, dss_location=target, inputs=inputs, outputs=outputs, step_size=step_size, mode=mode, pf=pf, model=target)
+        if dss_name not in self.simulator_dict.keys():
+            self.simulator_dict[dss_name] = SimEntry(
+                sim_type='opendss', adapter=dss_obj, step_size=step_size,
+                outputs=outputs, inputs=inputs, mode=dss_obj.mode,
+                power_unit=power_unit or 'kW',
+                units=units or {},
+                model=target,
+            )
+            if self.logging:
+                print(f"Added OpenDSS simulator '{dss_name}' to the world")
+        else:
+            print(f"Please specify a unique name for simulator. {dss_name} already exists.")
+
+    def add_script(self, script_name, script_loc=None, inputs=None, outputs=None, step_size=900,
+                   power_unit=None, units=None, script_path=None, model=None, **kwargs):
+        """Add a Python script/module function simulator to the world."""
+        target = model if model is not None else (script_path if script_path is not None else (script_loc if script_loc is not None else kwargs.pop('sim_loc', None)))
+        assert script_name is not None, "No name specified for Python script simulator."
+        assert target is not None, "No script path or model specified for Python script simulator."
+        inputs = inputs or []
+        outputs = outputs or []
+        from .pyScriptAdapter import py_adapter
+        adapter = py_adapter(script_name=script_name, script_loc=target, inputs=inputs, outputs=outputs)
+        adapter.step_size = step_size
+        sim_id = kwargs.get('sim_name', script_name)
+        if sim_id not in self.simulator_dict.keys():
+            self.simulator_dict[sim_id] = SimEntry(
+                sim_type='script', adapter=adapter, step_size=step_size,
+                outputs=outputs, inputs=inputs,
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=target,
+            )
+            if self.logging:
+                print(f"Added script simulator '{sim_id}' to the world")
+        else:
+            print(f"Please specify a unique name for simulator. {sim_id} already exists.")
+
     def add_fmu(
             self,
-            fmu_name,
-            fmu_loc,
-            step_size,
+            fmu_name=None,
+            fmu_loc=None,
+            step_size=1,
             inputs=None,
             outputs=None,
             exist=False,
             solver_name='Cvode',
             variable=False,
+            power_unit=None,
+            units=None,
+            fmu_path=None,
+            model=None,
             **kwargs):
+        fmu_name = fmu_name or kwargs.pop('sim_name', None)
+        target = model if model is not None else (fmu_path if fmu_path is not None else (fmu_loc if fmu_loc is not None else kwargs.pop('sim_loc', None)))
+        assert fmu_name is not None, "No name specified for FMU simulator."
+        assert target is not None, "No FMU path or model specified for FMU simulator."
         if inputs is None:
             inputs = []
         if outputs is None:
@@ -403,10 +721,10 @@ class world():
             validate = kwargs['validate']
         else:
             validate = True
-        m_desc = read_model_description(fmu_loc, validate=validate)
+        m_desc = read_model_description(target, validate=validate)
         fmi_type = 'CoSimulation' if m_desc.coSimulation is not None else 'ModelExchange'
         if fmi_type == 'CoSimulation':
-            fmu_temp = FmuCsAdapter(fmu_loc,
+            fmu_temp = FmuCsAdapter(target,
                                     instanceName=fmu_name,
                                     step_size=step_size,
                                     inputs=inputs,
@@ -416,7 +734,7 @@ class world():
             fmu_temp.variable_step = variable
             fmu_temp.step_size = step_size
         elif fmi_type == 'ModelExchange':
-            fmu_temp = FmuMeAdapter(fmu_loc,
+            fmu_temp = FmuMeAdapter(target,
                                     instanceName=fmu_name,
                                     step_size=step_size,
                                     inputs=inputs,
@@ -427,20 +745,32 @@ class world():
         if fmu_name not in self.simulator_dict.keys():
             self.simulator_dict[fmu_name] = SimEntry(
                 sim_type='fmu', adapter=fmu_temp, step_size=step_size,
-                outputs=outputs, inputs=inputs, variable_step=variable
+                outputs=outputs, inputs=inputs, variable_step=variable,
+                power_unit=power_unit or 'W',
+                units=units or {},
+                model=target,
             )
             if self.logging:
                 print("Added FMU simulator '%s' to the world" % (fmu_name))
         else:
             print(f"Please specify a unique name for simulator. {fmu_name} already exists.")
 
-    def add_csv(self, csv_name, csv_location, step_size, outputs, delimiter):
-        csv_obj = csv_simulator(csv_name, csv_location, step_size, outputs, delimiter)
+    def add_csv(self, csv_name=None, csv_location=None, step_size=1, outputs=None, delimiter=',',
+                power_unit=None, units=None, csv_path=None, model=None, **kwargs):
+        csv_name = csv_name or kwargs.pop('sim_name', None)
+        target = model if model is not None else (csv_path if csv_path is not None else (csv_location if csv_location is not None else kwargs.pop('sim_loc', None)))
+        assert csv_name is not None, "No name specified for CSV simulator."
+        assert target is not None, "No CSV path or model specified for CSV simulator."
+        outputs = outputs or []
+        csv_obj = csv_simulator(csv_name, target, step_size, outputs, delimiter)
         csv_obj.step_size = step_size
         if csv_name not in self.simulator_dict.keys():
             self.simulator_dict[csv_name] = SimEntry(
                 sim_type='csv', adapter=csv_obj, step_size=step_size,
-                outputs=outputs, inputs=[]
+                outputs=outputs, inputs=[],
+                power_unit=power_unit or self.power_unit,
+                units=units or {},
+                model=target,
             )
             if self.logging:
                 print("Added CSV simulator '%s' to the world" % (csv_name))
@@ -457,30 +787,100 @@ class world():
         assert len(self.simulator_dict) > 0, "Cannot make connections with no simulators defined."
         self.simulator_connections = connections
 
+        if isinstance(connections, list):
+            raw_connections = connections
+        elif isinstance(connections, dict):
+            raw_connections = []
+            for k, v in connections.items():
+                if isinstance(v, tuple) and len(v) == 2 and isinstance(v[1], dict):
+                    raw_connections.append({
+                        'from': k,
+                        'to': v[0],
+                        'scale': v[1].get('scale', 1.0),
+                        'offset': v[1].get('offset', 0.0),
+                        'from_unit': v[1].get('from_unit') or v[1].get('unit'),
+                        'to_unit': v[1].get('to_unit') or v[1].get('unit'),
+                    })
+                elif isinstance(v, dict):
+                    raw_connections.append({
+                        'from': k,
+                        'to': v.get('to') or v.get('target'),
+                        'scale': v.get('scale', 1.0),
+                        'offset': v.get('offset', 0.0),
+                        'from_unit': v.get('from_unit') or v.get('unit'),
+                        'to_unit': v.get('to_unit') or v.get('unit'),
+                    })
+                else:
+                    raw_connections.append({'from': k, 'to': v})
+        else:
+            raw_connections = []
+
         # Pre-parse connections once so exchange_variable_values() doesn't
         # re-split strings on every time step.
         self._parsed_connections = []
-        for output_key, input_key in connections.items():
+        for item in raw_connections:
+            output_key = item.get('from') or item.get('source')
+            input_key = item.get('to') or item.get('target')
+            scale = float(item.get('scale', 1.0))
+            offset = float(item.get('offset', 0.0))
+            from_unit = item.get('from_unit') or item.get('unit')
+            to_unit = item.get('to_unit') or item.get('unit')
+
             # --- parse output side ---
             if isinstance(output_key, str):
                 ou_sim, ou_var = self._split_var(output_key)
                 parsed_output = (ou_sim, ou_var, output_key)
+                first_ou_sim, first_ou_var = ou_sim, ou_var
             elif isinstance(output_key, tuple):
                 parsed_output = tuple(
-                    (self._split_var(item)[0], self._split_var(item)[1], item)
-                    for item in output_key
+                    (self._split_var(k)[0], self._split_var(k)[1], k)
+                    for k in output_key
                 )
+                first_ou_sim, first_ou_var = parsed_output[0][0], parsed_output[0][1]
             # --- parse input side ---
             if isinstance(input_key, str):
                 in_sim, in_var = self._split_var(input_key)
                 parsed_input = (in_sim, in_var)
-            elif isinstance(input_key, tuple):
+                first_in_sim, first_in_var = in_sim, in_var
+            elif isinstance(input_key, (list, tuple)):
                 parsed_input = [
-                    (self._split_var(item)[0], self._split_var(item)[1])
-                    for item in input_key
+                    (self._split_var(k)[0], self._split_var(k)[1])
+                    for k in input_key
                 ]
+                first_in_sim, first_in_var = parsed_input[0][0], parsed_input[0][1]
 
-            self._parsed_connections.append((parsed_output, parsed_input))
+            # Resolve physical units
+            src_entry = self.simulator_dict.get(first_ou_sim)
+            dst_entry = self.simulator_dict.get(first_in_sim)
+
+            src_sim_type = src_entry.sim_type if src_entry else ''
+            dst_sim_type = dst_entry.sim_type if dst_entry else ''
+            src_default_unit = (src_entry.power_unit if src_entry else None) or self.power_unit
+            dst_default_unit = (dst_entry.power_unit if dst_entry else None) or self.power_unit
+
+            if not from_unit:
+                if src_entry and first_ou_var in src_entry.units:
+                    from_unit = src_entry.units[first_ou_var]
+                else:
+                    from_unit = infer_variable_unit(first_ou_var, sim_type=src_sim_type, default_unit=src_default_unit)
+
+            if not to_unit:
+                if dst_entry and first_in_var in dst_entry.units:
+                    to_unit = dst_entry.units[first_in_var]
+                else:
+                    to_unit = infer_variable_unit(first_in_var, sim_type=dst_sim_type, default_unit=dst_default_unit)
+
+            # Apply unit conversion scale if units differ and scale wasn't manually overridden without units
+            if 'scale' in item and ('from_unit' not in item and 'to_unit' not in item and 'unit' not in item):
+                unit_scale = 1.0
+            else:
+                unit_scale = get_unit_scale(from_unit, to_unit)
+
+            effective_scale = scale * unit_scale
+
+            self._parsed_connections.append(
+                ParsedConnection(parsed_output, parsed_input, effective_scale, offset, from_unit, to_unit)
+            )
 
         # Run validation checks
         self._validate_connections()
@@ -512,7 +912,8 @@ class world():
         known_sims = set(self.simulator_dict.keys())
         read_only_types = {'csv', 'signal'}
 
-        for output_, input_ in self._parsed_connections:
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
             # --- validate output side ---
             if isinstance(output_, tuple) and isinstance(output_[0], tuple):
                 # fan-in
@@ -557,6 +958,15 @@ class world():
             # Adapter doesn't expose variable metadata — skip validation
             return
         if var_name not in all_vars:
+            # Strip index if present, e.g. 'soc[0]' -> 'soc'
+            base_var = re.sub(r'\[\d+\]$', '', var_name)
+            if base_var in all_vars:
+                return
+            # Strip aggregation prefix if present, e.g. 'total_soc' -> 'soc'
+            agg_base = re.sub(r'^(total_|mean_|sum_|min_|max_)', '', var_name)
+            if agg_base in all_vars or re.sub(r'\[\d+\]$', '', agg_base) in all_vars:
+                return
+
             warnings.warn(
                 f"Variable '{var_name}' not found in simulator '{sim_name}' "
                 f"declared variables. Connection may fail at runtime. "
@@ -585,21 +995,21 @@ class world():
         for sim_name in self.simulator_dict:
             self._dep_graph.add_node(sim_name)
 
-        for key, value in self.simulator_connections.items():
-            if isinstance(key, str) and isinstance(value, str):
-                n1 = key.split('.')[0]
-                n2 = value.split('.')[0]
-                self._dep_graph.add_edge(n1, n2)
-            elif isinstance(key, str) and isinstance(value, tuple):
-                n1 = key.split('.')[0]
-                for v in value:
-                    n2 = v.split('.')[0]
-                    self._dep_graph.add_edge(n1, n2)
-            elif isinstance(key, tuple) and isinstance(value, str):
-                n2 = value.split('.')[0]
-                for k in key:
-                    n1 = k.split('.')[0]
-                    self._dep_graph.add_edge(n1, n2)
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
+            if isinstance(output_, tuple) and isinstance(output_[0], tuple):
+                ou_sims = [p[0] for p in output_]
+            else:
+                ou_sims = [output_[0]]
+
+            if isinstance(input_, list):
+                in_sims = [p[0] for p in input_]
+            else:
+                in_sims = [input_[0]]
+
+            for o_sim in ou_sims:
+                for i_sim in in_sims:
+                    self._dep_graph.add_edge(o_sim, i_sim)
 
     def _compute_execution_order(self):
         """Compute execution order via topological sort.
@@ -764,7 +1174,7 @@ class world():
 
         return tmp_var
 
-    def simulate(self, pbar=True, record_all=True):
+    def simulate(self, pbar=True, record_all=True, validate=True):
         '''
         Simulates the world object.
 
@@ -776,6 +1186,9 @@ class world():
         - ``'iterative'``: Repeat exchange+step within each macro-step until
           output values converge (fixed-point iteration with rollback).
         '''
+        if validate:
+            self.validate(raise_on_error=True)
+
         startTime = self.start_time
         stopTime = self.stop_time
         self.init()
@@ -912,7 +1325,11 @@ class world():
 
     def _exchange_inputs_for(self, target_sim, t):
         """Exchange only those connections whose input side is *target_sim*."""
-        for output_, input_ in self._parsed_connections:
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
+            scale = getattr(conn, 'scale', 1.0)
+            offset = getattr(conn, 'offset', 0.0)
+
             # Determine which input sims this connection targets
             if isinstance(input_, list):
                 matching = [(in_sim, in_var) for in_sim, in_var in input_
@@ -927,6 +1344,8 @@ class world():
 
             # Gather output value(s)
             tmp_var = self._gather_output_value(output_, t)
+            if scale != 1.0 or offset != 0.0:
+                tmp_var = [tmp_var[0] * scale + offset]
 
             # Set to matching inputs only
             for in_sim_name, in_sim_var in matching:
@@ -1038,11 +1457,19 @@ class world():
     def exchange_variable_values(self, t):
         """
         Helper function for exchanging the variable values between simulators at particular time.
-        Supports zero-order hold (default) and linear extrapolation.
+        Supports zero-order hold (default) and linear extrapolation, plus per-connection scaling.
         """
-        for output_, input_ in self._parsed_connections:
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
+            scale = getattr(conn, 'scale', 1.0)
+            offset = getattr(conn, 'offset', 0.0)
+
             # --- gather output value(s) ---
             tmp_var = self._gather_output_value(output_, t)
+
+            # --- apply scale and offset ---
+            if scale != 1.0 or offset != 0.0:
+                tmp_var = [tmp_var[0] * scale + offset]
 
             # --- apply linear extrapolation if enabled ---
             if self.extrapolation == 'linear':
@@ -1156,6 +1583,289 @@ class world():
         plt.legend()
         plt.tight_layout()
         plt.show()
+
+    def validate(self, raise_on_error: bool = False) -> ValidationReport:
+        """
+        Pre-flight semantic and graph validation of the co-simulation world.
+
+        Checks:
+          1. At least one simulator registered.
+          2. Step size > 0 for all simulators and divisibility with t_macro.
+          3. Connection endpoints exist and are valid.
+          4. Read-only simulators (CSV, signal) are not targets of inputs.
+          5. Adapters with variable introspection are verified for variable name mismatches.
+          6. Algebraic loops / cycles are identified with coupling strategy advice.
+
+        Parameters
+        ----------
+        raise_on_error : bool, default False
+            If True and validation errors are found, raises ValidationError.
+
+        Returns
+        -------
+        ValidationReport
+            Detailed report containing is_valid, errors, and warnings.
+        """
+        errors = []
+        warnings_list = []
+
+        # 1. Simulators checks
+        if not self.simulator_dict:
+            errors.append("No simulators registered in the world.")
+            report = ValidationReport(is_valid=False, errors=errors, warnings=warnings_list)
+            if raise_on_error:
+                raise ValidationError(str(report))
+            return report
+
+        if self.stop_time < self.start_time:
+            errors.append(f"stop_time ({self.stop_time}) must be >= start_time ({self.start_time}).")
+
+        if self.exchange <= 0:
+            errors.append(f"Macro step size t_macro ({self.exchange}) must be > 0.")
+
+        for sim_name, entry in self.simulator_dict.items():
+            if entry.step_size <= 0:
+                errors.append(f"Simulator '{sim_name}' has invalid step_size: {entry.step_size} <= 0.")
+            else:
+                # Divisibility check
+                ratio = self.exchange / entry.step_size
+                if abs(ratio - round(ratio)) > 1e-6:
+                    warnings_list.append(
+                        f"Simulator '{sim_name}' step_size ({entry.step_size}s) does not divide "
+                        f"macro step t_macro ({self.exchange}s) evenly (ratio={ratio:.4f}). "
+                        f"This may lead to time misalignment."
+                    )
+
+        # 2. Connection checks
+        read_only_types = {'csv', 'signal'}
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
+
+            # check outputs
+            if isinstance(output_, tuple) and isinstance(output_[0], tuple):
+                outputs_to_check = output_
+            else:
+                outputs_to_check = [output_]
+
+            for ou_sim, ou_var, ou_key in outputs_to_check:
+                if ou_sim not in self.simulator_dict:
+                    errors.append(f"Source simulator '{ou_sim}' in connection '{ou_key}' is not registered.")
+                else:
+                    adapter = self.simulator_dict[ou_sim].adapter
+                    avail = adapter.get_available_variables()
+                    all_vars = set(avail.get('inputs', [])) | set(avail.get('outputs', []))
+                    if all_vars and ou_var not in all_vars:
+                        warnings_list.append(
+                            f"Output variable '{ou_var}' in simulator '{ou_sim}' not found in known variables."
+                        )
+
+            # check inputs
+            if isinstance(input_, list):
+                inputs_to_check = input_
+            else:
+                inputs_to_check = [input_]
+
+            for in_sim, in_var in inputs_to_check:
+                if in_sim not in self.simulator_dict:
+                    errors.append(f"Target simulator '{in_sim}' in connection to '{in_sim}.{in_var}' is not registered.")
+                else:
+                    entry = self.simulator_dict[in_sim]
+                    if entry.sim_type in read_only_types:
+                        warnings_list.append(
+                            f"Simulator '{in_sim}' is read-only (type='{entry.sim_type}'). "
+                            f"Targeted input '{in_var}' will be ignored."
+                        )
+                    adapter = entry.adapter
+                    avail = adapter.get_available_variables()
+                    all_vars = set(avail.get('inputs', [])) | set(avail.get('outputs', []))
+                    if all_vars and in_var not in all_vars:
+                        warnings_list.append(
+                            f"Input variable '{in_var}' in simulator '{in_sim}' not found in known variables."
+                        )
+
+        # 3. Topology & Coupling advice
+        if self._dep_graph is not None:
+            if not nx.is_directed_acyclic_graph(self._dep_graph):
+                sccs = [scc for scc in nx.strongly_connected_components(self._dep_graph) if len(scc) > 1]
+                if self.coupling == 'jacobi':
+                    warnings_list.append(
+                        f"Algebraic feedback loop detected among simulators {sccs}. "
+                        f"Jacobi coupling resolves this by introducing a 1-step macro delay."
+                    )
+                elif self.coupling == 'gauss-seidel':
+                    warnings_list.append(
+                        f"Algebraic feedback loop detected among simulators {sccs}. "
+                        f"Gauss-Seidel without iterative relaxation cannot resolve cyclic feedback without delay. "
+                        f"Consider coupling='iterative'."
+                    )
+                elif self.coupling == 'iterative':
+                    for scc in sccs:
+                        for sim_name in scc:
+                            entry = self.simulator_dict.get(sim_name)
+                            if entry and entry.adapter.save_state() is None:
+                                warnings_list.append(
+                                    f"Simulator '{sim_name}' in feedback loop does not support state rollback (save_state). "
+                                    f"Iterative convergence is not guaranteed."
+                                )
+
+        is_valid = len(errors) == 0
+        report = ValidationReport(is_valid=is_valid, errors=errors, warnings=warnings_list)
+        if raise_on_error and not is_valid:
+            raise ValidationError(str(report))
+        return report
+
+    def to_dict(self):
+        """Serialize the world configuration, simulators, and connections to a dictionary."""
+        sims_list = []
+        for name, entry in self.simulator_dict.items():
+            sim_info = {
+                'name': name,
+                'type': entry.sim_type,
+                'step_size': entry.step_size,
+                'inputs': list(entry.inputs),
+                'outputs': list(entry.outputs),
+                'power_unit': entry.power_unit,
+            }
+            if entry.units:
+                sim_info['units'] = dict(entry.units)
+            if entry.model is not None and isinstance(entry.model, str):
+                sim_info['model'] = entry.model
+                sim_info['location'] = entry.model
+            else:
+                for attr in ('sim_loc', 'fmu_loc', 'net_loc', 'csv_location', 'dss_location', 'script_loc'):
+                    if hasattr(entry.adapter, attr):
+                        loc_val = getattr(entry.adapter, attr)
+                        if isinstance(loc_val, str):
+                            sim_info['model'] = loc_val
+                            sim_info['location'] = loc_val
+                            break
+
+            if entry.mode:
+                sim_info['mode'] = entry.mode
+            sims_list.append(sim_info)
+
+        conns_list = []
+        for conn in self._parsed_connections:
+            output_, input_ = conn[0], conn[1]
+            scale = getattr(conn, 'scale', 1.0)
+            offset = getattr(conn, 'offset', 0.0)
+            from_unit = getattr(conn, 'from_unit', None)
+            to_unit = getattr(conn, 'to_unit', None)
+
+            if isinstance(output_, tuple) and isinstance(output_[0], tuple):
+                from_val = [item[2] for item in output_]
+            else:
+                from_val = output_[2]
+
+            if isinstance(input_, list):
+                to_val = [f"{item[0]}.{item[1]}" for item in input_]
+            else:
+                to_val = f"{input_[0]}.{input_[1]}"
+
+            conn_dict = {'from': from_val, 'to': to_val}
+            if scale != 1.0:
+                conn_dict['scale'] = scale
+            if offset != 0.0:
+                conn_dict['offset'] = offset
+            if from_unit:
+                conn_dict['from_unit'] = from_unit
+            if to_unit:
+                conn_dict['to_unit'] = to_unit
+            conns_list.append(conn_dict)
+
+        return {
+            'world': {
+                'start_time': self.start_time,
+                'stop_time': self.stop_time,
+                't_macro': self.exchange,
+                'coupling': self.coupling,
+                'extrapolation': self.extrapolation,
+                'max_iterations': self.max_iterations,
+                'convergence_tolerance': self.convergence_tolerance,
+                'res_filename': self.file_name,
+                'power_unit': self.power_unit,
+                'logging': self.logging,
+            },
+            'simulators': sims_list,
+            'connections': conns_list,
+        }
+
+    def to_yaml(self, filepath=None):
+        """Export world scenario configuration to YAML string or file."""
+        data = self.to_dict()
+        yaml_str = yaml.dump(data, sort_keys=False, default_flow_style=False)
+        if filepath:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(yaml_str)
+        return yaml_str
+
+    @classmethod
+    def from_dict(cls, data, base_dir=None):
+        """Construct a world instance from a dictionary configuration."""
+        w_cfg = data.get('world', {})
+        w = cls(
+            start_time=w_cfg.get('start_time', 0),
+            stop_time=w_cfg.get('stop_time', 1000),
+            t_macro=w_cfg.get('t_macro', 60),
+            coupling=w_cfg.get('coupling', 'jacobi'),
+            extrapolation=w_cfg.get('extrapolation', 'zero-order'),
+            res_filename=w_cfg.get('res_filename', 'es_res.h5'),
+            max_iterations=w_cfg.get('max_iterations', 10),
+            convergence_tolerance=float(w_cfg.get('convergence_tolerance', 1e-6)),
+            power_unit=w_cfg.get('power_unit', 'kW'),
+            logging=w_cfg.get('logging', False),
+        )
+
+        for sim_cfg in data.get('simulators', []):
+            s_name = sim_cfg['name']
+            s_type = sim_cfg['type']
+            s_model = sim_cfg.get('model') if sim_cfg.get('model') is not None else sim_cfg.get('location', '')
+            if base_dir and isinstance(s_model, str) and s_model and not os.path.isabs(s_model):
+                candidate_path = os.path.normpath(os.path.join(base_dir, s_model))
+                if os.path.exists(candidate_path) or any(s_model.lower().endswith(ext) for ext in (
+                    '.fmu', '.p', '.pkl', '.json', '.csv', '.dss', '.m', '.py', '.nc'
+                )):
+                    s_model = candidate_path
+
+            s_inputs = sim_cfg.get('inputs', [])
+            s_outputs = sim_cfg.get('outputs', [])
+            s_step = sim_cfg.get('step_size', 1.0)
+            mode = sim_cfg.get('mode') or sim_cfg.get('pf_mode') or 'ac'
+            power_unit = sim_cfg.get('power_unit')
+            units = sim_cfg.get('units')
+            kwargs = dict(sim_cfg.get('options', {}))
+
+            w.add_simulator(
+                sim_type=s_type,
+                sim_name=s_name,
+                model=s_model,
+                inputs=s_inputs,
+                outputs=s_outputs,
+                step_size=s_step,
+                mode=mode,
+                power_unit=power_unit,
+                units=units,
+                **kwargs
+            )
+
+        conns = data.get('connections', [])
+        if conns:
+            w.add_connections(conns)
+
+        return w
+
+    @classmethod
+    def from_yaml(cls, path_or_str):
+        """Load and instantiate a world from a YAML file path or YAML formatted string."""
+        if os.path.isfile(path_or_str):
+            base_dir = os.path.dirname(os.path.abspath(path_or_str))
+            with open(path_or_str, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+        else:
+            base_dir = None
+            data = yaml.safe_load(path_or_str)
+
+        return cls.from_dict(data, base_dir=base_dir)
 
 
 # PEP 8 alias

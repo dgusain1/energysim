@@ -25,9 +25,10 @@ theme:
         name: Switch to light mode
   features:
     - navigation.instant
-    - navigation.tabs
     - navigation.sections
+    - navigation.expand
     - navigation.top
+    - navigation.tracking
     - navigation.indexes
     - search.suggest
     - search.highlight
@@ -41,18 +42,60 @@ theme:
 
 nav:
   - Home: index.md
-  - Getting Started:
-      - Adding Simulators: add-simulator.md
-      - External Simulators: external-simulators.md
-  - Reference:
-      - Features: features.md
-      - Architecture: architecture.md
+  - Physical Components:
+      - Overview: physical-models.md
+      - Battery BESS: components/bess.md
+      - Flow Battery (VRFB): components/flow_battery.md
+      - Flywheel Storage: components/flywheel.md
+      - Photovoltaic (PV): components/pv.md
+      - Wind Turbine: components/wind.md
+      - Solar Thermal Collector: components/solar_thermal.md
+      - PEM Electrolyzer: components/pem_electrolyzer.md
+      - Alkaline Electrolyzer: components/alkaline_electrolyzer.md
+      - SOEC Electrolyzer: components/soec_electrolyzer.md
+      - H2 Compressor: components/h2_compressor.md
+      - H2 Storage Tank: components/h2_tank.md
+      - Fuel Cell (PEM & SOFC): components/fuel_cell.md
+      - Methanation Reactor: components/methanation.md
+      - Combined Cycle (CCGT): components/ccgt.md
+      - Open Cycle (OCGT): components/ocgt.md
+      - Reciprocating Genset: components/genset.md
+      - CHP Steam Turbine: components/chp.md
+      - Industrial Heat Pump: components/heat_pump.md
+      - Electric Boiler: components/electric_boiler.md
+      - Chillers (Electric & Absorption): components/chiller.md
+      - Thermal Storage Tank: components/thermal_storage.md
+      - Carbon Capture: components/carbon_capture.md
+      - Data Center Load: components/datacenter.md
+      - Industrial Process Steam: components/process_steam.md
+      - Equipment Catalog Archetypes: components/catalog.md
+      - Authoring Custom Models: custom-models.md
+  - Vectorized Fleet Containers:
+      - Overview & SIMD Architecture: containers/overview.md
+      - Storage & EV Battery Fleet: containers/storage_fleet.md
+      - Solar PV Fleet: containers/pv_fleet.md
+      - Building Thermal Fleet: containers/building_fleet.md
+      - Building Your Own Vectorized Fleet: containers/custom_fleet.md
+  - Simulator Adapters:
+      - Supported Simulators & Adapters: add-simulator.md
+      - Custom External Simulators: external-simulators.md
+  - Interactive Notebooks:
+      - Notebook Gallery & Case Studies: notebooks-gallery.md
+  - Workflows & CLI:
+      - Declarative YAML & Scenarios: yaml-cli.md
+  - Core & Architecture:
+      - Orchestration Architecture: architecture.md
+      - Engine Features: features.md
   - FAQ: faq.md
 
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -61,11 +104,22 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic: true
   - tables
   - attr_list
   - md_in_html
   - toc:
       permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
+  - javascripts/mermaid.js
 
 plugins:
   - search

@@ -1,229 +1,191 @@
-# FAQ
+# Frequently Asked Questions & Troubleshooting
+
+A comprehensive troubleshooting guide and reference for common errors, convergence issues, and multi-energy modeling questions in `energysim`.
 
 ---
 
-## OPFNotConvergedError
+## 1. Multi-Energy Physical Models & Equipment
 
-OPF and DCOPF convergence depends on the pandapower network
-configuration. Make sure OPF converges *within pandapower alone* before
-integrating the network with `energysim`. Common fixes:
+### Why is my Alkaline Electrolyzer outputting 0 kg/hr and in `STANDBY`?
+**Symptom**: You send a power command of 1.5 MW to a 10 MW alkaline electrolyzer (`AlkalineElectrolyzer`), but `P_actual = 0.0 MW`, `m_dot_H2_kg_hr = 0.0`, and `state == 'STANDBY'`.
 
-- Check that cost functions are defined for all controllable elements.
-- Ensure `controllable=True` is set on dispatchable loads/generators.
-- Verify voltage and power limits are reasonable.
+**Cause**: Liquid KOH alkaline electrolyzers have a **strict physical minimum turndown limit** (typically $20–30\%$). Below this current density, hydrogen gas crossover through the porous separator into the oxygen chamber can reach explosive concentrations ($>4\%\text{ H}_2\text{ in O}_2$). For safety, the stack automatically trips to `STANDBY`.
+
+**Fix**:
+* Ensure your dispatch command exceeds the minimum turndown threshold (e.g., $\ge 2.0\text{ MW}$ for a 10 MW unit).
+* If deep part-load flexibility (down to 5–10%) is required, use [`PEMElectrolyzer`](physical-models.md#pemelectrolyzer), which operates with solid polymer membranes and permits much lower turndown.
 
 ---
 
-## FMU initialisation error
+### Why is Solar PV output 0.0 MW even with high irradiance?
+**Symptom**: `G_poa = 950 W/m²`, but `P_ac = 0.0 MW`.
 
-If you get an initialisation error for an FMU, first check that it works
-independently:
+**Common Causes**:
+1. **Accidental curtailment setting**: If `curtail_limit` was connected to a signal that defaults to `0.0`, the inverter clips AC output to zero.
+2. **Nighttime irradiance threshold**: Irradiance below $1.0\text{ W/m}^2$ is treated as nighttime.
+3. **Severe temperature derating**: Check `T_cell` and `T_amb` — if cell temperature is unphysically high, power can drop to zero.
 
+**Fix**:
+Verify the `curtail_limit` input in your connection dictionary:
 ```python
-from fmpy import simulate_fmu
-result = simulate_fmu('/path/to/model.fmu')
-print(result)
+# Leave unconstrained (or omit curtail_limit entirely)
+pv = PhysicsPV(name="pv", p_dc_stc_mw=10.0, inverter_p_ac_max_mw=8.5)
+# Default curtail_limit is 1e6 MW (unconstrained)
 ```
 
-If FMPy validation fails but the FMU simulates correctly, use
-`validate=False`:
+---
 
+### Why is my CCGT or Gas Turbine not ramping immediately?
+**Symptom**: You dispatch 50 MW to a gas turbine, but it produces 0 MW for the first few macro steps.
+
+**Cause**: Real gas turbines and combined-cycle plants cannot jump to full load instantaneously. `energysim` uses an [`OperatingStateMachine`](physical-models.md#gasturbine_ocgt) that enforces:
+1. **Startup duration**: Units offline $>48\text{h}$ require a `COLD` start (e.g., 20 minutes) for rotor thermal stress relief and boiler drum purge.
+2. **Minimum Stable Generation (MSG)**: Units cannot operate steadily below 30–40% rated capacity.
+3. **Physical ramp limits**: Default ramp rates are constrained (e.g. 15–30 MW/min).
+
+**Fix**:
+For fast-starting peaking studies, adjust the startup timers:
 ```python
-my_world.add_simulator(
-    sim_type='fmu', ..., validate=False)
+gt = GasTurbine_OCGT(
+    name="peaker",
+    p_rated_mw=100.0,
+    cold_start_duration_sec=300.0,  # 5 min fast start
+    ramp_rate_mw_min=50.0,          # 50 MW/min fast ramp
+)
 ```
-
-Other remedies:
-
-1. Clear cache and temp folders.
-2. Restart the application.
-3. Run with administrator privileges.
 
 ---
 
-## SimulatorVariableError / SimulatorElementNotFoundError
+### Why is BESS terminal voltage ($V_t$) different from Open-Circuit Voltage ($V_{\text{oc}}$)?
+**Explanation**: `energysim`'s [`BatteryBESS`](physical-models.md#batterybess) uses a state-dependent Equivalent Circuit Model (ECM):
+$$V_t = V_{\text{oc}}(\text{SoC}) + I \cdot R_{\text{in}}(\text{SoC})$$
 
-These exceptions replace the old `sys.exit()` calls. They are raised
-when a variable name is invalid or a named element is not found in a
-pandapower/PyPSA network.
+* During **charging** ($I > 0$): terminal voltage rises above $V_{\text{oc}}$ due to ohmic and polarization resistance.
+* During **discharging** ($I < 0$): terminal voltage sags below $V_{\text{oc}}$.
+* At low SoC ($<10\%$), $R_{\text{in}}$ naturally increases by $2–3\times$, modeling voltage collapse under heavy discharge.
 
-Common causes:
+---
 
-- Typo in the variable name (e.g. `'Gen1.p_MW'` instead of `'Gen1.p_mw'`).
-- Element name does not match the name in the pandapower DataFrame (check `net.gen['name']`, `net.load['name']`, etc.).
-- Using an index instead of a name.
-
-You can inspect available variables using introspection:
-
+### How do I use real manufacturer equipment instead of guessing parameters?
+Use the **Equipment Catalog** ([`energysim.models.catalog`](physical-models.md#6-commercial-equipment-catalog-catalog)):
 ```python
-entry = my_world.simulator_dict["grid"]
-print(entry.adapter.get_available_variables())
+from energysim.models import catalog
+
+bess = catalog.Tesla_Megapack_2XL(name="bess")  # 1.93 MW / 3.92 MWh LFP
+ael  = catalog.Nel_A1000(name="ael")            # 2.2 MW Alkaline
+pem  = catalog.ITM_Power_Trident(name="pem")    # 5.0 MW PEM
+ccgt = catalog.GE_7HA_02(name="ccgt")           # 573 MW Combined Cycle
 ```
 
 ---
 
-## ConnectionError
+## 2. Co-Simulation & Orchestration Errors
 
-Raised when a connection string is malformed or references a
-non-existent simulator. Common causes:
-
-- Missing `.` separator: `'sim1_var1'` instead of `'sim1.var1'`.
-- Simulator not added before `add_connections()` is called.
-- Typo in the simulator name.
-
-All connections are validated immediately when `add_connections()` is
-called, so errors appear early rather than during simulation.
+### `ConnectionError: Invalid connection or simulator not found`
+**Common Causes**:
+1. **Missing dot separator**: `'grid_load1'` instead of `'grid.load1'`.
+2. **Simulator added after connection**: Simulators must be added via `add_simulator()` or `add_model()` *before* calling `add_connections()`.
+3. **Typo in simulator name**: Name in connection dictionary must match `sim_name` exactly.
 
 ---
 
-## Simulation hangs / runs very slowly
+### Power Unit Mismatches (`kW` vs `MW`)
+**Symptom**: Power flow network reports voltages near zero or lines overloading by $1000\times$.
 
-Check the `step_size` parameter. If a simulator's `step_size` is
-too small relative to the macro time-step (`t_macro`), the number of
-micro-steps per macro step can be very large. For example, with
-`t_macro=900` and `step_size=1`, the simulator takes 900 steps per
-exchange.
+**Cause**: Pandapower expects active power in `MW`, while a controller or BESS was outputting in `kW`.
 
-For power-flow networks, a `step_size` of 300–900 is usually
-appropriate.
-
----
-
-## TypeError: 'SimEntry' object is not subscriptable
-
-This error occurs when code uses the old tuple-based access pattern:
-
+**Fix**:
+`energysim` handles unit conversions automatically if you declare the baseline `power_unit`:
 ```python
-# OLD (broken) — do not use
-adapter = my_world.simulator_dict["grid"][1]
+# Declare world baseline in kW:
+sim = world(start_time=0, stop_time=3600, power_unit='kW')
+
+# Pandapower natively operates in MW. energysim auto-scales:
+# 800 kW signal -> 0.8 MW injected into pandapower!
 ```
 
-Since the architecture refactoring, `simulator_dict` values are
-`SimEntry` dataclass objects. Use attribute access instead:
+---
 
+### `ValidationError: Pre-flight checks failed`
+**Common Causes**:
+* **Step size mismatch**: A simulator's `step_size` does not divide the macro step `t_macro` evenly (e.g. `step_size=7` with `t_macro=10`).
+* **Writing to read-only simulator**: Connecting an output to a CSV reader or signal generator.
+* **Unregistered endpoint**: Connection references a simulator or variable that does not exist.
+
+**Remedy**:
+Run validation non-destructively to inspect all issues:
 ```python
-# NEW (correct)
-adapter = my_world.simulator_dict["grid"].adapter
-network = my_world.simulator_dict["grid"].adapter.network
+report = my_world.validate(raise_on_error=False)
+print("Errors:", report.errors)
+print("Warnings:", report.warnings)
 ```
 
 ---
 
-## Read-only simulator warnings
-
-If you see a warning like:
-
+### Algebraic Loop Warning
+**Symptom**:
 ```
-UserWarning: Simulator 'csv1' is read-only (type='csv').
-Connection to 'temp' will be silently ignored.
+UserWarning: Algebraic loop detected involving simulators: ['bess', 'grid_controller']
 ```
 
-This means a connection writes to a CSV or signal simulator, which
-cannot accept input values. Check your connection dictionary — the
-target should be a writable simulator (FMU, powerflow, external, etc.).
+**Cause**: Simulator A's output feeds Simulator B, and Simulator B's output feeds Simulator A within the same time step.
 
-If the connection is intentional (e.g. for documentation purposes),
-you can suppress the warning:
+**Remedy**:
+* `coupling='jacobi'` (default): Resolves loop using a one-step delay (each simulator sees the previous step's value).
+* `coupling='iterative'`: Resolves the loop iteratively within each macro step until values converge within `convergence_tolerance`.
 
+---
+
+## 3. Power Grid & External Simulators
+
+### `pandapower.powerflow.LoadflowNotConverged`
+**Common Causes**:
+1. **Network islanding**: A bus has no galvanic connection to an external grid (`ext_grid`) or generator with slack voltage control.
+2. **Voltage collapse**: Reactive power load exceeds feeder transmission capability.
+3. **Unrealistic transformer tap position**.
+
+**Fix**:
+Run pandapower diagnostic before coupling:
 ```python
-import warnings
-warnings.filterwarnings('ignore', message='.*read-only.*')
+import pandapower as pp
+pp.diagnostic(net)
+# Or try running DC power flow mode for dispatch studies:
+my_world.add_powerflow('grid', net=net, mode='dc')
 ```
 
 ---
 
-## Algebraic loop warnings
+### HDF5 / PyTables: `File already open` or Locking Error
+**Cause**: A previous simulation crashed or was aborted without releasing the HDF5 file handle on `es_res.h5`.
 
-If you see a warning like:
+**Fix**:
+```python
+# Force-close any dangling PyTables handles in Python:
+import tables as tb
+tb.file._open_files.close_all()
 
+# Or specify a unique results file name:
+sim = world(res_filename="run_case_01.h5")
 ```
-UserWarning: Algebraic loop detected involving simulators:
-['battery', 'controller', 'heatpump']
-```
-
-This means there is a circular dependency between the listed simulators.
-`energysim` handles this automatically:
-
-- With `coupling='jacobi'`, the loop is resolved with a one-step delay (each simulator sees the previous step's outputs).
-- With `coupling='gauss-seidel'`, Jacobi coupling is used within the loop.
-- With `coupling='iterative'`, the loop is iteratively resolved until convergence.
-
-If strict accuracy is required for the looped variables, use
-`coupling='iterative'` with appropriate `max_iterations` and
-`convergence_tolerance`.
 
 ---
 
-## Iterative coupling does not converge
+### FMU 32-bit vs 64-bit Platform Mismatch
+**Symptom**: `FMPyException: The FMU contains no binary for your platform`.
 
-If iterative coupling fails to converge within `max_iterations`:
+**Cause**: Trying to simulate a 32-bit compiled FMU on a 64-bit Python installation (or vice versa).
 
-1. **Increase `max_iterations`** — some systems need more iterations.
-2. **Reduce `t_macro`** — smaller exchange intervals make convergence easier.
-3. **Check `convergence_tolerance`** — `1e-6` may be too tight for some variables (e.g. large power values). Try `1e-4`.
-4. **Ensure adapters support state save/restore** — if `save_state()` returns `None`, the adapter cannot be rolled back and iterative coupling degrades to Gauss-Seidel.
-
-For FMU CS adapters, state save/restore requires FMI 2.0 FMUs with
-`canGetAndSetFMUstate=true` in the model description.
-
----
-
-## Missing optional dependencies
-
-`energysim` core requires numpy, pandas, matplotlib, networkx, tqdm,
-and PyTables. Simulator-specific packages are optional:
-
-| Package         | Purpose                     | pip                                                          | uv                                    |
-|-----------------|-----------------------------|--------------------------------------------------------------|---------------------------------------|
-| FMPy            | FMU simulators              | `pip install energysim[fmu]`                                 | `uv add energysim[fmu]`               |
-| pandapower      | Powerflow simulators        | `pip install energysim[powerflow]`                           | `uv add energysim[powerflow]`         |
-| PyPSA           | PyPSA network simulators    | `pip install energysim[pypsa]`                               | `uv add energysim[pypsa]`             |
-| Plotly          | Interactive HTML dashboards | `pip install plotly`                                         | `uv add plotly`                       |
-| PowerFactory    | DIgSILENT models            | Requires PF 2020+ with Python API — no pip package needed    | —                                     |
-| MATLAB Engine   | MATLAB models               | Install from your MATLAB installation (see below)            | —                                     |
-| oct2py          | Octave models               | `pip install oct2py`                                         | `uv add oct2py`                       |
-
-**Installing MATLAB Engine for Python:**
-
+**Fix**:
+Verify your Python bitness:
 ```bash
-cd "C:\Program Files\MATLAB\R2024b\extern\engines\python"
-python setup.py install
+python -c "import struct; print(struct.calcsize('P') * 8)"
 ```
-
-If a required package is missing, `energysim` will raise an
-`ImportError` with a clear message when you try to add that type of
-simulator.
+Re-export the FMU targeting `win64` / `linux64` from OpenModelica or Dymola.
 
 ---
 
-## PowerFactory: sim_name must match the project name
-
-The `sim_name` passed to `add_simulator(sim_type='powerfactory', ...)`
-**must** match the PowerFactory project name exactly. The adapter calls
-`ActivateProject(sim_name)` during initialisation. If the names do
-not match, PowerFactory will raise an error.
-
----
-
-## Octave: nargin: invalid function name
-
-This error means the `.m` file could not be found on the Octave search
-path. Common causes:
-
-1. The `sim_loc` path is incorrect. Use an absolute path or ensure the working directory contains the `.m` file.
-2. The file is a **script**, not a **function**. The first non-comment line must be `function [...]` — `nargin` only works on functions.
-3. The function name inside the file does not match the file name.
-
----
-
-## Which coupling mode should I use?
-
-| Mode              | Best for                                                                          |
-|-------------------|-----------------------------------------------------------------------------------|
-| `'jacobi'`        | Loosely coupled systems, simple setups, backward compatibility                    |
-| `'gauss-seidel'`  | Feed-forward chains, systems with a clear upstream → downstream flow              |
-| `'iterative'`     | Tightly coupled systems with algebraic loops, when accuracy of coupled variables is critical |
-
-When in doubt, start with `'jacobi'` (the default) and switch to
-`'gauss-seidel'` or `'iterative'` if you observe coupling artifacts
-(e.g. oscillations, delayed responses).
+### Octave: `nargin: invalid function name`
+**Cause**:
+1. The `.m` file is a script, not a function. The first line must be `function [out1, ...] = name(in1, ..., time)`.
+2. The function name inside the file does not match the `.m` filename on disk.
+3. GNU Octave is not found on your system `PATH`.

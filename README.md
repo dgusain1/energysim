@@ -9,24 +9,27 @@ Documentation: [energysim.readthedocs.io](https://energysim.readthedocs.io)
 
 ## What is energysim?
 
-`energysim` is a Python-based co-simulation tool designed to simplify
-multi-energy co-simulations. It lets you couple heterogeneous energy-system
-models — FMUs, power-flow networks, CSV data sources, PowerFactory models,
-MATLAB/Octave functions, and custom Python simulators — through a single
-`world` object that handles time progression, variable exchange, and results
-collection automatically.
+`energysim` is a high-performance Python framework for **multi-energy system (MES) modeling, sector coupling, and heterogeneous co-simulation**.
 
-### Supported simulators
+It bridges electrical power networks with **built-in physical models for green hydrogen electrolyzers, gas turbines, battery storage, and district heating**, alongside bridges for external simulators (pandapower, PyPSA, OpenDSS, PowerFactory, FMUs, MATLAB, Octave) through a single `world` orchestrator with automatic unit scaling and dependency resolution.
 
-1. **Functional Mockup Units** (FMI 1.0 / 2.0, Co-Simulation & Model Exchange)
-2. **Pandapower** networks — AC/DC power flow and OPF
-3. **PyPSA** networks (experimental)
-4. **CSV** data files with time-indexed columns
-5. User-defined **external simulators** via a Python class
-6. **DIgSILENT PowerFactory** models via the Python API
-7. **MATLAB / GNU Octave** `.m` functions (auto-detects engine)
-8. **Signal generators** (Python lambda / function)
-9. Standalone **Python scripts**
+### Key Capabilities
+
+1. **Inbuilt Multi-Energy Physical Components**:
+   - **Storage**: `BatteryBESS` (LFP/NMC ECM + thermal + aging), `FlowBattery` (VRFB), `Flywheel`.
+   - **Renewables**: `PhysicsPV` (5-param + King NOCT), `WindTurbine`, `SolarThermalCollector`.
+   - **Hydrogen & PtX**: `PEMElectrolyzer`, `AlkalineElectrolyzer` (20% turndown cutoff), `SOECElectrolyzer` (steam electrolysis), `H2Compressor`, `H2StorageTank` (350 bar real-gas), `FuelCell_PEM`, `FuelCell_SOFC`, `MethanationReactor`.
+   - **Thermal & Turbomachinery**: `GasTurbine_OCGT` (Cold/Warm/Hot startup timers), `CombinedCycle_CCGT` (HRSG + Rankine steam), `ReciprocatingGenset`, `CHP_SteamTurbine`.
+   - **Heating, Cooling & Carbon**: `IndustrialHeatPump` (Carnot lift COP), `ElectricBoiler`, `Electric/Absorption Chillers`, `CarbonCapture_Amine`.
+   - **Equipment Catalog**: Ready-to-use archetypes from OEM datasheets (`catalog.Tesla_Megapack_2XL`, `catalog.Nel_A1000`, `catalog.GE_7HA_02`, `catalog.ITM_Power_Trident`, etc.).
+2. **Heterogeneous Co-Simulation Adapters**:
+   - **Pandapower** networks — AC/DC power flow and OPF
+   - **PyPSA** networks (Pattern B single-snapshot online dispatch)
+   - **OpenDSS** distribution networks via `OpenDSSDirect.py`
+   - **Functional Mockup Units** (FMI 1.0 / 2.0 Co-Simulation & Model Exchange)
+   - **DIgSILENT PowerFactory** models via Python API
+   - **MATLAB / GNU Octave** `.m` functions (auto-detects engine)
+   - **CSV profiles**, **signal generators**, and custom Python simulators.
 
 ## Architecture
 
@@ -52,7 +55,7 @@ Install the core package:
 pip install energysim   # or: uv add energysim
 ```
 
-Only **numpy**, **pandas**, **tqdm**, **networkx**, and **PyTables** are
+Only **numpy**, **pandas**, **tqdm**, **tables**, **networkx**, and **pyyaml** are
 required. Simulator-specific packages are optional:
 
 === "pip"
@@ -61,6 +64,7 @@ required. Simulator-specific packages are optional:
     pip install energysim[fmu]         # adds FMPy
     pip install energysim[powerflow]   # adds pandapower
     pip install energysim[pypsa]       # adds PyPSA
+    pip install energysim[opendss]     # adds OpenDSSDirect.py
     pip install energysim[plotting]    # adds matplotlib
     pip install energysim[all]         # all of the above
     ```
@@ -71,58 +75,61 @@ required. Simulator-specific packages are optional:
     uv add energysim[fmu]         # adds FMPy
     uv add energysim[powerflow]   # adds pandapower
     uv add energysim[pypsa]       # adds PyPSA
+    uv add energysim[opendss]     # adds OpenDSSDirect.py
     uv add energysim[plotting]    # adds matplotlib
     uv add energysim[all]         # all of the above
     ```
 
 For the new adapters:
 
+- **OpenDSS**: `pip install energysim[opendss]` (cross-platform).
 - **PowerFactory**: requires DIgSILENT PowerFactory 2020+ with the Python API enabled. No extra pip package needed.
 - **MATLAB**: requires the MATLAB Engine for Python.
 - **Octave**: `pip install oct2py` / `uv add oct2py` + GNU Octave on PATH.
 
-## Quick Start
+## CLI Runner & Declarative YAML
+
+Run co-simulations directly from YAML without writing Python scripts:
+
+```bash
+# Validate scenario pre-flight
+energysim validate scenario.yaml
+
+# Run simulation and open interactive dashboard
+energysim run scenario.yaml --dashboard
+```
+
+## Quick Start (Zero-Setup Minimal Example)
+
+Run a complete multi-domain co-simulation in Python with zero external file dependencies:
 
 ```python
+import pandapower as pp
 from energysim import world
 
-# 1. Create co-simulation world
-my_world = world(
-    start_time=0, stop_time=86400,
-    logging=True, t_macro=900,
-    coupling='jacobi',
-    extrapolation='zero-order',
-)
+# 1. Create a minimal distribution network in memory
+net = pp.create_empty_network(name='microgrid')
+b1 = pp.create_bus(net, vn_kv=20.0, name='Bus1')
+b2 = pp.create_bus(net, vn_kv=20.0, name='Bus2')
+pp.create_ext_grid(net, b1, name='GridSlack')
+pp.create_line(net, b1, b2, length_km=2.5, std_type='NAYY 4x150 SE', name='Feeder')
+pp.create_load(net, b2, p_mw=1.2, q_mvar=0.3, name='Load1')
 
-# 2. Add simulators
-my_world.add_simulator(
-    sim_type='fmu', sim_name='plant',
-    sim_loc='plant.fmu',
-    inputs=['power_cmd'], outputs=['temperature'],
-    step_size=1, validate=False)
+# 2. Initialize the co-simulation coordinator (macro step = 900s)
+sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 
-my_world.add_simulator(
-    sim_type='powerflow', sim_name='grid',
-    sim_loc='network.p',
-    inputs=['Load1.p_mw'], outputs=['Bus1.vm_pu'],
-    step_size=300, pf='opf')
+# 3. Register the grid model and a dynamic controller signal
+sim.add_powerflow('grid', net=net, inputs=['Load1.p_mw'], outputs=['Bus2.vm_pu'], step_size=900, mode='ac')
+sim.add_signal('load_controller', lambda t: [800.0 + 200.0 * (t / 3600)], power_unit='kW')
 
-my_world.add_simulator(
-    sim_type='csv', sim_name='profiles',
-    sim_loc='data.csv', step_size=900)
+# 4. Connect signal to load (automatically converts 800 kW -> 0.8 MW)
+sim.add_connections({'load_controller.y': 'grid.Load1.p_mw'})
 
-# 3. Connect simulators
-connections = {
-    'plant.temperature': 'grid.Load1.p_mw',
-    'profiles.wind':     'plant.power_cmd',
-}
-my_world.add_connections(connections)
+# 5. Run co-simulation and view DataFrame results
+sim.simulate()
+results = sim.results(dashboard=False)
 
-# 4. Run
-my_world.simulate(pbar=True)
-
-# 5. Results (opens interactive HTML dashboard)
-results = my_world.results(to_csv=False, dashboard=True)
+print(results['grid'][['time', 'Bus2.vm_pu']])
 ```
 
 ## Parameters
