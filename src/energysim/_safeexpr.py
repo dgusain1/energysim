@@ -12,7 +12,8 @@ Python expression syntax is accepted:
 * comparisons (``< <= > >= == !=``, chained), ``and`` / ``or`` / ``not``;
 * conditional expressions ``a if cond else b``;
 * calls to ``sin cos tan exp log sqrt abs min max floor ceil``;
-* a top-level list / tuple literal of the above (multi-valued signals).
+* a top-level list / tuple literal of the above (parsed here, but ``world.add_signal`` rejects
+  signals returning more than one value: a signal has the single output ``y``).
 
 An optional ``lambda t:`` prefix is accepted for backwards compatibility
 with 2.x scenario files (``"lambda t: 5*t"``); it is stripped and the body

@@ -10,6 +10,8 @@ import re
 import importlib
 import importlib.util
 
+import numpy as np
+
 from ..csv_adapter import csv_simulator
 from ..signalAdapter import signal_adapter
 from ..utils import (
@@ -125,8 +127,31 @@ class RegistryMixin:
     # add_* API
     # ------------------------------------------------------------------
 
+    def _check_single_output_signal(self, sim_name, func):
+        """Reject signals that return more than one value (probe at ``t = start_time``).
+
+        A signal exposes the single output ``y``; a callable returning ``[v]`` is fine.
+        A callable that raises on the probe is accepted (it is not probed again).
+        """
+        try:
+            probe = func(self.start_time)
+        except Exception:
+            return
+        try:
+            n_values = len(probe) if isinstance(probe, (list, tuple, np.ndarray)) else 1
+        except TypeError:
+            n_values = 1
+        if n_values > 1:
+            raise ValueError(
+                f"Signal '{sim_name}' returns {n_values} values; signals expose a single output "
+                f"'y'; add one signal per output (a callable returning a list of one value is fine)."
+            )
+
     def add_signal(self, sim_name, signal=None, step_size=1, power_unit=None, units=None, breakpoints=None):
         """Add a signal source with a single output ``y``.
+
+        A signal returning more than one value is rejected with a ``ValueError``
+        (probed once at ``t = start_time``): add one signal per output.
 
         ``signal`` may be a callable ``f(t)``, a number (constant), a safe
         expression string (``"5*sin(t/60)"``, optionally prefixed with
@@ -145,6 +170,7 @@ class RegistryMixin:
             )
         self._check_units(units, power_unit)
         func = build_signal(signal)
+        self._check_single_output_signal(sim_name, func)
         signal_obj = signal_adapter(signal_name=sim_name, signal=func, breakpoints=breakpoints)
         signal_obj.step_size = step_size   # record_all samples at the declared step, not 1 s
         self._register(sim_name, SimEntry(

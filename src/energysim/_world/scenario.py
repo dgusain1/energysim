@@ -9,8 +9,9 @@ import yaml
 from ..utils import (
     looks_like_dotted_import, PICKLE_EXTS, MODEL_FILE_EXTS,
 )
+from .model_spec import build_model, is_file_model_ref, model_to_spec
 from .unit_resolution import unit_system_to_dict
-from ._common import (logger, ITERATIVE_REMOVED_MSG, UNSAFE_SIM_TYPES,
+from ._common import (logger, ITERATIVE_REMOVED_MSG, UNSAFE_SIM_TYPES, _CONTAINER_TYPES,
                       _MODEL_ALIAS_KEYS, _WORLD_KEYS,
                       RES_FILENAME_REMOVED_MSG, _REMOVED_WORLD_KEYS)
 
@@ -44,6 +45,17 @@ class ScenarioMixin:
                     logger.warning(
                         "Signal '%s' is a Python callable and cannot be serialised; use an expression "
                         "string or a structured spec to make it round-trip.", name)
+            elif entry.sim_type == 'model':
+                ref, params, reason = model_to_spec(entry.adapter)
+                if ref is None:
+                    logger.warning(
+                        "Model '%s' is not serialised (%s); in-memory models that are not an exported "
+                        "energysim class with recoverable constructor parameters cannot round-trip "
+                        "through YAML.", name, reason)
+                else:
+                    sim_info['model'] = ref
+                    if params:
+                        sim_info['parameters'] = params
             elif entry.model is not None and isinstance(entry.model, str):
                 sim_info['model'] = entry.model
                 sim_info['location'] = entry.model
@@ -109,6 +121,7 @@ class ScenarioMixin:
                 **({'unit_policy': self.unit_policy} if self.unit_policy != 'lenient' else {}),
                 **({'start_datetime': str(self.start_datetime)} if self.start_datetime is not None else {}),
                 **({'seed': self.seed} if self.seed is not None else {}),
+                **({'record_all': self.record_all} if self.record_all is not None else {}),
                 **({'out_dir': str(self.out_dir)} if self.out_dir is not None else {}),
             },
             'simulators': sims_list,
@@ -132,15 +145,54 @@ class ScenarioMixin:
         return yaml_str
 
     @staticmethod
-    def _check_safe_simulator(name, sim_type, model, options):
-        """Reject code-executing simulator definitions in safe mode."""
+    def _confine_path(name, key, ref, root):
+        """Resolve *ref* against *root* and refuse anything outside the *root* tree (safe mode).
+
+        Symlinks and ``..`` are resolved first; returns the absolute resolved path.
+        """
+        text = os.fspath(ref)
+        cand = text if os.path.isabs(text) else os.path.join(root, text)
+        real = os.path.realpath(cand)
+        norm_root, norm_real = os.path.normcase(root), os.path.normcase(real)
+        try:
+            inside = os.path.commonpath([norm_root, norm_real]) == norm_root
+        except ValueError:          # different drives
+            inside = False
+        if not inside:
+            raise ValueError(
+                f"{name}: {key} {text!r} resolves to {real!r}, outside the scenario directory "
+                f"{root!r}; not allowed in safe mode.")
+        return real
+
+    @classmethod
+    def _check_safe_simulator(cls, name, sim_type, model, options, root=None, allow_native=False):
+        """Reject code-executing simulator definitions in safe mode.
+
+        Returns ``(model, options)`` with every file reference replaced by its resolved
+        absolute path (confined to *root*, the scenario directory tree).
+        """
         st = (sim_type or '').lower()
         if st in UNSAFE_SIM_TYPES:
             raise ValueError(
                 f"Simulator '{name}': type '{sim_type}' runs arbitrary code and is not allowed in "
                 f"safe mode."
             )
-        refs = [('model', model)] + [(k, v) for k, v in (options or {}).items()]
+        if st == 'fmu' and not allow_native:
+            raise ValueError(
+                f"Simulator '{name}': type 'fmu' loads native code (a shared library runs inside this "
+                f"process) and is not allowed in safe mode; pass allow_native=True (CLI: --allow-native) "
+                f"only for FMUs you trust."
+            )
+        is_model = st in ('model', 'component')
+        if is_model and is_file_model_ref(model):
+            raise ValueError(
+                f"Simulator '{name}': model file reference {model!r} runs arbitrary code and is not "
+                f"allowed in safe mode."
+            )
+        # file references are paths unless the entry is a component name / signal / container
+        path_like = st not in ('signal', 'model', 'component') and st not in _CONTAINER_TYPES
+        options = dict(options or {})
+        refs = [('model', model)] + list(options.items())
         for key, val in refs:
             if not isinstance(val, (str, os.PathLike)):
                 continue
@@ -154,9 +206,16 @@ class ScenarioMixin:
                 raise ValueError(
                     f"Simulator '{name}': dotted import reference {s!r} is not allowed in safe mode."
                 )
+            if path_like and root is not None and key in ('model', 'location') + _MODEL_ALIAS_KEYS:
+                confined = cls._confine_path(f"Simulator '{name}'", key, s, root)
+                if key == 'model':
+                    model = confined
+                else:
+                    options[key] = confined
+        return model, options
 
     @classmethod
-    def from_dict(cls, data, base_dir=None, safe=False, allow_import=False):
+    def from_dict(cls, data, base_dir=None, safe=False, allow_import=False, allow_native=False):
         """Construct a world instance from a dictionary configuration.
 
         Parameters
@@ -164,7 +223,14 @@ class ScenarioMixin:
         safe : bool
             Refuse simulator types that execute arbitrary code (external, script,
             matlab, powerfactory), dotted-import model references and pickle
-            (``.p`` / ``.pkl``) model files.  Use for untrusted scenario files.
+            (``.p`` / ``.pkl``) model files, ``model: file.py:Class`` component references and
+            FMUs (native code, unless ``allow_native=True``).  Every model / csv / script /
+            options file reference and ``out_dir`` must resolve (symlinks and ``..`` included)
+            inside the scenario directory tree (*base_dir*, or the working directory when
+            loading from a string).  Use for untrusted scenario files.
+        allow_native : bool
+            In safe mode, still allow ``fmu`` simulators (native shared libraries run inside
+            this process).  Ignored without safe mode.
         allow_import : bool
             Allow dotted-import model references (``'pkg.module.factory'``) to
             be imported and called.  Ignored (False) in safe mode.
@@ -180,8 +246,13 @@ class ScenarioMixin:
         unknown = sorted(set(w_cfg) - _WORLD_KEYS)
         if unknown:
             raise ValueError(f"Unknown world key(s) {unknown}. Valid keys: {sorted(_WORLD_KEYS)}.")
+        root = None
         if safe:
             allow_import = False
+            root = os.path.realpath(base_dir or os.getcwd())
+            if w_cfg.get('out_dir') is not None:
+                w_cfg = dict(w_cfg)
+                w_cfg['out_dir'] = cls._confine_path('World', 'out_dir', w_cfg['out_dir'], root)
         w = cls(
             start_time=w_cfg.get('start_time', 0),
             stop_time=w_cfg.get('stop_time', 1000),
@@ -198,6 +269,11 @@ class ScenarioMixin:
             unit_policy=w_cfg.get('unit_policy', 'lenient'),
         )
 
+        if w_cfg.get('record_all') is not None:
+            if not isinstance(w_cfg['record_all'], bool):
+                raise ValueError(f"world.record_all must be true or false, got {w_cfg['record_all']!r}.")
+            w.record_all = w_cfg['record_all']
+
         for sim_cfg in data.get('simulators', []) or []:
             if not isinstance(sim_cfg, dict) or 'name' not in sim_cfg or 'type' not in sim_cfg:
                 raise ValueError(f"Each simulator needs at least 'name' and 'type': {sim_cfg!r}")
@@ -210,9 +286,29 @@ class ScenarioMixin:
                 kwargs['signal'] = sim_cfg['signal']
 
             if safe:
-                cls._check_safe_simulator(s_name, s_type, s_model, kwargs)
+                s_model, kwargs = cls._check_safe_simulator(s_name, s_type, s_model, kwargs, root=root,
+                                                            allow_native=allow_native)
 
-            if (st != 'signal' and base_dir and isinstance(s_model, str) and s_model
+            if st in ('model', 'component'):
+                params = dict(kwargs)
+                extra = sim_cfg.get('parameters')
+                if extra is not None:
+                    if not isinstance(extra, dict):
+                        raise ValueError(f"Simulator '{s_name}': 'parameters' must be a mapping.")
+                    clash = sorted(set(params) & set(extra))
+                    if clash:
+                        raise ValueError(f"Simulator '{s_name}': {clash} given under both 'options' "
+                                         f"and 'parameters'.")
+                    params.update(extra)
+                if isinstance(s_model, str):
+                    s_model = build_model(s_name, s_model, params, load_module=cls._load_file_module,
+                                          base_dir=base_dir, safe=safe, allow_import=allow_import)
+                    kwargs = {}
+            elif 'parameters' in sim_cfg:
+                raise ValueError(f"Simulator '{s_name}': 'parameters' is only valid for type 'model'; "
+                                 f"use 'options' for adapter keywords.")
+
+            if (st not in ('signal', 'model', 'component') and base_dir and isinstance(s_model, str) and s_model
                     and not os.path.isabs(s_model)):
                 candidate_path = os.path.normpath(os.path.join(base_dir, s_model))
                 if os.path.exists(candidate_path) or s_model.lower().endswith(MODEL_FILE_EXTS):
@@ -242,7 +338,7 @@ class ScenarioMixin:
         return w
 
     @classmethod
-    def from_yaml(cls, path_or_str, safe=False, allow_import=False):
+    def from_yaml(cls, path_or_str, safe=False, allow_import=False, allow_native=False):
         """Load a world from a YAML file path or YAML string (see :meth:`from_dict` for ``safe``)."""
         if os.path.isfile(path_or_str):
             base_dir = os.path.dirname(os.path.abspath(path_or_str))
@@ -252,5 +348,6 @@ class ScenarioMixin:
             base_dir = None
             data = yaml.safe_load(path_or_str)
 
-        return cls.from_dict(data, base_dir=base_dir, safe=safe, allow_import=allow_import)
+        return cls.from_dict(data, base_dir=base_dir, safe=safe, allow_import=allow_import,
+                             allow_native=allow_native)
 

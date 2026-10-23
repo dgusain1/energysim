@@ -68,5 +68,5 @@ python run_pf_ninebus.py
 ## Output
 
 - Console progress bar (96 macro time steps, 15-min intervals, 24 h)
-- HDF5 results file `es_res.h5`
+- A `Results` object (`world.last_results`); nothing is written to disk unless you set `out_dir`
 - Plots of bus voltages, P2H/P2G dispatch, and renewable generation

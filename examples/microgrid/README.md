@@ -73,7 +73,7 @@ weather CSV and pandapower network file.
 
 The simulation produces:
 
-- **`es_res.h5`** — raw HDF5 results
+- A `Results` object (`world.last_results`); nothing is written to disk unless you set `out_dir`
 - **`microgrid_dashboard.html`** — interactive Plotly dashboard (opens in browser)
 - Console summary of per-simulator step counts and variable counts
 

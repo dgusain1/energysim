@@ -85,7 +85,7 @@ weight files.
 
 The simulation produces:
 
-- **`es_res.h5`** — raw HDF5 results
+- A `Results` object (`world.last_results`); nothing is written to disk unless you set `out_dir`
 - **`ml_grid_dashboard.html`** — interactive Plotly dashboard (opens in browser)
 - Console summary of per-simulator step counts and variable counts
 

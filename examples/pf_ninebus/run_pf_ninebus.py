@@ -192,7 +192,7 @@ def run():
         inputs=pf_inputs,
         outputs=pf_outputs,
         step_size=DT_MACRO,
-        pf='ldf',                            # load flow
+        mode='ac',                           # AC load flow
         pf_path=PF_PATH,
     )
 

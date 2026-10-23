@@ -73,7 +73,7 @@ class CouplingMixin:
             if per_target:
                 targets = input_ if isinstance(input_, list) else [input_]
                 for (in_sim_name, in_sim_var), (sc, off) in zip(targets, per_target):
-                    if in_sim_name == target_sim:
+                    if in_sim_name == target_sim and not self._is_held(in_sim_name, in_sim_var):
                         self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], [tmp_var[0] * sc + off])
                 continue
             if scale != 1.0 or offset != 0.0:
@@ -81,7 +81,13 @@ class CouplingMixin:
 
             # Set to matching inputs only
             for in_sim_name, in_sim_var in matching:
+                if self._is_held(in_sim_name, in_sim_var):
+                    continue
                 self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], tmp_var)
+
+    def _is_held(self, sim_name, var_name):
+        """True while a declarative ``set`` event holds this input for the current macro step."""
+        return (sim_name, var_name) in self._held_inputs
 
     def _exchange_for_sims(self, t, target_sims):
         """Exchange connections whose input side is in target_sims set."""
@@ -141,6 +147,8 @@ class CouplingMixin:
                 if self.extrapolation == 'linear':
                     tmp_var = self._apply_extrapolation(output_, t, tmp_var)
                 for (in_sim_name, in_sim_var), (sc, off) in zip(input_, per_target):
+                    if self._is_held(in_sim_name, in_sim_var):
+                        continue
                     self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], [tmp_var[0] * sc + off])
                 continue
 
@@ -155,9 +163,13 @@ class CouplingMixin:
             # --- distribute to input(s) ---
             if isinstance(input_, list):
                 for in_sim_name, in_sim_var in input_:
+                    if self._is_held(in_sim_name, in_sim_var):
+                        continue
                     self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], tmp_var)
             else:
                 in_sim_name, in_sim_var = input_
+                if self._is_held(in_sim_name, in_sim_var):
+                    continue
                 self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], tmp_var)
 
     def _apply_extrapolation(self, output_, t, current_value):

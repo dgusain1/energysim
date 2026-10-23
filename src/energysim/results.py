@@ -692,7 +692,13 @@ class Results:
         return None
 
     def summary(self) -> pd.DataFrame:
-        """Per-variable ``count, min, max, mean, last`` (and unit / dtype)."""
+        """Per-variable ``min, max, mean, last, count`` as a clean **numeric** frame.
+
+        Index ``variable`` (``'sim.var'``); every column is numeric (``count`` is integer,
+        ``last`` is ``NaN`` for non-numeric variables), so ``res.summary().round(2)`` and
+        ``res.summary().loc[row, ['min', 'max']].round()`` work.  Units and dtypes are in
+        :meth:`describe_variables`.
+        """
         if self.is_ensemble:
             return pd.concat({k: r.summary() for k, r in zip(self._run_keys, self._runs)},
                              names=['run', 'variable'])
@@ -702,20 +708,35 @@ class Results:
             for v in df.columns:
                 col = df[v]
                 num = self._numeric(col)
-                last = col.iloc[-1] if len(col) else None
                 if num is not None:
-                    num = num.dropna()
-                    row = {'min': num.min() if len(num) else np.nan,
-                           'max': num.max() if len(num) else np.nan,
-                           'mean': num.mean() if len(num) else np.nan}
+                    last_num = num.dropna()
+                    row = {'min': last_num.min() if len(last_num) else np.nan,
+                           'max': last_num.max() if len(last_num) else np.nan,
+                           'mean': last_num.mean() if len(last_num) else np.nan,
+                           'last': float(num.iloc[-1]) if len(num) else np.nan}
                 else:
-                    row = {'min': np.nan, 'max': np.nan, 'mean': np.nan}
-                row.update({'last': last, 'count': int(col.notna().sum()),
-                            'unit': self._units.get(f"{s}.{v}"), 'dtype': str(col.dtype)})
+                    row = {'min': np.nan, 'max': np.nan, 'mean': np.nan, 'last': np.nan}
+                row['count'] = int(col.notna().sum())
                 rows.append(row)
                 idx.append(f"{s}.{v}")
-        cols = ['min', 'max', 'mean', 'last', 'count', 'unit', 'dtype']
-        return pd.DataFrame(rows, index=pd.Index(idx, name='variable'), columns=cols)
+        cols = ['min', 'max', 'mean', 'last', 'count']
+        out = pd.DataFrame(rows, index=pd.Index(idx, name='variable'), columns=cols)
+        return out.astype({'min': float, 'max': float, 'mean': float, 'last': float, 'count': int})
+
+    def describe_variables(self) -> pd.DataFrame:
+        """Per-variable ``unit`` and ``dtype`` (same index as :meth:`summary`).
+
+        ``unit`` is ``None`` where the variable's unit is unspecified.
+        """
+        if self.is_ensemble:
+            return self._runs[0].describe_variables()
+        rows, idx = [], []
+        for s in self.sims:
+            df = self._raw(s)
+            for v in df.columns:
+                rows.append({'unit': self._units.get(f"{s}.{v}"), 'dtype': str(df[v].dtype)})
+                idx.append(f"{s}.{v}")
+        return pd.DataFrame(rows, index=pd.Index(idx, name='variable'), columns=['unit', 'dtype'])
 
     def kpis(self, names: Optional[Sequence[str]] = None, sims=None, variables=None) -> pd.DataFrame:
         """Evaluate registered KPIs for every numeric variable.

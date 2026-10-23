@@ -5,7 +5,7 @@ Command-Line Interface (CLI) runner for energysim.
 Usage
 -----
 energysim run scenario.yaml [--out DIR] [--to-csv] [--dashboard] [--dashboard-path P]
-              [--offline] [--no-pbar] [--safe] [--validate-only]
+              [--offline] [--no-pbar] [--record-all] [--safe [--allow-native]] [--validate-only]
 energysim validate scenario.yaml [--safe] [-v]
 energysim units [--system default|si] [--set quantity=unit ...] [--json]
 
@@ -19,8 +19,10 @@ exports CSV files (into ``<run dir>/csv``; implies ``--out runs`` when no
 prints the default unit per quantity of a unit system.
 
 ``--safe`` refuses simulator types that execute arbitrary code (external,
-script, matlab, powerfactory), dotted-import model references and pickle
-model files. Use it for scenario files from untrusted sources.
+script, matlab, powerfactory), FMUs (native code; ``--allow-native`` re-enables
+them), dotted-import model references, ``file.py:Class`` model references,
+pickle model files and any model / csv / script / ``out_dir`` path outside the
+scenario directory tree. Use it for scenario files from untrusted sources.
 energysim --version
 """
 
@@ -90,7 +92,13 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--safe",
         action="store_true",
-        help="Safe mode: refuse code-executing simulator types, dotted imports and pickle models.",
+        help="Safe mode: refuse code-executing simulator types, FMUs, dotted imports, pickle models and "
+             "file paths outside the scenario directory.",
+    )
+    run_parser.add_argument(
+        "--record-all",
+        action="store_true",
+        help="Record every micro step (default: one row per macro step, or world.record_all).",
     )
     run_parser.add_argument(
         "--validate-only",
@@ -110,10 +118,16 @@ def create_parser() -> argparse.ArgumentParser:
     val_parser.add_argument(
         "--safe",
         action="store_true",
-        help="Safe mode: refuse code-executing simulator types, dotted imports and pickle models.",
+        help="Safe mode: refuse code-executing simulator types, FMUs, dotted imports, pickle models and "
+             "file paths outside the scenario directory.",
     )
 
     for p in (run_parser, val_parser):
+        p.add_argument(
+            "--allow-native",
+            action="store_true",
+            help="With --safe: still allow FMUs (native code runs in this process).",
+        )
         p.add_argument(
             "-v", "--verbose",
             action="store_true",
@@ -194,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: Scenario file not found: {scenario_path}", file=sys.stderr)
             return 1
         try:
-            w = world.from_yaml(scenario_path, safe=args.safe)
+            w = world.from_yaml(scenario_path, safe=args.safe, allow_native=args.allow_native)
             report = w.validate(raise_on_error=False)
             print(report)
             if args.verbose:
@@ -211,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         try:
-            w = world.from_yaml(scenario_path, safe=args.safe)
+            w = world.from_yaml(scenario_path, safe=args.safe, allow_native=args.allow_native)
 
             # Pre-flight validate
             report = w.validate(raise_on_error=False)
@@ -236,12 +250,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.to_csv and not out_dir:
                 out_dir = w.out_dir or "runs"
             print(f"Starting simulation: {scenario_path}")
-            res = w.simulate(pbar=not args.no_pbar, record_all=False, validate=False,
+            res = w.simulate(pbar=not args.no_pbar, record_all=True if args.record_all else None, validate=False,
                              out_dir=out_dir)
             print("Simulation finished successfully.")
             if res.run_dir:
                 print(f"Run directory: {res.run_dir}")
-            print(res.summary().to_string())
+            print(res.summary().join(res.describe_variables()[['unit']]).to_string())
 
             if args.to_csv:
                 csv_dir = res.to_csv(os.path.join(res.run_dir, "csv"))

@@ -38,7 +38,7 @@ def generate_btm_simulation_figure():
     sim = world(start_time=0, stop_time=86400, t_macro=900, logging=False)
 
     pv = PhysicsPV(name="pv", p_dc_stc_mw=12.0, inverter_p_ac_max_mw=10.0)
-    bess = catalog.Tesla_Megapack_2XL(name="bess", soc_init=0.5)
+    bess = catalog.BESS_2h_2MW(name="bess", soc_init=0.5)
     ccgt = CombinedCycle_CCGT(name="ccgt", p_rated_mw=40.0, min_stable_gen_pct=35.0)
     h2 = PEMElectrolyzer(name="electrolyzer", p_nominal_mw=10.0, n_cells=1800)
     tank = H2StorageTank(name="tank", volume_m3=100.0, p_max_bar=350.0, p_init_bar=120.0)

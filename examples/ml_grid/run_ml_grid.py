@@ -105,7 +105,7 @@ def main():
             "SolarPark.p_mw", "WindFarm.p_mw",
         ],
         step_size=300,
-        pf="pf",
+        mode="ac",
     )
 
     # ── Connections ───────────────────────────────────────────────

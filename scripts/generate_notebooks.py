@@ -376,7 +376,7 @@ nb4_cells = [
 In this advanced guide, you will learn how to wrap third-party software engines, REST APIs, or compiled C/C++ libraries into an `energysim` co-simulation adapter by subclassing `SimulatorAdapter`:
 
 1. The `SimulatorAdapter` contract: `init()`, `set_value()`, `step()`, `get_value()`.
-2. Managing state checkpoints with `save_state()` and `restore_state()`.
+2. Declaring the adapter's inputs and outputs and connecting it to other simulators in a `world`.
 3. Wrapping an external mock thermodynamic fluid flow solver.
 """),
     code_cell("""from typing import List, Any, Dict, Optional
@@ -399,7 +399,6 @@ print("Base classes imported!")
         self.temp_in_c = 80.0
         self.pressure_drop_bar = 1.2
         self.temp_out_c = 75.0
-        self._saved_state = None
 
     def init(self) -> None:
         pass
@@ -427,12 +426,6 @@ print("Base classes imported!")
             elif p == "temp_out":
                 res.append(self.temp_out_c)
         return res
-
-    def save_state(self) -> Any:
-        return (self.mass_flow_kg_s, self.temp_in_c, self.pressure_drop_bar, self.temp_out_c)
-
-    def restore_state(self, state: Any) -> None:
-        self.mass_flow_kg_s, self.temp_in_c, self.pressure_drop_bar, self.temp_out_c = state
 
 print("MockHydraulicNetworkAdapter implemented!")
 """),
@@ -468,7 +461,7 @@ This case study simulates a complex Behind-The-Meter (BTM) industrial chemical /
 * **40 MW Combined Cycle Gas Turbine** (`CombinedCycle_CCGT`)
 * **10 MW Green Hydrogen PEM Electrolyzer** (`PEMElectrolyzer`)
 * **350-bar Compressed H2 Buffer Storage** (`H2StorageTank`)
-* **Tesla Megapack 2XL Battery System** (`catalog.Tesla_Megapack_2XL`)
+* **Li-ion Battery System** (`catalog.BESS_2h_2MW`, a generic 2 MW / 4 MWh archetype)
 * **Industrial Process Steam Header Demand** (`IndustrialProcessSteam`)
 """),
     code_cell("""import numpy as np
@@ -491,7 +484,7 @@ print("Industrial components imported!")
 solar = PhysicsPV(name="solar_pv", p_dc_stc_mw=12.0, inverter_p_ac_max_mw=10.0)
 
 # 2. BESS Archetype from catalog
-bess = catalog.Tesla_Megapack_2XL(name="bess", soc_init=0.5)
+bess = catalog.BESS_2h_2MW(name="bess", soc_init=0.5)
 
 # 3. Combined Cycle Gas Turbine
 ccgt = CombinedCycle_CCGT(name="ccgt", p_rated_mw=40.0, min_stable_gen_pct=35.0)

@@ -47,7 +47,7 @@ Use `pip install -e ".[all,test]"` when working on optional-dependency code path
 - **No rollback.** Iterative coupling and state rollback were removed in 3.0. Supported
   coupling modes are `jacobi` (default) and `gauss-seidel`. Do not reintroduce
   save/restore of simulator state.
-- **Results API:** `world.results()` returns the results as pandas DataFrames. Extend
+- **Results API:** `world.simulate()` returns a `Results` object (also `world.last_results`). Extend
   that path rather than adding new ad-hoc result formats.
 - Keep changes small, add tests under `tests/`, and update `docs/` when behaviour changes.
 - Python 3.10+ syntax; `from __future__ import annotations` in new modules.

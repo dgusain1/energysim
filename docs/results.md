@@ -57,6 +57,7 @@ a ``DatetimeIndex`` is returned.
 |---|---|
 | `concat(results, keys=None, params=None)` | Combine several runs into an ensemble with a `run` dimension. |
 | `dashboard(path=None, open=False, max_points=5000, offline=False, title='energysim Result Explorer')` | Write the interactive HTML dashboard and return its path. |
+| `describe_variables()` | Per-variable `unit` and `dtype` (same index as `summary`). |
 | `is_ensemble` (property) | - |
 | `items()` |  |
 | `keys()` |  |
@@ -72,7 +73,7 @@ a ``DatetimeIndex`` is returned.
 | `sims` (property) | - |
 | `start_datetime` (property) | - |
 | `status` (property) | - |
-| `summary()` | Per-variable `count, min, max, mean, last` (and unit / dtype). |
+| `summary()` | Per-variable `min, max, mean, last, count` as a clean **numeric** frame. |
 | `to_csv(directory)` | Write one CSV file per simulator (+ `meta.json`) into *directory*. |
 | `to_frame(sims=None, variables=None, resample=None, ffill=True, start_datetime=None)` | Wide `DataFrame` with columns `'sim.var'` on the union of all time points. |
 | `to_hdf(path)` | Write all simulator tables into one HDF5 file (requires `tables`). |

@@ -161,7 +161,7 @@ def main():
         outputs=['Slack.vm_pu', 'BusPV.vm_pu', 'BusBatt.vm_pu',
                  'BusHP.vm_pu', 'BusLoad.vm_pu'],
         step_size=DT_MACRO,
-        pf='pf',
+        mode='ac',
     )
 
     # ================================================================

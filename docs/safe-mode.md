@@ -81,7 +81,8 @@ subset is accepted; anything else raises `UnsafeExpressionError` (a `ValueError`
 * `+ - * / ** %` and unary `+ -` (exponents above 1000 are refused), comparisons (also chained), `and` / `or` /
   `not`, conditional expressions `a if c else b`;
 * calls to `sin cos tan exp log sqrt abs min max floor ceil` with positional arguments;
-* a top-level list or tuple for multi-valued signals;
+* a top-level list or tuple (the expression parser accepts it, but a signal has the single output `y`: one
+  returning more than one value is rejected when it is added, "add one signal per output");
 * an optional `lambda t:` prefix for 2.x compatibility (stripped, then parsed with the same grammar);
 * in conditions only: `sim.var` / `sim.elem.attr` names and quoted names (`"'fmu.der(x)' > 0"`).
 

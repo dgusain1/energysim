@@ -4,8 +4,8 @@ Behind-The-Meter (BTM) Industrial Multi-Energy Simulation Example.
 
 Simulates an industrial refinery / chemical complex with:
 1. Solar PV Farm (PhysicsPV, 12 MWp)
-2. Battery Storage (Tesla_Megapack_2XL, 3.9 MWh / 1.9 MW)
-3. Combined Cycle Gas Turbine (GE_7HA_02 scaled to 40 MW for baseload/steam)
+2. Battery Storage (catalog.BESS_2h_2MW archetype, 4 MWh / 2 MW)
+3. Combined Cycle Gas Turbine (CombinedCycle_CCGT, 40 MW baseload)
 4. Green Hydrogen Facility (PEMElectrolyzer, 10 MW)
 5. Pressurized H2 Storage (H2StorageTank, 350 bar)
 6. Industrial Steam Header Demand (IndustrialProcessSteam, 40 t/hr)
@@ -44,8 +44,8 @@ def run_simulation():
     # 2. Instantiate Physical Components
     # 12 MW Solar PV
     solar_pv = PhysicsPV(name="solar_pv", p_dc_stc_mw=12.0, inverter_p_ac_max_mw=10.0)
-    # Tesla Megapack 2XL from equipment catalog
-    bess = catalog.Tesla_Megapack_2XL(name="bess", soc_init=0.5)
+    # Generic 2 MW / 4 MWh battery archetype from the catalog
+    bess = catalog.BESS_2h_2MW(name="bess", soc_init=0.5)
     # 40 MW CCGT
     ccgt = CombinedCycle_CCGT(name="ccgt", p_rated_mw=40.0, min_stable_gen_pct=35.0)
     # 10 MW PEM Electrolyzer

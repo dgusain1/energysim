@@ -18,7 +18,8 @@ There is **no rollback**: events are handled *predictively*.
 * Threshold triggers (:meth:`EventsMixin.add_trigger`) are evaluated at step
   boundaries.  A crossing detected at boundary ``t`` (it happened somewhere
   in the previous step) fires its action at the start of the step beginning
-  at ``t``.  Localisation accuracy is therefore one macro step; event hints
+  at ``t``.  A declarative ``set`` on a connected input is held for the step
+  in which it fires (the exchange skips that input once).  Localisation accuracy is therefore one macro step; event hints
   (``next_event_time``) and a smaller ``t_macro_min`` improve it.
 """
 from __future__ import annotations
@@ -69,8 +70,10 @@ class EventsMixin:
         (values are written with ``set_value`` as given - no unit conversion).
         A step boundary always lands exactly on *t* (the step is shortened);
         the action runs at the start of the step beginning at *t*, before that
-        step's exchange (so a ``set`` on a *connected* input is overwritten by
-        the exchange - use it for unconnected inputs and parameters).
+        step's exchange.  A declarative ``set`` on a *connected* input is **held**
+        for that step: the exchange skips that input for the step in which the
+        event fires and resumes with the next step (a callable action that writes
+        to an adapter directly is not held).
         Firing is recorded in ``Results.meta['events']``.
         """
         t = float(t)
@@ -228,6 +231,8 @@ class EventsMixin:
             if sim not in self.simulator_dict:
                 raise KeyError(f"unknown simulator '{sim}' in set target '{key}'")
             self.simulator_dict[sim].adapter.set_value([var], [value])
+            # hold: the exchange of this step must not overwrite the value just set
+            self._held_inputs.add((sim, var))
 
     def _fire(self, record, action):
         try:
@@ -243,6 +248,7 @@ class EventsMixin:
                     'ok' if record['success'] else 'failed')
 
     def _fire_due_events(self, t: float) -> None:
+        self._held_inputs = set()       # holds last for the one step in which the ``set`` fired
         eps = 1e-9 * max(1.0, abs(self.stop_time))
         while self._pending_events and self._pending_events[0]['time'] <= t + eps:
             ev = self._pending_events.pop(0)
@@ -353,4 +359,5 @@ def _init_event_state(w) -> None:
     w._scheduled = []
     w._triggers = []
     w._event_seq = 0
+    w._held_inputs = set()
     w._reset_events()

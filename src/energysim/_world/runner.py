@@ -222,14 +222,15 @@ class RunnerMixin:
           simulators before they step (algebraic loops use a one-step delay).
 
         Every simulator gets one row per macro step (taken before stepping;
-        with ``record_all`` one row per micro step) plus a final row at
+        with ``record_all=True`` one row per micro step - expensive for long runs
+        with fine micro steps) plus a final row at
         ``stop_time`` holding the state at the end of the run.  Rows may be
         irregular when events / hints shorten macro steps (``t_macro_min``,
         :meth:`schedule`, :meth:`add_trigger`); fired events are listed in
         ``Results.meta['events']``.
 
         ``record_all`` defaults to the value given via ``options({'record_all': ...})``
-        or True.  ``out_dir`` (default: the world's ``out_dir``) persists the run
+        or False (macro-step recording; 3.0 recorded every micro step by default).  ``out_dir`` (default: the world's ``out_dir``) persists the run
         to ``<out_dir>/<YYYYmmdd-HHMMSS>_<hash8>/``; otherwise nothing is written.
         The results are also stored as ``world.last_results``; if the run
         fails, the partial results (``meta['status'] == 'failed'``) are stored
@@ -241,7 +242,7 @@ class RunnerMixin:
         if self.coupling not in _COUPLINGS:
             raise ValueError(f"coupling must be 'jacobi' or 'gauss-seidel', got '{self.coupling}'")
         if record_all is None:
-            record_all = True if self.record_all is None else bool(self.record_all)
+            record_all = False if self.record_all is None else bool(self.record_all)
         self._log_unit_system()
         self._log_conversions('info')
         if validate:

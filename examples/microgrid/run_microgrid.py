@@ -67,7 +67,7 @@ def main():
             'HeatPump.p_mw', 'House.p_mw',
         ],
         step_size=300,
-        pf='pf',
+        mode='ac',
     )
 
     # ── External simulators  (dynamic models) ────────────────────

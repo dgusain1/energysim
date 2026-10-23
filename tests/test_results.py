@@ -190,7 +190,20 @@ def test_access_api_and_variables():
     with pytest.raises(KeyError):
         res['nope.x']
     summ = res.summary()
-    assert summ.loc['m.f', 'max'] == 60.0 and summ.loc['m.s', 'last'] == 'on'
+    assert summ.loc['m.f', 'max'] == 60.0 and np.isnan(summ.loc['m.s', 'last'])   # non-numeric: NaN
+    assert res['m.s'].iloc[-1] == 'on'
+
+
+def test_summary_is_numeric_and_units_are_separate():
+    res = _typed_world().simulate(pbar=False, record_all=False)
+    summ = res.summary()
+    assert list(summ.columns) == ['min', 'max', 'mean', 'last', 'count']
+    assert all(pd.api.types.is_numeric_dtype(t) for t in summ.dtypes)
+    assert summ.loc['m.f', ['min', 'max']].round().tolist() == [0.0, 60.0]     # no object-dtype row
+    assert summ.round(2).loc['m.f', 'max'] == 60.0
+    desc = res.describe_variables()
+    assert list(desc.columns) == ['unit', 'dtype'] and list(desc.index) == list(summ.index)
+    assert desc.loc['m.f', 'dtype'] == 'float64' and desc.loc['m.i', 'dtype'].startswith('int')
 
 
 def test_to_frame_resample_and_start_datetime():
