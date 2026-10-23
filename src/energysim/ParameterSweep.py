@@ -1,178 +1,263 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Jun  6 15:59:11 2019
+"""Parameter sweeps (one-at-a-time and full-factorial) built on :class:`energysim.ensemble.Ensemble`.
 
-@author: digvijaygusain
-
-class for parameter sweep. Takes in World(), parameter names and values as lists.
-Outputs nice figures based on seaborn for visualisation.
+Every run uses a *fresh* world, so there is no state leakage between runs and
+the order of parameters never changes results.
 """
 from __future__ import annotations
 
+import copy
+import itertools
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    plt = None
+from .ensemble.core import Ensemble, EnsembleError, apply_params
+from .ensemble.samplers import Scenarios
+
+METRICS = ('last', 'mean', 'max', 'min', 'sum', 'integral')
 
 
-class Sweep():
-    '''
-    With Sweep, you can perform parameter sweeps on cosimulation World created by FMUWorld.
-    Sweep takes in three arguments:
-        1. Cosimulation World object
-        2. Sensitivity information
-        3. Kind
+def _seconds(index: pd.Index) -> np.ndarray:
+    if isinstance(index, pd.DatetimeIndex):
+        return index.astype('int64').to_numpy(dtype=float) / 1e9
+    return index.to_numpy(dtype=float)
 
-    Sensitivity information is the most important parameter here since
-    it defines what parameters should swept through and in what range.
-    It is given as dictionary in the following form.
 
-    1. Cosimulation World Object: World created using FMUWorld.
+def compute_metric(series: pd.Series, metric: str) -> float:
+    """Reduce a time series to one number (``integral`` = zero-order-hold integral over time in seconds)."""
+    s = series.astype(float)
+    if metric == 'last':
+        return float(s.iloc[-1])
+    if metric == 'mean':
+        return float(s.mean())
+    if metric == 'max':
+        return float(s.max())
+    if metric == 'min':
+        return float(s.min())
+    if metric == 'sum':
+        return float(s.sum())
+    if metric == 'integral':
+        t = _seconds(s.index)
+        return float(np.sum(s.to_numpy()[:-1] * np.diff(t))) if len(s) > 1 else 0.0
+    raise ValueError(f"Unknown metric '{metric}'. Choose one of {METRICS}.")
 
-    2. sensitivity_info = {'parameters':[param1, param2, .., paramN],
-                            'bounds':[[p1_l, p1_u, N*],
-                                      [p2_l, p2_u, N*],
-                                      [p3_l, p3_u, N*],
-                                      [pN_l, pN_u, N*]],
-                            'output_parameter': 'output_parameter_identifier'
-                            }
-        'parameters' lists the parameter names in the World object.
-        These should be given as 'simulator_name.parameter_name'.
-        simulator_name is the fmu, or powerflow object name in the
-        World. 'parameter_name' is the parameter name, This can be
-        further specified as object.variable. The definition follows
-        a pattern similar to defining connections dictionary between
-        World simulators.
 
-        'bounds' specifies the bounds on each parameter listed. This
-        is given as a numpy matrix of dimension Nx2, where N is the
-        number of parameters specified. Each parameter has lower and
-        upper bound specified as [p1_l, p1_u]. Additionally, Sweep
-        accepts 'N' as a third value in this list which specifies
-        the number of points between the bounds. This can be set
-        differently for each parameter bounds. If not specified, a
-        default value of 10 is chosen.
+class _OutputMetric:
+    """Picklable KPI callable: metric of one 'sim.var' output."""
 
-        'output_parameter' specifies which parameter to look record.
-        It is specified as per FMUWorld naming conventions. This
-        should also be specified while creating the World object.
+    def __init__(self, output: str, metric: str):
+        self.output, self.metric = output, metric
 
-    3. Kind: specifies what type of plot should be created. Sweep
-        supports contour plots for parametric (if two parameters are
-        specified), and (default) simple line plots. All plots in
-        defualt are given as multi axes line plots where x axes are
-        parameters being varied, and y axis is the output_parameter.
-        If kind = 'parametric', Sweep plots the output_parameter as
-        a heat map, with x and y axes being the two parameters
-        specified. For kind = 'parametric', the number of parameters
-        must be exactly two.
+    def __call__(self, res) -> float:
+        return compute_metric(res[self.output], self.metric)
 
-    Once parameter sweep is completed, plots are generated and a
-    result object is created. This can be exported as csv file with
-    SweepObject.export_to_csv(csv_location).
 
-    '''
+class _WorldCopyFactory:
+    """Factory(params, seed) -> deep copy of a pristine template world with the parameters applied."""
 
-    def __init__(self, _cosimulation_world, _sensitivity_data, kind='single'):
-        self.world = _cosimulation_world
-        # Use the unified simulator_dict (values are SimEntry instances)
-        self.simulators_dict = dict(self.world.simulator_dict)
-        self.powerflow_exists = any(
-            getattr(v, 'sim_type', None) == 'pf' for v in self.simulators_dict.values()
-        )
-        self.info = _sensitivity_data
+    def __init__(self, template):
+        self.template = template
+
+    def __call__(self, params, seed):
+        w = copy.deepcopy(self.template)
+        if params:
+            apply_params(w, params)
+        return w
+
+
+def _is_world(obj) -> bool:
+    return hasattr(obj, 'simulator_dict') and hasattr(obj, 'simulate') and hasattr(obj, 'options')
+
+
+class SweepResult:
+    """Outcome of :meth:`Sweep.sweep`.
+
+    ``table`` is a DataFrame: for ``kind='single'`` the columns are
+    ``parameter, value, result``; for ``'parametric'`` one column per parameter plus ``result``
+    (``result`` is the chosen ``metric`` of the output parameter).  ``baseline`` holds the
+    unmodified-world value (single sweeps over a world instance), ``ensemble`` the underlying
+    :class:`~energysim.ensemble.EnsembleResults`.
+    """
+
+    def __init__(self, table: pd.DataFrame, kind: str, parameters: List[str], output_parameter: str,
+                 metric: str, ensemble, baseline: Optional[Dict[str, Any]] = None):
+        self.table, self.kind, self.parameters = table, kind, list(parameters)
+        self.output_parameter, self.metric = output_parameter, metric
+        self.ensemble, self.baseline = ensemble, baseline
+
+    def __repr__(self):
+        return f"SweepResult(kind={self.kind!r}, runs={len(self.table)}, output={self.output_parameter!r}, metric={self.metric!r})"
+
+    def export_to_csv(self, path) -> str:
+        """Write :attr:`table` to a CSV file and return the path."""
+        self.table.to_csv(path, index=False)
+        return str(path)
+
+    def plot(self, show: bool = False, kind: str = 'metric'):
+        """Return a matplotlib figure (``plt.show()`` only if ``show=True``).
+
+        ``kind='metric'`` (single: one panel per parameter, result vs value; parametric with exactly two
+        parameters: heatmap) or ``kind='curves'`` (single sweeps: output time series for each value;
+        needs ``keep='all'``).
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError("SweepResult.plot() requires matplotlib "
+                              "(pip install matplotlib or pip install energysim[plotting]).") from None
+        t = self.table
+        if self.kind == 'parametric':
+            if len(self.parameters) != 2:
+                raise ValueError("Heatmap plots need exactly two parameters; use .table for more.")
+            a, b = self.parameters
+            piv = t.pivot(index=b, columns=a, values='result')
+            fig, ax = plt.subplots()
+            im = ax.imshow(piv.to_numpy(), origin='lower', aspect='auto',
+                           extent=(piv.columns.min(), piv.columns.max(), piv.index.min(), piv.index.max()))
+            ax.set_xlabel(a)
+            ax.set_ylabel(b)
+            ax.set_title(f"{self.metric} of {self.output_parameter}")
+            fig.colorbar(im, ax=ax, label=f"{self.metric}({self.output_parameter})")
+        else:
+            n = len(self.parameters)
+            fig, axes = plt.subplots(n, 1, squeeze=False, figsize=(6, 3 * n))
+            for ax, p in zip(axes[:, 0], self.parameters):
+                sub = t[t['parameter'] == p]
+                if kind == 'curves':
+                    for idx, val in zip(sub.index, sub['value']):
+                        key = int(idx)
+                        ax.plot(self.ensemble.run(key)[self.output_parameter], label=f"{p}={val:g}")
+                    ax.set_xlabel('time')
+                    ax.set_ylabel(self.output_parameter)
+                    ax.legend(fontsize='small')
+                elif kind == 'metric':
+                    ax.plot(sub['value'], sub['result'], marker='o')
+                    ax.set_xlabel(p)
+                    ax.set_ylabel(f"{self.metric}({self.output_parameter})")
+                else:
+                    raise ValueError("kind must be 'metric' or 'curves'.")
+                ax.set_title(f"Sensitivity of {self.output_parameter} to {p}")
+            fig.tight_layout()
+        if show:
+            plt.show()
+        return fig
+
+
+class Sweep:
+    """Parameter sweeps on a co-simulation world.
+
+    ``Sweep(world_or_factory, sensitivity_info, kind='single'|'parametric')`` where
+
+    * *world_or_factory* is a configured ``world`` (a pristine deep copy is used for every run, the
+      instance itself is never simulated or modified), or a factory ``f(params: dict, seed) -> world``
+      (``params`` holds only the swept values; absent parameters must take their baseline in the factory);
+    * ``sensitivity_info = {'parameters': ['sim.var', ...], 'bounds': [[lo, hi, N], ...],
+      'output_parameter': 'sim.var', 'metric': 'last'}``; ``N`` defaults to 10; ``metric`` is one of
+      ``last, mean, max, min, sum, integral`` (default ``last``); optional ``'seed'`` (default 0, shared by
+      all runs);
+    * ``kind='single'`` sweeps each parameter on its own around the baseline (the others untouched);
+      ``kind='parametric'`` runs the full factorial grid.
+
+    ``sweep()`` returns a :class:`SweepResult` (``table``, ``export_to_csv``, ``plot``).  Extra keyword
+    arguments (``parallel``, ``max_workers``, ``keep``, ``on_error``) go to :class:`Ensemble`.
+    """
+
+    def __init__(self, _cosimulation_world, _sensitivity_data, kind: str = 'single', **ensemble_kwargs):
+        if kind not in ('single', 'parametric'):
+            raise ValueError(f"Unsupported sweep kind '{kind}'. Choose 'single' or 'parametric'.")
+        self.info = dict(_sensitivity_data)
         self.kind = kind
+        self.ensemble_kwargs = ensemble_kwargs
+        self.world = _cosimulation_world if _is_world(_cosimulation_world) else None
+        # attributes kept for backward compatibility
+        self.simulators_dict = dict(getattr(self.world, 'simulator_dict', {}) or {})
+        self.powerflow_exists = any(getattr(v, 'sim_type', None) == 'pf' for v in self.simulators_dict.values())
+        if self.world is not None:
+            try:
+                self._template = copy.deepcopy(self.world)
+            except Exception as exc:
+                raise EnsembleError(
+                    f"The world cannot be copied ({type(exc).__name__}: {exc}); it holds non-copyable "
+                    f"resources. Pass a factory f(params, seed) -> world instead of a world instance."
+                ) from exc
+            self.factory: Callable = _WorldCopyFactory(self._template)
+        elif callable(_cosimulation_world):
+            self.factory = _cosimulation_world
+        else:
+            raise TypeError("Sweep needs a world or a factory f(params, seed) -> world.")
+        for key in ('parameters', 'bounds', 'output_parameter'):
+            if key not in self.info:
+                raise KeyError(f"sensitivity_info is missing '{key}'.")
+        self.parameters_list = list(self.info['parameters'])
+        if len(self.info['bounds']) != len(self.parameters_list):
+            raise ValueError("'bounds' must have one entry per parameter.")
+        self.op_param = self.info['output_parameter']
+        self.metric = self.info.get('metric', 'last')
+        if self.metric not in METRICS:
+            raise ValueError(f"Unknown metric '{self.metric}'. Choose one of {METRICS}.")
+        if kind == 'parametric' and len(self.parameters_list) < 2:
+            raise ValueError("kind='parametric' needs at least two parameters.")
+        self.values = [self._grid(b) for b in self.info['bounds']]
+        self.seed = int(self.info.get('seed', 0))
 
-    def sweep(self):
+    @staticmethod
+    def _grid(item) -> np.ndarray:
+        if len(item) == 2:
+            return np.linspace(item[0], item[1], 10)
+        if len(item) == 3:
+            return np.linspace(item[0], item[1], int(item[2]))
+        raise ValueError('Bounds matrix should have elements with either two or three values '
+                         'to define lower, upper bounds and number of values.')
+
+    def sweep(self) -> SweepResult:
         if self.kind == 'single':
             return self.single_parameter_sweep()
-        elif self.kind == 'parametric':
-            return self.parametric_sweep()
-        else:
-            raise ValueError(
-                f"Unsupported sweep kind '{self.kind}'. Choose 'single' or 'parametric'."
-            )
+        return self.parametric_sweep()
 
-    def single_parameter_sweep(self):
-        self.parameters_list = self.info['parameters']
-        self.bounds_matrix = self.info['bounds']
-        self.op_param = self.info['output_parameter']
+    def _baseline(self) -> Optional[Dict[str, Any]]:
+        if self.world is None:
+            return None
+        base = {}
+        for p in self.parameters_list:
+            sim, var = p.split('.', 1)
+            try:
+                base[p] = copy.deepcopy(self._template).get_adapter(sim).get_value([var], 0)[0]
+            except Exception:
+                return None
+        return base
 
-        # process output parameter
-        op_sim_name = self.op_param.split('.')[0]
-        op_var = self.op_param.split('.', 1)[1] if '.' in self.op_param else self.op_param
+    def _run(self, scenarios: List[dict]):
+        kw = dict(self.ensemble_kwargs)
+        kw.setdefault('on_error', 'raise')
+        ens = Ensemble(self.factory, sampler=Scenarios(scenarios), seeds=[self.seed] * len(scenarios),
+                       kpis={'result': _OutputMetric(self.op_param, self.metric)}, **kw)
+        return ens.run()
 
-        # re-order bounds matrix
-        new_matrix = []
-        for item in self.bounds_matrix:
-            if len(item) == 2:
-                new_item = np.linspace(item[0], item[1], 10)
-            elif len(item) == 3:
-                new_item = np.linspace(item[0], item[1], item[2])
-            else:
-                raise ValueError(
-                    'Bounds matrix should have elements with either'
-                    ' two or three values to define lower, upper'
-                    ' bounds and number of values.'
-                )
-            new_matrix.append(new_item)
+    def single_parameter_sweep(self) -> SweepResult:
+        scenarios, rows = [], []
+        for p, vals in zip(self.parameters_list, self.values):
+            for v in vals:
+                scenarios.append({p: float(v)})
+                rows.append((p, float(v)))
+        res = self._run(scenarios)
+        table = pd.DataFrame(rows, columns=['parameter', 'value'])
+        table['result'] = res.kpis()['result'].to_numpy()
+        baseline = self._baseline()
+        base_info = None
+        if baseline is not None:
+            r0 = self._run([{}]) if self.world is not None else None
+            base_info = {'values': baseline, 'result': float(r0.kpis()['result'].iloc[0])}
+        return SweepResult(table, 'single', self.parameters_list, self.op_param, self.metric, res, base_info)
 
-        new_matrix = np.array(new_matrix)
+    def parametric_sweep(self) -> SweepResult:
+        scenarios = [dict(zip(self.parameters_list, map(float, combo)))
+                     for combo in itertools.product(*self.values)]
+        res = self._run(scenarios)
+        table = pd.DataFrame(scenarios)[self.parameters_list]
+        table['result'] = res.kpis()['result'].to_numpy()
+        return SweepResult(table, 'parametric', self.parameters_list, self.op_param, self.metric, res)
 
-        self.original_values = {}
-        for parameter in self.parameters_list:
-            sim_name = parameter.split('.')[0]
-            sim_p = parameter.replace(sim_name, '')[1:]
-            entry = self.simulators_dict[sim_name]
-            sim_adapter = entry.adapter if hasattr(entry, 'adapter') else entry[1]
-            tmp = sim_adapter.get_value([sim_p], 0)
-            self.original_values[parameter] = tmp[0]
-
-        self.sweep_res = {}
-        count = 0
-        # create options list
-        for parameter, value_list in zip(self.parameters_list, new_matrix):
-            sim_name = parameter.split('.')[0]
-            sim_param = parameter.replace(sim_name, '')[1:]
-            self.sweep_res[sim_name] = {'data': [],
-                                        'value': [],
-                                        'y-axis': sim_name}
-            cc = 0
-            for value in list(value_list) + [self.original_values[parameter]]:
-
-                self.my_options = {'init': {}} if len(self.world.init_dict) < 1 else {'init': self.world.init_dict}
-                if sim_name not in self.my_options['init'].keys():
-                    self.my_options['init'][sim_name] = ([], [])
-                self.my_options['init'][sim_name][0].append(sim_param)
-                self.my_options['init'][sim_name][1].append(value)
-                self.world.options(self.my_options)
-                results = self.world.simulate(pbar=False)
-
-                a1 = results[op_sim_name][[op_var]].reset_index()
-                self.sweep_res[sim_name]['data'].append(a1)
-                self.sweep_res[sim_name]['value'].append(value)
-
-                if plt is None:
-                    raise ImportError("ParameterSweep.plot() requires matplotlib. Install it with: pip install matplotlib (or pip install energysim[plotting])")
-                cc += 1
-                if cc != len(list(value_list) + [self.original_values[parameter]]):
-                    plt.figure(count)
-                    plt.plot(a1['time'], a1[op_var], label=f'{parameter}: {value}')
-                    plt.title(f"Sensitivity of {self.op_param} to {parameter}")
-                    legend = plt.legend()
-                    if hasattr(legend, 'draggable'):
-                        legend.draggable(state=True)
-
-            count += 1
-        plt.show()
-
-        return self.sweep_res
-
-    def evaluation_function(self):
+    def evaluation_function(self):  # kept for backward compatibility
         pass
-
-    def parametric_sweep(self):
-        raise NotImplementedError("Parametric sweep is not yet implemented.")

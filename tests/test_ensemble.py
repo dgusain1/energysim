@@ -184,7 +184,7 @@ def test_keep_kpis_only():
     res = Ensemble(factory, n_runs=3, keep="kpis", kpis={"soc_end": final_soc}).run()
     assert res.kpis()["soc_end"].notna().all()
     with pytest.raises(EnsembleError, match="keep"):
-        res.runs
+        _ = res.runs
     with pytest.raises(EnsembleError):
         res.fan("bat.soc")
 

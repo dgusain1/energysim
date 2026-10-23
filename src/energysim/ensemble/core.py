@@ -24,6 +24,34 @@ class EnsembleError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
+# copy / pickle support for worlds
+# ---------------------------------------------------------------------------
+
+def _ensure_copyable_connections():
+    """``ParsedConnection`` has a custom ``__new__``; make worlds deep-copyable/picklable if it is not yet."""
+    import copy
+    import copyreg
+
+    from ..base import ParsedConnection
+    if ParsedConnection in copyreg.dispatch_table:
+        return
+    try:
+        copy.deepcopy(ParsedConnection(("a", "b", "c"), ("d", "e")))
+        return
+    except Exception:
+        pass
+
+    def _reduce(pc):
+        return ParsedConnection, (pc[0], pc[1], pc.scale, pc.offset, pc.from_unit, pc.to_unit,
+                                  pc.user_scale, pc.user_offset)
+
+    copyreg.pickle(ParsedConnection, _reduce)
+
+
+_ensure_copyable_connections()
+
+
+# ---------------------------------------------------------------------------
 # parameter application
 # ---------------------------------------------------------------------------
 
