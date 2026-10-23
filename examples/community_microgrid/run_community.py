@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 # ── Ensure energysim is importable ──
-_root  = Path(__file__).resolve().parents[1]
+_root  = Path(__file__).resolve().parents[2]
 _src   = str(_root / "src")
 if _src not in sys.path:
     sys.path.insert(0, _src)

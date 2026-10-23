@@ -127,7 +127,7 @@ def battery_dispatch(t):
     return 0.0
 
 sim.add_signal("irr_sig", signal=solar_irradiance)
-sim.add_signal("bess_sig", signal=battery_dispatch, power_unit="MW")
+sim.add_signal("bess_sig", signal=battery_dispatch, units={"y": "MW"})
 """),
     md_cell("""## Step 4: Connect Variables
 
@@ -259,14 +259,14 @@ sim.add_powerflow(
 sim.add_pypsa(
     sim_name="upstream_market",
     model=n_pypsa,
-    inputs=["RegionalLoad.p_set"],
-    outputs=["ThermalPlant.p", "LocalSubstation.v_mag_pu_set"],
+    inputs=["RegionalLoad.P"],
+    outputs=["ThermalPlant.P", "LocalSubstation.V"],
     step_size=900,
     mode="ac"
 )
 
 # Dynamic solar feed-in
-sim.add_signal("solar_profile", lambda t: 2000.0 * min(1.0, t / 7200.0), power_unit="kW")
+sim.add_signal("solar_profile", lambda t: 2000.0 * min(1.0, t / 7200.0), units={"y": "kW"})
 sim.add_connections({
     "solar_profile.y": "mv_grid.SolarPlant.p_mw"
 })
@@ -497,7 +497,7 @@ bess = catalog.Tesla_Megapack_2XL(name="bess", soc_init=0.5)
 ccgt = CombinedCycle_CCGT(name="ccgt", p_rated_mw=40.0, min_stable_gen_pct=35.0)
 
 # 4. PEM Electrolyzer & Tank
-electrolyzer = PEMElectrolyzer(name="electrolyzer", p_nominal_mw=10.0)
+electrolyzer = PEMElectrolyzer(name="electrolyzer", p_nominal_mw=10.0, n_cells=1800)
 tank = H2StorageTank(name="h2_tank", volume_m3=100.0, p_max_bar=350.0, p_init_bar=120.0)
 
 # 5. Steam Header
@@ -595,7 +595,7 @@ sim = world(start_time=0, stop_time=86400, t_macro=900)
 
 sim.add_container(
     sim_name="home_storage",
-    container_type="battery_fleet",
+    kind="battery",
     size=N_BATTERIES,
     capacity_kwh=capacities,
     max_charge_kw=5.0,
@@ -650,7 +650,7 @@ print("Hydrogen Valley models loaded!")
     code_cell("""sim = world(start_time=0, stop_time=86400, t_macro=900)
 
 # Electrolyzers
-pem = PEMElectrolyzer(name="pem_stack", p_nominal_mw=10.0)
+pem = PEMElectrolyzer(name="pem_stack", p_nominal_mw=10.0, n_cells=1800)
 ael = AlkalineElectrolyzer(name="ael_stack", p_nominal_mw=20.0, min_turndown_pct=20.0)
 
 # Balance of Plant

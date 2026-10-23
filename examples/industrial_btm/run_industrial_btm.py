@@ -49,7 +49,7 @@ def run_simulation():
     # 40 MW CCGT
     ccgt = CombinedCycle_CCGT(name="ccgt", p_rated_mw=40.0, min_stable_gen_pct=35.0)
     # 10 MW PEM Electrolyzer
-    electrolyzer = PEMElectrolyzer(name="electrolyzer", p_nominal_mw=10.0)
+    electrolyzer = PEMElectrolyzer(name="electrolyzer", p_nominal_mw=10.0, n_cells=1800)  # 1800 cells x 1000 cm2 absorb up to ~10.8 MW
     # 350-bar H2 Storage Tank (100 m3)
     h2_tank = H2StorageTank(name="h2_tank", volume_m3=100.0, p_max_bar=350.0, p_init_bar=120.0)
     # Industrial Steam Header (40 t/hr)

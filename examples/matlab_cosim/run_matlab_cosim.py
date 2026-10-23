@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 # ── Make sure the local energysim source is importable ──────────────
-SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
+SRC = pathlib.Path(__file__).resolve().parents[2] / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
