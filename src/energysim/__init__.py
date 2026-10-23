@@ -37,6 +37,7 @@ from .container import (
     VectorizedFunctionAdapter,
 )
 from . import models
+from . import networks
 from .models.common import ModelComponent, Curve1D, Surface2D
 
 __version__ = "2.1.9.1"
@@ -51,6 +52,7 @@ __all__ = [
     "Curve1D",
     "Surface2D",
     "models",
+    "networks",
     "VectorizedContainerAdapter",
     "BatteryFleetAdapter",
     "BuildingFleetAdapter",

@@ -30,15 +30,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fmu = ["fmpy>=0.3"]
-powerflow = ["pandapower"]
-pypsa = ["pypsa"]
-opendss = ["opendssdirect.py"]
+fmu = ["fmpy>=0.3.27,<0.4"]
+powerflow = ["pandapower>=3.0,<4"]
+pypsa = ["pypsa>=0.30,<2"]
+opendss = ["opendssdirect.py>=0.9,<1"]
 plotting = ["matplotlib"]
+networks = ["scipy"]
 results = ["pyarrow"]
 hdf5 = ["tables"]
-all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib", "pyarrow", "tables"]
+all = ["fmpy>=0.3.27,<0.4", "pandapower>=3.0,<4", "pypsa>=0.30,<2", "opendssdirect.py>=0.9,<1", "matplotlib", "scipy", "pyarrow", "tables"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
+test = ["pytest", "pytest-cov", "hypothesis"]
+dev = ["energysim[test]", "ruff", "mypy", "build", "twine"]
 
 [project.scripts]
 energysim = "energysim.cli:main"
@@ -61,4 +64,34 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_pypsa: needs the optional 'pypsa' package",
+    "requires_pandapower: needs the optional 'pandapower' package",
+    "requires_opendss: needs the optional 'opendssdirect.py' package",
+    "requires_fmu: needs 'fmpy' and the downloadable Reference-FMUs (skipped when offline)",
+    "requires_octave: needs 'oct2py' and a GNU Octave installation",
+    "requires_matlab: needs the MATLAB Engine for Python and a MATLAB licence",
+    "requires_powerfactory: needs DIgSILENT PowerFactory and a licence (manual only)",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "S"]
+# Existing code predates these rules; tracked for later cleanup rather than enforced now.
+ignore = ["I001", "B905", "B027"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S110", "S310", "S311", "S603", "B017", "F401", "F841", "E731", "E501"]
+"src/energysim/**" = ["S101", "S110", "S311", "E501", "E731", "F401", "F541", "F841", "W293", "B009"]
+
+[tool.coverage.run]
+source = ["src/energysim"]
+branch = true
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
 

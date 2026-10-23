@@ -1,0 +1,9 @@
+Clear
+New Circuit.feeder3 basekv=11 pu=1.0 phases=3 bus1=src
+New Line.l1 bus1=src bus2=n1 phases=3 r1=0.3 x1=0.4 r0=0.9 x0=1.2 length=1 units=km
+New Line.l2 bus1=n1 bus2=n2 phases=3 r1=0.3 x1=0.4 r0=0.9 x0=1.2 length=1 units=km
+New Load.ld1 bus1=n1 phases=3 kv=11 kw=500 kvar=100 model=1
+New Load.ld2 bus1=n2 phases=3 kv=11 kw=300 kvar=50 model=1
+Set voltagebases=[11]
+Calcvoltagebases
+Solve
