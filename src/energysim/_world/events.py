@@ -23,7 +23,6 @@ There is **no rollback**: events are handled *predictively*.
 """
 from __future__ import annotations
 
-import itertools
 import math
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -77,7 +76,8 @@ class EventsMixin:
         t = float(t)
         if not math.isfinite(t):
             raise ValueError(f"Event time must be finite, got {t!r}.")
-        seq = next(self._event_seq)
+        self._event_seq += 1
+        seq = self._event_seq
         name = name or f"event_{seq}"
         ev = {'time': t, 'action': _check_action(action, f"Event '{name}'"), 'name': name, 'seq': seq}
         self._scheduled.append(ev)
@@ -352,5 +352,5 @@ def _init_event_state(w) -> None:
     """Initialise the event attributes on a new world."""
     w._scheduled = []
     w._triggers = []
-    w._event_seq = itertools.count(1)
+    w._event_seq = 0
     w._reset_events()

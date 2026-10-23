@@ -128,6 +128,11 @@ class ParsedConnection(tuple):
         instance.explicit_units = bool(explicit_units)
         return instance
 
+    def __reduce__(self):
+        """Pickle / deepcopy support: rebuild the tuple, then restore every attribute
+        (scale/offset, units, sources, per-target conversions, ...)."""
+        return (type(self), (self[0], self[1]), dict(self.__dict__))
+
     @property
     def source(self) -> str:
         """``'<from_source> -> <to_source>'`` (or a single token when both agree)."""

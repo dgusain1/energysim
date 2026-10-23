@@ -446,6 +446,26 @@ def test_validation_uses_all_variables_for_fmu_internals():
         w.add_connections({'f.missing': 'd.v'})
 
 
+def test_parsed_connection_and_world_deepcopy_and_pickle():
+    import copy
+    import pickle
+    w = _w()
+    w.add_signal('s', '1000', step_size=10, units={'y': 'kW'})
+    w.add_model('m', Sink(inputs=['p_mw', 'p_kw']), step_size=10)
+    w.add_connections({'s.y': ['m.p_mw', 'm.p_kw']})
+    w.schedule(5, {'set': {'m.p_mw': 1.0}})
+    c = w._parsed_connections[0]
+    for clone in (copy.deepcopy(c), pickle.loads(pickle.dumps(c))):  # noqa: S301
+        assert tuple(clone) == tuple(c)
+        assert (clone.scale, clone.offset, clone.from_unit, clone.to_unit, clone.source) == \
+            (c.scale, c.offset, c.from_unit, c.to_unit, c.source)
+        assert clone.target_conversions == c.target_conversions and clone._unit_info == c._unit_info
+    w2 = copy.deepcopy(w)
+    assert w2._parsed_connections[0].target_conversions == [(0.001, 0.0), (1.0, 0.0)]
+    w3 = pickle.loads(pickle.dumps(w))  # noqa: S301
+    assert w3.scheduled_events[0]['time'] == 5.0
+
+
 def test_utils_helpers_delegate_to_units_module():
     from energysim import units, utils
     assert utils.parse_unit is units.parse_unit
