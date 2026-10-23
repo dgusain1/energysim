@@ -190,11 +190,7 @@ def test_missing_file_and_script_errors(tmp_path):
     import energysim.opendssAdapter as mod
     assert mod._active_owner() is None
     good = tmp_path / "good.dss"
-    good.write_text("Clear
-New Circuit.c basekv=11 bus1=a
-New Line.l1 bus1=a bus2=b r1=0.1 x1=0.1 length=1
-Solve
-")
+    good.write_text("Clear\nNew Circuit.c basekv=11 bus1=a\nNew Line.l1 bus1=a bus2=b r1=0.1 x1=0.1 length=1\nSolve\n")
     ok = opendss_adapter("e", str(good))
     ok.init()
     ok.cleanup()
