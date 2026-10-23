@@ -368,6 +368,7 @@ class world():
         self._check_units(units, power_unit)
         func = build_signal(signal)
         signal_obj = signal_adapter(signal_name=sim_name, signal=func)
+        signal_obj.step_size = step_size   # record_all samples at the declared step, not 1 s
         self._register(sim_name, SimEntry(
             sim_type='signal', adapter=signal_obj, step_size=step_size,
             outputs=['y'], inputs=[],
@@ -1571,10 +1572,13 @@ class world():
 
     def _scenario_snapshot(self):
         """Serialisable scenario description used for the metadata and the run hash."""
+        prev, logger.disabled = logger.disabled, True   # no "cannot serialise" noise per run
         try:
             scenario = self.to_dict()
         except Exception as exc:  # pragma: no cover - defensive
             scenario = {'error': f"scenario not serialisable: {exc}"}
+        finally:
+            logger.disabled = prev
         scenario.get('world', {}).pop('out_dir', None)
         return scenario
 
@@ -1639,9 +1643,9 @@ class world():
                               "of Parquet (pip install pyarrow).", UserWarning, stacklevel=3)
                 res.save(run_dir, format='csv')
             try:
-                scenario_yaml = self.to_yaml()
+                scenario_yaml = yaml.safe_dump(info['scenario'], sort_keys=False, default_flow_style=False)
             except Exception:
-                scenario_yaml = repr(self.to_dict())
+                scenario_yaml = repr(info['scenario'])
             with open(os.path.join(run_dir, 'scenario.yaml'), 'w', encoding='utf-8') as f:
                 f.write(scenario_yaml)
         return res
