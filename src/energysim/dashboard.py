@@ -31,14 +31,14 @@ def _build_traces_json(results_dict):
     """Convert {sim_name: DataFrame} -> JSON-ready list of sim descriptors."""
     sims = []
     for sim_name, df in results_dict.items():
-        cols = [c for c in df.columns if c.lower() != "time"]
+        cols = [c for c in df.columns if str(c).lower() != "time"]
         if not cols:
             continue
         time_vals = df["time"].tolist() if "time" in df.columns else list(range(len(df)))
-        data = {col: df[col].tolist() for col in cols}
+        data = {str(col): df[col].tolist() for col in cols}
         sims.append({
-            "name": sim_name,
-            "variables": cols,
+            "name": str(sim_name),
+            "variables": [str(c) for c in cols],
             "time": time_vals,
             "data": data,
         })
@@ -49,10 +49,41 @@ def _build_traces_json(results_dict):
 # HTML generation
 # ---------------------------------------------------------------------------
 
+_JS_ESCAPES = {
+    "<": "\\u003c",
+    ">": "\\u003e",
+    "&": "\\u0026",
+    " ": "\\u2028",
+    " ": "\\u2029",
+}
+
+
+def _json_for_script(obj):
+    """Serialise *obj* to JSON that is safe to embed inside a ``<script>`` element.
+
+    ``<``, ``>``, ``&`` and the JS line separators U+2028/U+2029 are
+    replaced by ``\\uXXXX`` escapes, so values such as ``</script>`` can
+    never terminate the script block.  NaN/Infinity become ``null``.
+    """
+    def _clean(o):
+        if isinstance(o, float) and (o != o or o in (float("inf"), float("-inf"))):
+            return None
+        if isinstance(o, dict):
+            return {str(k): _clean(v) for k, v in o.items()}
+        if isinstance(o, (list, tuple)):
+            return [_clean(v) for v in o]
+        return o
+
+    s = json.dumps(_clean(obj), allow_nan=False)
+    for ch, rep in _JS_ESCAPES.items():
+        s = s.replace(ch, rep)
+    return s
+
+
 def _generate_html(sims_json, title="energysim Result Explorer", time_label="Time (h)"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sims_js = json.dumps(sims_json)
-    escaped_title = html.escape(title)
+    sims_js = _json_for_script(sims_json)
+    escaped_title = html.escape(str(title), quote=True)
 
     # The entire dashboard is a single HTML string with embedded CSS + JS.
     html_content = r"""<!DOCTYPE html>
@@ -302,37 +333,58 @@ let numColumns = 2;
 let dragPayload = null;     // {sim, varName}
 let activeSpId = null;      // currently-focused subplot for click-to-add
 
-// helper: escape single quotes for inline onclick attributes
-function esc(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+// helper: HTML-escape any text that Plotly (which renders a subset of
+// HTML in titles / legends / annotations) might interpret.
+function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// helper: build a DOM element; text is always set via textContent
+function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = String(text);
+    return e;
+}
 
 // ==================================================================
 //  VARIABLE TREE (left panel)
 // ==================================================================
 function buildVarTree() {
-    const el = document.getElementById('varTree');
-    let h = '';
-    SIMS.forEach((sim, si) => {
-        const col = PALETTE[si % PALETTE.length];
-        h += '<div class="sim-node">' +
-            '<div class="sim-hdr" onclick="toggleSim(this)">' +
-                '<span class="dot" style="background:'+col+'"></span>' +
-                '<span class="name">'+sim.name+'</span>' +
-                '<span class="cnt">'+sim.variables.length+'</span>' +
-                '<span class="chev">&#9654;</span>' +
-            '</div>' +
-            '<div class="sim-vars" id="sv-'+sim.name+'">';
+    var tree = document.getElementById('varTree');
+    tree.textContent = '';
+    SIMS.forEach(function(sim, si) {
+        var col = PALETTE[si % PALETTE.length];
+        var node = el('div', 'sim-node');
+        var hdr = el('div', 'sim-hdr');
+        hdr.addEventListener('click', function(){ toggleSim(hdr); });
+        var dot = el('span', 'dot');
+        dot.style.background = col;
+        hdr.appendChild(dot);
+        hdr.appendChild(el('span', 'name', sim.name));
+        hdr.appendChild(el('span', 'cnt', sim.variables.length));
+        hdr.appendChild(el('span', 'chev', '▶'));
+        node.appendChild(hdr);
+        var vars = el('div', 'sim-vars');
         sim.variables.forEach(function(v) {
-            h += '<div class="var-row" draggable="true"' +
-                 ' data-sim="'+sim.name+'" data-var="'+v.replace(/"/g,'&quot;')+'"' +
-                 ' ondragstart="onDragStart(event)"' +
-                 ' ondragend="onDragEnd(event)">' +
-                '<span class="vname" title="'+sim.name+'.'+v+'">'+v+'</span>' +
-                '<span class="add-btn" onclick="clickAdd(\''+esc(sim.name)+'\',\''+esc(v)+'\')">+</span>' +
-            '</div>';
+            var row = el('div', 'var-row');
+            row.draggable = true;
+            row.dataset.sim = sim.name;
+            row.dataset.var = v;
+            row.addEventListener('dragstart', onDragStart);
+            row.addEventListener('dragend', onDragEnd);
+            var vn = el('span', 'vname', v);
+            vn.title = sim.name + '.' + v;
+            row.appendChild(vn);
+            var add = el('span', 'add-btn', '+');
+            add.addEventListener('click', function(){ clickAdd(sim.name, v); });
+            row.appendChild(add);
+            vars.appendChild(row);
         });
-        h += '</div></div>';
+        node.appendChild(vars);
+        tree.appendChild(node);
     });
-    el.innerHTML = h;
 }
 
 function toggleSim(hdr) {
@@ -445,47 +497,70 @@ function renderSubplots() {
             '<div class="ht">Click "+ New" or drag a variable here</div></div>';
         return;
     }
-    var h = '';
+    el.textContent = '';
     subplots.forEach(function(sp) {
         var isActive = sp.id === activeSpId;
-        h += '<div class="sp-card'+(isActive?' drop-target':'')+'"' +
-             ' onclick="setActiveSubplot('+sp.id+')"' +
-             ' ondragover="onSpDragOver(event)"' +
-             ' ondragleave="onSpDragLeave(event)"' +
-             ' ondrop="onSpDrop(event,'+sp.id+')"' +
-             ' style="'+(isActive?'border-color:var(--accent)':'')+'">' +
-            '<div class="sp-card-hdr">' +
-                '<span class="sp-color" style="background:'+sp.color+'"></span>' +
-                '<input class="sp-title" value="'+sp.title.replace(/"/g,'&quot;')+'"' +
-                '  onchange="renameSubplot('+sp.id+',this.value)"' +
-                '  onclick="event.stopPropagation()">' +
-                '<span class="sp-del" ' +
-                'onclick="event.stopPropagation();removeSubplot('+sp.id+')" ' +
-                'title="Delete subplot">&times;</span>' +
-            '</div>' +
-            '<div class="sp-card-body'+(sp.vars.length===0?' empty-hint':'')+'">';
+        var card = document.createElement('div');
+        card.className = 'sp-card' + (isActive ? ' drop-target' : '');
+        if (isActive) card.style.borderColor = 'var(--accent)';
+        card.addEventListener('click', function(){ setActiveSubplot(sp.id); });
+        card.addEventListener('dragover', onSpDragOver);
+        card.addEventListener('dragleave', onSpDragLeave);
+        card.addEventListener('drop', function(e){ onSpDrop(e, sp.id); });
+
+        var hdr = document.createElement('div');
+        hdr.className = 'sp-card-hdr';
+        var dot = document.createElement('span');
+        dot.className = 'sp-color';
+        dot.style.background = sp.color;
+        hdr.appendChild(dot);
+        var inp = document.createElement('input');
+        inp.className = 'sp-title';
+        inp.value = sp.title;
+        inp.addEventListener('change', function(){ renameSubplot(sp.id, inp.value); });
+        inp.addEventListener('click', function(e){ e.stopPropagation(); });
+        hdr.appendChild(inp);
+        var del = document.createElement('span');
+        del.className = 'sp-del';
+        del.title = 'Delete subplot';
+        del.textContent = '×';
+        del.addEventListener('click', function(e){ e.stopPropagation(); removeSubplot(sp.id); });
+        hdr.appendChild(del);
+        card.appendChild(hdr);
+
+        var body = document.createElement('div');
+        body.className = 'sp-card-body' + (sp.vars.length === 0 ? ' empty-hint' : '');
         if (sp.vars.length === 0) {
-            h += 'Drag variables here or click + in the tree';
+            body.textContent = 'Drag variables here or click + in the tree';
         } else {
             sp.vars.forEach(function(v) {
-                h += '<div class="sp-var">' +
-                    '<span class="sv-name" title="'+v.sim+'.'+v.varName+'">'+v.sim+'.'+v.varName+'</span>' +
-                    '<span class="sv-rm" ' +
-                    'onclick="event.stopPropagation();removeVarFromSubplot(' +
-                    sp.id+',\''+esc(v.sim)+'\',\''+esc(v.varName) +
-                    '\')">&times;</span>' +
-                '</div>';
+                var row = document.createElement('div');
+                row.className = 'sp-var';
+                var nm = document.createElement('span');
+                nm.className = 'sv-name';
+                nm.title = v.sim + '.' + v.varName;
+                nm.textContent = v.sim + '.' + v.varName;
+                row.appendChild(nm);
+                var rm = document.createElement('span');
+                rm.className = 'sv-rm';
+                rm.textContent = '×';
+                rm.addEventListener('click', function(e){
+                    e.stopPropagation();
+                    removeVarFromSubplot(sp.id, v.sim, v.varName);
+                });
+                row.appendChild(rm);
+                body.appendChild(row);
             });
         }
-        h += '</div></div>';
+        card.appendChild(body);
+        el.appendChild(card);
     });
-    el.innerHTML = h;
 }
 
 // ==================================================================
 //  TIME LABEL  (injected by Python based on auto-detected unit)
 // ==================================================================
-var TIME_LABEL = """ + json.dumps(time_label) + r""";
+var TIME_LABEL = escapeHtml(""" + _json_for_script(str(time_label)) + r""");
 
 // ==================================================================
 //  PLOTTING
@@ -528,7 +603,7 @@ function updatePlot() {
                 y: simData.data[v.varName],
                 type: 'scatter',
                 mode: 'lines',
-                name: v.sim + '.' + v.varName,
+                name: escapeHtml(v.sim + '.' + v.varName),
                 legendgroup: 'sp' + sp.id,
                 xaxis: xRef,
                 yaxis: yRef,
@@ -576,7 +651,7 @@ function updatePlot() {
         };
         layout[yKey] = {
             gridcolor: '#2a2a48', zerolinecolor: '#2a2a48',
-            title: sp.title,
+            title: escapeHtml(sp.title),
         };
     });
 
@@ -586,7 +661,7 @@ function updatePlot() {
         var xRef = si === 0 ? 'x' : 'x' + axIdx;
         var yRef = si === 0 ? 'y' : 'y' + axIdx;
         return {
-            text: '<b>' + sp.title + '</b>',
+            text: '<b>' + escapeHtml(sp.title) + '</b>',
             xref: xRef + ' domain', yref: yRef + ' domain',
             x: 0, y: 1.06,
             showarrow: false,
@@ -635,6 +710,11 @@ function exportPNG() {
         { format: 'png', width: 1800, height: 900, filename: 'energysim_results' });
 }
 
+function safeJson(o) {
+    return JSON.stringify(o).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')
+        .replace(/&/g,'\\u0026').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+}
+
 function exportHTML() {
     var plotDiv = document.getElementById('plotArea');
     var d = plotDiv.data;
@@ -644,7 +724,7 @@ function exportHTML() {
         '<!DOCTYPE html><html><head><meta charset="utf-8"><title>energysim export</title>' +
         '<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"><\/script></head>' +
         '<body style="margin:0;background:#121220"><div id="p"></div><script>' +
-        'Plotly.newPlot("p",' + JSON.stringify(d) + ',' + JSON.stringify(l) + ',{responsive:true});' +
+        'Plotly.newPlot("p",' + safeJson(d) + ',' + safeJson(l) + ',{responsive:true});' +
         '<\/script></body></html>'
     ], { type: 'text/html' });
     var a = document.createElement('a');
