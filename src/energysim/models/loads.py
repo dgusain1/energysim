@@ -20,6 +20,11 @@ class DataCenterLoad(ModelComponent):
     """
     Hyperscale AI / Cloud Data Center Electrical & Thermal Load.
 
+    Grid power = IT power x PUE(T_amb) with PUE from a lookup curve; 98 % of IT
+    power is assumed to appear as recoverable waste heat. Quasi-static (no
+    thermal inertia or workload dynamics). Validity: T_amb -10..40 C,
+    0 <= IT <= it_capacity_mw.
+
     Parameters
     ----------
     it_capacity_mw : float
@@ -29,6 +34,12 @@ class DataCenterLoad(ModelComponent):
     pue_curve : Curve1D, optional
         PUE vs ambient dry-bulb temperature.
     """
+
+    units = {
+        "P_it_cmd_MW": "MW", "T_amb": "degC",
+        "P_total_grid_MW": "MW", "P_it_MW": "MW", "P_cooling_MW": "MW",
+        "PUE": "1", "Q_waste_heat_MW": "MW",
+    }
 
     def __init__(
         self,
@@ -62,6 +73,7 @@ class DataCenterLoad(ModelComponent):
                 "P_total_grid_MW", "P_it_MW", "P_cooling_MW",
                 "PUE", "Q_waste_heat_MW",
             ],
+            defaults={"P_it_cmd_MW": self.it_capacity_mw, "T_amb": 20.0},
         )
 
     def step_model(self, dt: float, time: float) -> None:
@@ -88,7 +100,15 @@ class DataCenterLoad(ModelComponent):
 class IndustrialProcessSteam(ModelComponent):
     """
     Industrial process steam demand header for refineries and chemical plants.
+
+    Quasi-static: demand = setpoint (>= 0), deficit = max(0, demand - supply),
+    thermal demand = demand x enthalpy. No header pressure dynamics.
     """
+
+    units = {
+        "steam_supply_t_hr": "t/h", "demand_setpoint_t_hr": "t/h",
+        "steam_demand_t_hr": "t/h", "steam_deficit_t_hr": "t/h", "Q_demand_MW_th": "MW",
+    }
 
     def __init__(
         self,
@@ -109,6 +129,7 @@ class IndustrialProcessSteam(ModelComponent):
         self.register_variables(
             inputs=["steam_supply_t_hr", "demand_setpoint_t_hr"],
             outputs=["steam_demand_t_hr", "steam_deficit_t_hr", "Q_demand_MW_th"],
+            defaults={"demand_setpoint_t_hr": self.nominal_demand},
         )
 
     def step_model(self, dt: float, time: float) -> None:

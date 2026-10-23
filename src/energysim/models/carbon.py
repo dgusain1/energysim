@@ -18,6 +18,11 @@ class CarbonCapture_Amine(ModelComponent):
     """
     Post-Combustion Chemical Absorption Amine CO2 Capture System.
 
+    Quasi-static specific-consumption model: captured CO2 = inlet x capture
+    rate; reboiler heat and electrical parasitics scale linearly with captured
+    mass. No solvent inventory, column dynamics or part-load penalty. Validity:
+    steady loads, capture rate 0.8-0.95.
+
     Parameters
     ----------
     capture_rate_nom : float, default 0.90
@@ -27,6 +32,12 @@ class CarbonCapture_Amine(ModelComponent):
     spec_elec_kwh_tco2 : float, default 120.0
         Electrical auxiliary consumption for blowers, solvent pumps, and compressors.
     """
+
+    units = {
+        "m_dot_CO2_in_t_hr": "t/h",
+        "m_dot_CO2_captured_t_hr": "t/h", "P_elec_parasitic_MW": "MW",
+        "Q_steam_reboiler_MW_th": "MW",
+    }
 
     def __init__(
         self,
