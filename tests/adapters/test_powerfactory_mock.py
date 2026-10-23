@@ -145,3 +145,27 @@ def test_available_variables_and_modes():
     assert make(pf="ldf").mode == "ac"
     with pytest.raises(ValueError, match="only supports 'ac' and 'dc'"):
         make(mode="rms")
+
+
+def test_manual_check_script_runs_green_against_mock(tmp_path):
+    """The user-facing manual-check tool must itself work (here against the mock API)."""
+    import json
+    import subprocess
+    script = Path(__file__).resolve().parents[2] / "tools" / "powerfactory_manual_check.py"
+    out = tmp_path / "result.json"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--project", "MockProject", "--pf-path", MOCK_DIR,
+         "--element", "Bus1", "--attr", "m:u", "--input-element", "Load1", "--input-attr", "plini",
+         "--test-dc", "--json-out", str(out)],
+        capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    report = json.loads(out.read_text())
+    assert report["overall"] == "PASS"
+    assert not [s for s in report["steps"] if s["status"] == "FAIL"]
+    assert "overall: PASS" in proc.stdout
+    # wrong project must produce a FAIL report and a non-zero exit code
+    bad = subprocess.run(
+        [sys.executable, str(script), "--project", "Nope", "--pf-path", MOCK_DIR, "--element", "Bus1",
+         "--attr", "m:u", "--json-out", str(tmp_path / "bad.json")],
+        capture_output=True, text=True, timeout=120)
+    assert bad.returncode == 1 and "FAIL" in bad.stdout

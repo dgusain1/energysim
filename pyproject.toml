@@ -31,12 +31,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fmu = ["fmpy>=0.3"]
-powerflow = ["pandapower"]
-pypsa = ["pypsa"]
-opendss = ["opendssdirect.py"]
+fmu = ["fmpy>=0.3.27,<0.4"]
+powerflow = ["pandapower>=3.0,<4"]
+pypsa = ["pypsa>=0.30,<2"]
+opendss = ["opendssdirect.py>=0.9,<1"]
 plotting = ["matplotlib"]
-all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib"]
+all = ["fmpy>=0.3.27,<0.4", "pandapower>=3.0,<4", "pypsa>=0.30,<2", "opendssdirect.py>=0.9,<1", "matplotlib"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
 
 [project.scripts]
