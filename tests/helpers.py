@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from energysim import SimulatorAdapter
+
 
 def _extract(res, world):
     out = {}
@@ -42,3 +44,25 @@ def run_and_get(world, **kw):
     if hasattr(world, "results"):
         return world.results(dashboard=False)
     raise RuntimeError("Could not obtain results from world")
+
+
+class Alg(SimulatorAdapter):
+    """Stateless algebraic block: after every step, ``y = gain * u + bias`` (identity by default)."""
+
+    def __init__(self, gain=1.0, bias=0.0):
+        self.gain, self.bias = gain, bias
+        self.u = 0.0
+        self.y = 0.0
+        self.step_size = 1.0
+
+    def init(self):
+        self.u = self.y = 0.0
+
+    def step(self, time):
+        self.y = self.gain * self.u + self.bias
+
+    def get_value(self, parameters, time):
+        return [self.y for _ in parameters]
+
+    def set_value(self, parameters, values):
+        self.u = values[0]
