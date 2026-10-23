@@ -60,4 +60,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "validation: physical/analytic validation benchmarks (see docs/validation.md)",
+    "strength: tests demonstrating a product strength",
+    "slow: slow tests (packaging, long runs)",
+]
 

@@ -1,0 +1,42 @@
+case,test,quantity,reference_value,source,tolerance,notes
+rc_thermal,test_rc_step_response_fleet_vs_closed_form,max_abs_error_K_dt900,0,analytic: T(t)=T_amb+R*Q+(T0-T_amb-R*Q)*exp(-t/(R*C)),abs:0.03,"24 h step response; explicit Euler error at dt=900 s (tau=37.5 h)"
+rc_thermal,test_rc_step_response_fleet_vs_closed_form,euler_convergence_order,1,analytic: explicit Euler is first order,abs:0.1,"error ratio between dt=900 s and dt=450 s"
+rc_thermal,test_rc_scalar_equivalent_matches_fleet_and_closed_form,fleet_vs_scalar_loop,independent scalar Euler loop,self-consistency,rel:1e-12,"fleet of size 1 equals an independent scalar implementation"
+rc_thermal,test_rc_step_response_through_world,world_run_max_abs_error_K,0,analytic closed form,abs:0.05,"fleet driven by signals through world(); Jacobi coupling"
+pem_electrolyzer,test_pem_faraday_law_exact,faraday_h2_mass_flow,Faraday's law,analytic: n_H2 = eta_F*N*I/(2F),rel:1e-9,"kg/h; 2F with CODATA F"
+pem_electrolyzer,test_pem_faraday_law_exact,stack_power_balance,P = N*I*V,analytic,rel:1e-6,"limited by the 2501-point inversion of j*V(j)"
+pem_electrolyzer,test_pem_water_stoichiometry,water_to_h2_mass_ratio,M(H2O)/M(H2) = 8.936,analytic stoichiometry H2O -> H2 + 1/2 O2,rel:1e-9,"1 mol H2O per mol H2"
+pem_electrolyzer,test_pem_thermoneutral_voltage_consistent_with_hhv,thermoneutral_voltage_V,HHV*M/(2F) = 1.481,"analytic: E_tn = dH/(2F), dH(H2O,l) = 285.83 kJ/mol (HHV 141.8 MJ/kg)",rel:2e-3,"model constant 1.48 V"
+pem_electrolyzer,test_pem_thermoneutral_voltage_consistent_with_hhv,heat_plus_hhv_equals_power,P_actual,self-consistency: electricity = waste heat + H2 HHV energy,rel:3e-3,"HHV 141.8 MJ/kg vs 1.48 V thermoneutral voltage"
+constants,test_faraday_constant_codata,faraday_constant_C_per_mol,96485.33212,CODATA 2018 (e*N_A),rel:1e-8,
+constants,test_faraday_constant_codata,gas_constant_J_per_mol_K,8.314462618,CODATA 2018,rel:1e-6,
+sabatier,test_sabatier_stoichiometry,mol_co2_per_mol_h2_reacted,n_H2/4,analytic: CO2 + 4 H2 -> CH4 + 2 H2O,rel:1e-12,
+sabatier,test_sabatier_stoichiometry,mol_ch4_per_mol_h2_reacted,n_H2/4,analytic stoichiometry,rel:1e-12,"CH4 molar mass chosen so that the mass balance closes exactly"
+sabatier,test_sabatier_stoichiometry,mol_h2o_per_mol_h2_reacted,n_H2/2,analytic stoichiometry,rel:1e-12,
+sabatier,test_sabatier_stoichiometry,mass_balance,H2 fed + CO2 consumed,analytic mass conservation,rel:1e-12,"= CH4 + H2O + unreacted H2"
+sabatier,test_sabatier_heat_of_reaction_vs_formation_enthalpies,reaction_heat_kJ_per_mol_CH4,165.02,"standard formation enthalpies at 298 K: CH4 -74.87, H2O(g) -241.83, CO2 -393.51 kJ/mol",rel:1e-3,"model uses 165 kJ/mol"
+heat_pump,test_heatpump_cop_respects_carnot_bound,energy_balance_q_equals_p_times_cop,Q_heat,analytic: Q = P*COP,rel:1e-12,
+heat_pump,test_heatpump_cop_respects_carnot_bound,max_cop_over_carnot,0.65,analytic: second-law bound COP <= T_sink/(T_sink-T_source),rel:1e-9,"largest observed COP/COP_Carnot equals the Carnot efficiency factor (0.65) over 900 random cases"
+heat_pump,test_heatpump_cop_equals_eta_times_carnot_inside_clamps,cop_eta_times_carnot,3.5,analytic: COP = eta*T_sink/(T_sink-T_source),rel:1e-12,"15 degC source, 75 degC sink"
+wind_turbine,test_wind_power_curve_points,power_curve_interpolation_MW,published curve table,"self-consistency: model vs linear interpolation of a manufacturer-style tabulated curve (generic 1.85 MW class, illustrative values)",rel:1e-4,"standard density 15 degC/sea level reproduces the curve"
+wind_turbine,test_wind_density_correction_power_proportional_to_rho,power_ratio_vs_air_density,rho/rho_0,analytic: P = 1/2 rho A Cp v^3 (cubic regime) -> P ~ rho,rel:1e-4,"barometric formula + ideal gas; dense cubic curve"
+wind_turbine,test_wind_rotor_lag_first_order,rotor_lag_at_one_tau_MW,1.896,analytic first-order lag 1-exp(-1),rel:2e-3,"implicit Euler with dt=0.01 s"
+battery,test_battery_fleet_round_trip_efficiency,fleet_round_trip_efficiency,eta^2,analytic: charge and discharge efficiency each eta,rel:1e-3,
+battery,test_bess_energy_conservation_including_heat,bess_step_energy_balance,E_stored + E_joule + E_inverter,analytic energy conservation (AC in = stored + joule heat + inverter loss),abs:1e-9,"MWh per step"
+battery,test_bess_energy_conservation_including_heat,bess_cumulative_energy_balance,sum of parts,analytic energy conservation,rel:1e-9,
+battery,test_bess_round_trip_efficiency_vs_inverter_and_internal_resistance,bess_round_trip_efficiency,eta_inv^2 * eta_int,analytic: product of inverter and internal-resistance efficiencies at SoC 0.5,rel:1e-2,"Voc varies slightly over the SoC excursion"
+h2_tank,test_tank_ideal_gas_limit_at_low_pressure,mass_at_low_pressure_vs_ideal_gas,p*V*M/(R*T),analytic ideal gas law,rel:1e-3,"Z-1 = 0.0006*p[bar] -> 3e-4 at 0.5 bar"
+h2_tank,test_tank_compressibility_trend_real_gas,Z_at_350bar_293K,1.2,"self-consistency: model uses Z = 1 + 0.0006 p[bar]; tabulated H2 compressibility at 350 bar is approx 1.2",rel:5e-2,"approximate literature value; checks order of magnitude only"
+h2_tank,test_tank_pressure_mass_roundtrip,pressure_roundtrip_bar,200,self-consistency: p -> m -> p,rel:1e-9,
+h2_compressor,test_compressor_work_vs_textbook_isentropic_multistage,specific_work_kJ_per_kg,textbook formula,"textbook: w = n*cp*T1*(r^((g-1)/(n*g))-1)/eta_is with perfect intercooling (e.g. Cengel and Boles)",rel:1e-12,"n = 1..4 stages; t_intercool = t_in"
+h2_compressor,test_compressor_power_scales_with_flow_and_stage_trend,isothermal_limit_kJ_per_kg,R*T*ln(p2/p1),analytic: infinite-stage limit is isothermal compression work,rel:2e-3,"400 stages, eta_is = 1"
+h2_compressor,test_compressor_power_scales_with_flow_and_stage_trend,power_kW_equals_flow_times_work,m_dot*w,analytic,rel:1e-12,
+thermal_storage,test_thermal_storage_energy_balance,stored_energy_equals_integral_flow_minus_loss,sum((Q-loss)*dt),analytic energy conservation,abs:1e-9,"MWh over 1500 steps including both SoC limits"
+thermal_storage,test_thermal_storage_standing_loss_decay,standing_loss_after_one_day,0.8*exp(-0.02),analytic exponential decay at 2 %/day,rel:1e-5,
+emissions,test_ccgt_natural_gas_emission_factor,natural_gas_t_co2_per_MMBtu,0.0592,"IPCC 2006 default 56.1 kg CO2/GJ (NCV) x 1.05506 GJ/MMBtu",rel:5e-3,"model constant 0.0592 t/MMBtu"
+emissions,test_ccgt_natural_gas_emission_factor,natural_gas_ipcc_56p1_kg_per_GJ,0.05919,IPCC 2006 Guidelines vol. 2 table 2.2 natural gas,rel:5e-3,
+emissions,test_ccgt_natural_gas_emission_factor,ccgt_fuel_from_heat_rate,2426.1,analytic: P*HR/(1.05506 GJ/MMBtu),rel:1e-3,"1.055e6 kJ/MMBtu used by the model"
+carbon_capture,test_carbon_capture_energy_per_tonne,captured_mass_flow_t_h,90,analytic: inlet x capture rate,rel:1e-12,
+carbon_capture,test_carbon_capture_energy_per_tonne,reboiler_GJ_per_tonne,3,analytic unit conversion MW_th -> GJ/h,rel:1e-12,"typical amine 2.5-4 GJ/t asserted as a sanity band"
+carbon_capture,test_carbon_capture_energy_per_tonne,parasitic_kWh_per_tonne,120,analytic unit conversion MW -> kWh/h,rel:1e-12,
+absorption_chiller,test_absorption_chiller_energy_balance,thermal_cop,0.7,analytic: Q_cool = COP_th * Q_heat,rel:1e-12,
