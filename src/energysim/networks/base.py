@@ -484,7 +484,7 @@ class EnergyNetwork(ModelComponent):
         """Exact solve for forests via simplex on the path formulation (pure Python)."""
         ns, nt, ne = len(sources), len(sinks), len(arcs)
         out: Dict[int, List[int]] = {}
-        for e, (a, b, *_rest) in enumerate(arcs):
+        for e, (a, _b, *_rest) in enumerate(arcs):
             out.setdefault(a, []).append(e)
         sinks_at: Dict[int, List[int]] = {}
         for j, t in enumerate(sinks):
