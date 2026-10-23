@@ -49,6 +49,10 @@ class ValidationReport:
     is_valid: bool
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    #: one line per connection: ``A.y [kW] -> B.u [MW]  x0.001  (source: ...)``
+    conversions: List[str] = field(default_factory=list)
+    #: ``"<name> [<hash>]"`` of the world's unit system
+    unit_system: Optional[str] = None
 
     def __str__(self) -> str:
         lines = [f"ValidationReport: {'PASSED' if self.is_valid else 'FAILED'}"]
@@ -62,6 +66,13 @@ class ValidationReport:
                 lines.append(f"    - {w}")
         return "\n".join(lines)
 
+    def format_units(self) -> str:
+        """Unit system and per-connection unit conversions (used by ``energysim validate -v``)."""
+        lines = [f"Unit system: {self.unit_system or 'n/a'}",
+                 f"Unit conversions ({len(self.conversions)}):"]
+        lines.extend(f"    {c}" for c in self.conversions)
+        return "\n".join(lines)
+
 
 class ParsedConnection(tuple):
     """
@@ -73,6 +84,17 @@ class ParsedConnection(tuple):
     ``value_in = (value_out * unit_scale + unit_offset) * user_scale + user_offset``.
     ``user_scale`` / ``user_offset`` keep what the user specified, so the
     connection can be serialised without applying unit conversion twice.
+
+    Unit bookkeeping: ``from_unit`` / ``to_unit`` are the resolved units of
+    the (first) source and the (first) receiver, ``from_source`` /
+    ``to_source`` where they came from (``'declared'``, ``'component'``,
+    ``'connection'``, ``'suffix'``, ``'default-by-quantity'``,
+    ``'unspecified'`` or ``'manual'`` for a user scale without units).
+    Values are always converted to the *receiver's* unit.  For fan-out
+    connections whose receivers have different units ``target_conversions``
+    holds one effective ``(scale, offset)`` per receiver; for fan-in
+    connections whose sources have different units ``source_scales`` holds
+    the factor converting each source into the first source's unit.
     """
     scale: float
     offset: float
@@ -83,7 +105,12 @@ class ParsedConnection(tuple):
 
     def __new__(cls, parsed_output: Any, parsed_input: Any, scale: float = 1.0, offset: float = 0.0,
                 from_unit: Optional[str] = None, to_unit: Optional[str] = None,
-                user_scale: Optional[float] = None, user_offset: Optional[float] = None):
+                user_scale: Optional[float] = None, user_offset: Optional[float] = None,
+                from_source: Optional[str] = None, to_source: Optional[str] = None,
+                unit_scale: float = 1.0, unit_offset: float = 0.0,
+                target_conversions: Optional[List[Any]] = None,
+                source_scales: Optional[List[float]] = None,
+                explicit_units: bool = False):
         instance = super().__new__(cls, (parsed_output, parsed_input))
         instance.scale = float(scale)
         instance.offset = float(offset)
@@ -91,7 +118,20 @@ class ParsedConnection(tuple):
         instance.to_unit = to_unit
         instance.user_scale = float(scale if user_scale is None else user_scale)
         instance.user_offset = float(offset if user_offset is None else user_offset)
+        instance.from_source = from_source
+        instance.to_source = to_source
+        instance.unit_scale = float(unit_scale)
+        instance.unit_offset = float(unit_offset)
+        instance.target_conversions = target_conversions
+        instance.source_scales = source_scales
+        instance.explicit_units = bool(explicit_units)
         return instance
+
+    @property
+    def source(self) -> str:
+        """``'<from_source> -> <to_source>'`` (or a single token when both agree)."""
+        a, b = self.from_source or 'unspecified', self.to_source or 'unspecified'
+        return a if a == b else f"{a} -> {b}"
 
 
 # ---------------------------------------------------------------------------

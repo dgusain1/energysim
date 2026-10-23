@@ -123,7 +123,8 @@ class ModelComponent(SimulatorAdapter):
             for out in outputs:
                 if out not in self.outputs:
                     self.outputs.append(out)
-                self._outputs_val.setdefault(out, 0.0)
+                if out not in self._inputs_val:   # an input that is also an output passes through
+                    self._outputs_val.setdefault(out, 0.0)
 
     def register_parameters(self, *names: str) -> None:
         """Declare numeric instance attributes that ``set_value`` may overwrite."""
@@ -212,10 +213,11 @@ class ModelComponent(SimulatorAdapter):
         for p in parameters:
             if p in self._outputs_val:
                 val = self._outputs_val[p]
+            elif p in self._inputs_val:
+                # also covers an output name that is an input as well (pass-through)
+                val = self._inputs_val[p]
             elif p in self.outputs:
                 val = 0.0
-            elif p in self._inputs_val:
-                val = self._inputs_val[p]
             elif p in self._states:
                 val = self._states[p]
             elif p in self._parameters:

@@ -16,7 +16,6 @@ import yaml
 from tqdm import tqdm
 
 from ..results import Results, Recorder, make_run_dir, scenario_hash, _have_pyarrow, _versions
-from ..units import resolve_unit as _resolve_unit_system
 from ._common import (logger, ITERATIVE_REMOVED_MSG, _COUPLINGS, OPTION_KEYS, _to_fraction)
 
 
@@ -230,6 +229,8 @@ class RunnerMixin:
             raise ValueError(f"coupling must be 'jacobi' or 'gauss-seidel', got '{self.coupling}'")
         if record_all is None:
             record_all = True if self.record_all is None else bool(self.record_all)
+        self._log_unit_system()
+        self._log_conversions('info')
         if validate:
             self.validate(raise_on_error=True)
 
@@ -310,22 +311,18 @@ class RunnerMixin:
         return scenario
 
     def _results_units(self):
-        """``{'sim.var': unit}`` from SimEntry.units, connection units and name inference."""
+        """``{'sim.var': unit}`` with the same resolution as connections (see :meth:`resolve_variable_unit`)."""
         conn_units = {}
         for conn in self._parsed_connections:
             out = conn[0]
-            fu = getattr(conn, 'from_unit', None)
-            if fu and not (isinstance(out, tuple) and isinstance(out[0], tuple)):
-                conn_units.setdefault((out[0], out[1]), fu)
+            spec = getattr(conn, '_spec_units', (None, None))[0]
+            if spec and not (isinstance(out, tuple) and isinstance(out[0], tuple)):
+                conn_units.setdefault((out[0], out[1]), spec)
         units = {}
         for sim_name, entry in self.simulator_dict.items():
             for var in entry.outputs:
-                u = self._resolve_unit(entry, var)
-                if u is None:
-                    u = conn_units.get((sim_name, var))
-                if u is None:
-                    u = _resolve_unit_system(var, None, self.unit_system)[0]
-                units[f"{sim_name}.{var}"] = u
+                units[f"{sim_name}.{var}"] = self.resolve_variable_unit(
+                    sim_name, var, conn_units.get((sim_name, var)))[0]
         return units
 
     def _finish_results(self, recorder, info, status, caught, error=None):
@@ -355,6 +352,7 @@ class RunnerMixin:
             'record_all': info['record_all'],
             'units': units,
             'unit_system': self.unit_system.to_dict(),
+            'unit_policy': self.unit_policy,
             'warnings': [{'category': w.category.__name__, 'message': str(w.message)}
                          for w in list(caught)[:1000]],
             'n_rows': {s: recorder.n_rows(s) for s in recorder.columns},

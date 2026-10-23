@@ -7,14 +7,29 @@ import re
 import warnings
 import networkx as nx
 
-from ..utils import (
-    get_unit_conversion, infer_variable_unit,
-)
+from ..units import get_unit_conversion, is_known_unit, parse_unit
 from ..base import (
     ConnectionSpecError,
     ParsedConnection,
 )
 from ._common import (logger)
+
+
+def known_variables(avail):
+    """Union of ``inputs``, ``outputs`` and (when present) ``all`` of ``get_available_variables()``."""
+    avail = avail or {}
+    return set(avail.get('inputs', [])) | set(avail.get('outputs', [])) | set(avail.get('all', []) or [])
+
+
+def variable_is_known(var_name, all_vars):
+    """True if *var_name* (optionally indexed ``x[3]`` / aggregated ``total_x``) is in *all_vars*."""
+    if var_name in all_vars:
+        return True
+    base_var = re.sub(r'\[\d+\]$', '', var_name)       # 'soc[0]' -> 'soc'
+    if base_var in all_vars:
+        return True
+    agg_base = re.sub(r'^(total_|mean_|sum_|min_|max_)', '', var_name)   # 'total_soc' -> 'soc'
+    return agg_base in all_vars or re.sub(r'\[\d+\]$', '', agg_base) in all_vars
 
 
 class ConnectionsMixin:
@@ -24,14 +39,6 @@ class ConnectionsMixin:
     # Connections
     # ------------------------------------------------------------------
 
-    def _resolve_unit(self, entry, var):
-        """Unit of *var* on *entry*: explicit ``units`` mapping, name suffix, or (power names only) power_unit."""
-        if entry is None:
-            return None
-        if var in entry.units:
-            return entry.units[var]
-        return infer_variable_unit(var, default_unit=entry.power_unit or self.power_unit)
-
     def add_connections(self, connections=None):
         '''
         Adds connections between simulators. Connections are
@@ -39,14 +46,18 @@ class ConnectionsMixin:
         and values as receiving variables (or a list of dicts with
         ``from``/``to``/``scale``/``offset``/``from_unit``/``to_unit``).
 
-        Unit conversion is applied automatically only when the units of
-        *both* ends are known explicitly: via ``from_unit``/``to_unit`` on the
-        connection, the simulator's ``units`` mapping, or a conventional
-        variable-name suffix (``_mw``, ``_kw``, ``_kv``, ``_pu``, ``_kwh``, ...).
-        A simulator's ``power_unit`` is only used for variables whose name
-        looks like active power (``p``, ``p_cmd``, ``P_set``, ``power``...).
-        Unknown units and incompatible dimensions raise ``ValueError``.
-        A ``scale`` given without any unit key disables automatic conversion.
+        Units: the unit of each end is resolved (simulator ``units`` /
+        ``power_unit`` for power-like names -> the component's ``units`` ->
+        ``from_unit``/``to_unit`` on the connection -> name suffix such as
+        ``_mw`` / ``_degc`` -> the world's unit-system default for the
+        quantity the name denotes) and the value is converted into the
+        **receiver's** unit.  An end whose unit stays unspecified is passed
+        through unscaled with a warning (an error with
+        ``unit_policy='strict'``).  Unknown units and incompatible dimensions
+        of explicitly known units raise ``ValueError``; incompatible *guessed*
+        units are passed through with a warning.  A ``scale`` given without
+        any unit key disables automatic conversion.  Inspect the result with
+        :meth:`connection_units` / :meth:`conversion_lines`.
         '''
         if connections is None:
             connections = {}
@@ -116,27 +127,46 @@ class ConnectionsMixin:
                 raise ConnectionSpecError(f"Invalid connection target {input_key!r} (from {output_key!r}).")
 
             explicit_units = any(k in item for k in ('from_unit', 'to_unit', 'unit'))
+            sources = ([(o[0], o[1]) for o in parsed_output] if isinstance(parsed_output[0], tuple)
+                       else [(first_ou_sim, first_ou_var)])
+            targets = parsed_input if isinstance(parsed_input, list) else [parsed_input]
             if 'scale' in item and not explicit_units:
                 # A manual scale without units overrides automatic conversion.
-                from_unit = to_unit = None
-                unit_scale, unit_offset = 1.0, 0.0
+                infos = [{'from_unit': None, 'to_unit': None, 'from_source': 'manual',
+                          'to_source': 'manual', 'scale': 1.0, 'offset': 0.0, 'note': None}
+                         for _ in targets]
+                source_scales = None
             else:
-                if not from_unit:
-                    from_unit = self._resolve_unit(self.simulator_dict.get(first_ou_sim), first_ou_var)
-                if not to_unit:
-                    to_unit = self._resolve_unit(self.simulator_dict.get(first_in_sim), first_in_var)
                 try:
-                    unit_scale, unit_offset = get_unit_conversion(from_unit, to_unit)
+                    for u in {from_unit, to_unit} - {None, ''}:
+                        parse_unit(u)       # connection-level units are always validated
+                    infos = [self._conversion_for(sources[0], tgt, from_unit, to_unit) for tgt in targets]
+                    source_scales = self._fan_in_scales(sources, from_unit)
                 except ValueError as exc:
                     raise ValueError(f"Connection {output_key!r} -> {input_key!r}: {exc}") from None
+                if self.unit_policy == 'strict':
+                    ends = [(sources[0], infos[0]['from_unit'])] + [(t, i['to_unit']) for t, i in zip(targets, infos)]
+                    missing = sorted({f"{sv[0]}.{sv[1]}" for sv, u in ends if u is None})
+                    if missing:
+                        raise ValueError(
+                            f"Connection {output_key!r} -> {input_key!r}: unit of {', '.join(missing)} is "
+                            f"unspecified (unit_policy='strict'). Declare it via the simulator's "
+                            f"units={{...}}, the component's units, or from_unit/to_unit on the connection.")
 
-            effective_scale = unit_scale * user_scale
-            effective_offset = unit_offset * user_scale + user_offset
-
-            parsed_connections.append(
-                ParsedConnection(parsed_output, parsed_input, effective_scale, effective_offset,
-                                 from_unit, to_unit, user_scale=user_scale, user_offset=user_offset)
-            )
+            first = infos[0]
+            conversions = [(i['scale'] * user_scale, i['offset'] * user_scale + user_offset) for i in infos]
+            target_conversions = conversions if len(set(conversions)) > 1 else None
+            conn = ParsedConnection(
+                parsed_output, parsed_input, conversions[0][0], conversions[0][1],
+                first['from_unit'], first['to_unit'], user_scale=user_scale, user_offset=user_offset,
+                from_source=first['from_source'], to_source=first['to_source'],
+                unit_scale=first['scale'], unit_offset=first['offset'],
+                target_conversions=target_conversions, source_scales=source_scales,
+                explicit_units=explicit_units)
+            conn._unit_info = infos
+            conn._spec_units = (item.get('from_unit') or item.get('unit'),
+                                item.get('to_unit') or item.get('unit'))
+            parsed_connections.append(conn)
         self._parsed_connections = parsed_connections
 
         # Run validation checks
@@ -147,6 +177,31 @@ class ConnectionsMixin:
         self._compute_execution_order()
 
         logger.info("Added %i connections between simulators to the World", len(self._parsed_connections))
+        self._log_conversions('debug')
+        warned = getattr(self, '_unit_warned', None)
+        if warned is None:
+            warned = self._unit_warned = set()
+        for msg in self._unit_warnings():
+            if msg not in warned:
+                warned.add(msg)
+                logger.warning(msg)
+
+    def _fan_in_scales(self, sources, from_unit):
+        """Factors converting each fan-in source into the first source's unit (None if all equal)."""
+        if len(sources) < 2:
+            return None
+        u0, _ = self.resolve_variable_unit(sources[0][0], sources[0][1], from_unit)
+        scales = [1.0]
+        for sim, var in sources[1:]:
+            u, _ = self.resolve_variable_unit(sim, var, from_unit)
+            sc = 1.0
+            if u0 and u and u != u0 and is_known_unit(u) and is_known_unit(u0):
+                sc, off = get_unit_conversion(u, u0)
+                if off:
+                    raise ValueError(f"fan-in sum of {u!r} and {u0!r} needs an offset conversion; "
+                                     f"declare a common unit.")
+            scales.append(sc)
+        return None if all(x == 1.0 for x in scales) else scales
 
     # ------------------------------------------------------------------
     # Connection validation
@@ -212,20 +267,11 @@ class ConnectionsMixin:
         adapter = entry.adapter
         get_vars = getattr(adapter, 'get_available_variables', None)
         avail = get_vars() if callable(get_vars) else {}
-        all_vars = set(avail.get('inputs', [])) | set(avail.get('outputs', []))
+        all_vars = known_variables(avail)
         if not all_vars:
             # Adapter doesn't expose variable metadata — skip validation
             return
-        if var_name not in all_vars:
-            # Strip index if present, e.g. 'soc[0]' -> 'soc'
-            base_var = re.sub(r'\[\d+\]$', '', var_name)
-            if base_var in all_vars:
-                return
-            # Strip aggregation prefix if present, e.g. 'total_soc' -> 'soc'
-            agg_base = re.sub(r'^(total_|mean_|sum_|min_|max_)', '', var_name)
-            if agg_base in all_vars or re.sub(r'\[\d+\]$', '', agg_base) in all_vars:
-                return
-
+        if not variable_is_known(var_name, all_vars):
             warnings.warn(
                 f"Variable '{var_name}' not found in simulator '{sim_name}' "
                 f"declared variables. Connection may fail at runtime. "

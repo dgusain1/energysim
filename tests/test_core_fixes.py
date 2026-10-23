@@ -522,7 +522,10 @@ def test_world_unit_inference_and_errors(tmp_path, csv_file):
         {'from': 'csv.temp', 'to': 'm.y'},           # unknown both sides -> no scaling
     ])
     scales = [c.scale for c in w._parsed_connections]
-    assert scales[0] == 1.0 and w._parsed_connections[0].from_unit is None
+    # 3.0 default unit system: both temperatures resolve to degC by quantity -> never rescaled
+    c0 = w._parsed_connections[0]
+    assert scales[0] == 1.0 and c0.offset == 0.0
+    assert (c0.from_unit, c0.from_source) == ('degC', 'default-by-quantity')
     assert math.isclose(scales[1], 1e-3)
     assert math.isclose(scales[2], 1e3)
     assert scales[3] == 1.0

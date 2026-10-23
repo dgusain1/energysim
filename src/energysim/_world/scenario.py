@@ -9,6 +9,7 @@ import yaml
 from ..utils import (
     looks_like_dotted_import, PICKLE_EXTS, MODEL_FILE_EXTS,
 )
+from .unit_resolution import unit_system_to_dict
 from ._common import (logger, ITERATIVE_REMOVED_MSG, UNSAFE_SIM_TYPES,
                       _MODEL_ALIAS_KEYS, _WORLD_KEYS,
                       RES_FILENAME_REMOVED_MSG, _REMOVED_WORLD_KEYS)
@@ -94,8 +95,10 @@ class ScenarioMixin:
                 't_macro': self.exchange,
                 'coupling': self.coupling,
                 'extrapolation': self.extrapolation,
-                'power_unit': self.power_unit,
+                **({'power_unit': self.power_unit} if self.power_unit else {}),
                 'logging': self.logging,
+                'unit_system': unit_system_to_dict(self.unit_system),
+                **({'unit_policy': self.unit_policy} if self.unit_policy != 'lenient' else {}),
                 **({'start_datetime': str(self.start_datetime)} if self.start_datetime is not None else {}),
                 **({'seed': self.seed} if self.seed is not None else {}),
                 **({'out_dir': str(self.out_dir)} if self.out_dir is not None else {}),
@@ -173,8 +176,10 @@ class ScenarioMixin:
             start_datetime=w_cfg.get('start_datetime'),
             seed=w_cfg.get('seed'),
             out_dir=w_cfg.get('out_dir'),
-            power_unit=w_cfg.get('power_unit', 'kW'),
+            power_unit=w_cfg.get('power_unit'),
             logging=w_cfg.get('logging', False),
+            unit_system=w_cfg.get('unit_system'),
+            unit_policy=w_cfg.get('unit_policy', 'lenient'),
         )
 
         for sim_cfg in data.get('simulators', []) or []:

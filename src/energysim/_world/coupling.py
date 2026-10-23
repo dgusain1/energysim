@@ -68,7 +68,14 @@ class CouplingMixin:
                 matching = [(in_sim_name, in_sim_var)]
 
             # Gather output value(s)
-            tmp_var = self._gather_output_value(output_, t)
+            tmp_var = self._gather_output_value(output_, t, getattr(conn, 'source_scales', None))
+            per_target = getattr(conn, 'target_conversions', None)
+            if per_target:
+                targets = input_ if isinstance(input_, list) else [input_]
+                for (in_sim_name, in_sim_var), (sc, off) in zip(targets, per_target):
+                    if in_sim_name == target_sim:
+                        self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], [tmp_var[0] * sc + off])
+                continue
             if scale != 1.0 or offset != 0.0:
                 tmp_var = [tmp_var[0] * scale + offset]
 
@@ -81,15 +88,19 @@ class CouplingMixin:
         for sim_name in target_sims:
             self._exchange_inputs_for(sim_name, t)
 
-    def _gather_output_value(self, output_, t):
-        """Read output value(s) from a parsed connection's output side."""
+    def _gather_output_value(self, output_, t, source_scales=None):
+        """Read output value(s) from a parsed connection's output side.
+
+        For fan-in connections the outputs are summed; *source_scales* (if
+        given) first converts every source into the first source's unit.
+        """
         if isinstance(output_, tuple) and isinstance(output_[0], tuple):
             # Fan-in: sum multiple outputs
             tmps = []
-            for ou_sim_name, ou_sim_var, ou_key in output_:
+            for i, (ou_sim_name, ou_sim_var, ou_key) in enumerate(output_):
                 tmp1 = self.simulator_dict[ou_sim_name].adapter.get_value([ou_sim_var], t)
                 tmp = self.alter_signal(ou_key, tmp1)
-                tmps.append(tmp[0])
+                tmps.append(tmp[0] * source_scales[i] if source_scales else tmp[0])
             return [sum(tmps)]
         else:
             ou_sim_name, ou_sim_var, ou_key = output_
@@ -121,7 +132,17 @@ class CouplingMixin:
             offset = getattr(conn, 'offset', 0.0)
 
             # --- gather output value(s) ---
-            tmp_var = self._gather_output_value(output_, t)
+            tmp_var = self._gather_output_value(output_, t, getattr(conn, 'source_scales', None))
+
+            per_target = getattr(conn, 'target_conversions', None)
+            if per_target:
+                # fan-out to receivers with different units: extrapolate the raw
+                # value, then convert into each receiver's unit
+                if self.extrapolation == 'linear':
+                    tmp_var = self._apply_extrapolation(output_, t, tmp_var)
+                for (in_sim_name, in_sim_var), (sc, off) in zip(input_, per_target):
+                    self.simulator_dict[in_sim_name].adapter.set_value([in_sim_var], [tmp_var[0] * sc + off])
+                continue
 
             # --- apply scale and offset ---
             if scale != 1.0 or offset != 0.0:

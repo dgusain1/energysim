@@ -8,6 +8,7 @@ import networkx as nx
 from ..base import (
     ValidationError, ValidationReport,
 )
+from .connections import known_variables, variable_is_known
 from ._common import (ITERATIVE_REMOVED_MSG, _COUPLINGS)
 
 
@@ -101,9 +102,8 @@ class ValidationMixin:
                     errors.append(f"Source simulator '{ou_sim}' in connection '{ou_key}' is not registered.")
                 else:
                     adapter = self.simulator_dict[ou_sim].adapter
-                    avail = adapter.get_available_variables()
-                    all_vars = set(avail.get('inputs', [])) | set(avail.get('outputs', []))
-                    if all_vars and ou_var not in all_vars:
+                    all_vars = known_variables(adapter.get_available_variables())
+                    if all_vars and not variable_is_known(ou_var, all_vars):
                         warnings_list.append(
                             f"Output variable '{ou_var}' in simulator '{ou_sim}' not found in known variables."
                         )
@@ -125,9 +125,8 @@ class ValidationMixin:
                             f"Targeted input '{in_var}' will be ignored."
                         )
                     adapter = entry.adapter
-                    avail = adapter.get_available_variables()
-                    all_vars = set(avail.get('inputs', [])) | set(avail.get('outputs', []))
-                    if all_vars and in_var not in all_vars:
+                    all_vars = known_variables(adapter.get_available_variables())
+                    if all_vars and not variable_is_known(in_var, all_vars):
                         warnings_list.append(
                             f"Input variable '{in_var}' in simulator '{in_sim}' not found in known variables."
                         )
@@ -146,8 +145,22 @@ class ValidationMixin:
                 f"into a single simulator."
             )
 
+        # 4. Units: conversions, unspecified / unknown units (errors under unit_policy='strict')
+        conversions = []
+        try:
+            conversions = self.conversion_lines()
+            unit_msgs = self._unit_warnings()
+        except Exception as exc:  # pragma: no cover - defensive
+            unit_msgs = [f"Could not resolve connection units: {exc}"]
+        for msg in unit_msgs:
+            if self.unit_policy == 'strict' and 'unspecified' in msg:
+                errors.append(msg)
+            else:
+                warnings_list.append(msg)
+
         is_valid = len(errors) == 0
-        report = ValidationReport(is_valid=is_valid, errors=errors, warnings=warnings_list)
+        report = ValidationReport(is_valid=is_valid, errors=errors, warnings=warnings_list,
+                                  conversions=conversions, unit_system=self._unit_system_label())
         if raise_on_error and not is_valid:
             raise ValidationError(str(report))
         return report

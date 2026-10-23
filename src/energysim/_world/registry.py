@@ -279,7 +279,7 @@ class RegistryMixin:
             sim_type='model', adapter=adapter, step_size=step_size,
             outputs=eff_outputs, inputs=eff_inputs,
             power_unit=power_unit or getattr(adapter, 'power_unit', None) or self.power_unit,
-            units=units or dict(getattr(adapter, 'units', {}) or {}),
+            units=dict(units or {}),   # the component's own units are resolved live (adapter.units)
             model=target,
         ), 'model')
 

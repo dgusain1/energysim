@@ -9,7 +9,6 @@ module composes them into the public :class:`world` class.
 
 from __future__ import annotations
 
-from .units import UnitSystem
 from .utils import parse_unit
 from ._world._common import (  # noqa: F401  (re-exported for backwards compatibility)
     logger, ITERATIVE_REMOVED_MSG, _COUPLINGS, _EXTRAPOLATIONS, UNSAFE_SIM_TYPES, OPTION_KEYS,
@@ -17,11 +16,13 @@ from ._world._common import (  # noqa: F401  (re-exported for backwards compatib
     _normalize_mode, _to_fraction, _filter_kwargs, _is_adapter_like, _enable_verbose_logging,
 )
 from ._world import (
-    RegistryMixin, ConnectionsMixin, CouplingMixin, RunnerMixin, ValidationMixin, ScenarioMixin,
+    RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMixin, ValidationMixin, ScenarioMixin,
 )
+from ._world.unit_resolution import coerce_unit_system, UNIT_POLICIES
 
 
-class world(RegistryMixin, ConnectionsMixin, CouplingMixin, RunnerMixin, ValidationMixin, ScenarioMixin):
+class world(RegistryMixin, ConnectionsMixin, UnitsMixin, CouplingMixin, RunnerMixin, ValidationMixin,
+            ScenarioMixin):
     r"""
     Initialization
     ---------------
@@ -43,8 +44,24 @@ class world(RegistryMixin, ConnectionsMixin, CouplingMixin, RunnerMixin, Validat
         8. ``out_dir`` : optional directory; every run then writes
            ``<out_dir>/<YYYYmmdd-HHMMSS>_<hash8>/`` (Parquet/CSV per simulator,
            ``meta.json``, ``scenario.yaml``).  By default nothing is written.
-        9. ``unit_system`` : ``None`` / ``'default'`` / ``'si'`` / overrides dict /
-           :class:`~energysim.units.UnitSystem`; used to resolve result units.
+        9. ``unit_system`` : ``None`` / ``'default'`` / ``'si'`` / overrides dict
+           (``{'active_power': 'MW'}``) / ``{'name': 'si', 'overrides': {...}}`` /
+           :class:`~energysim.units.UnitSystem`.  It supplies the default unit of
+           every variable whose name denotes a quantity but which declares no unit
+           (``P_cmd`` -> active power), and the units shown in results.  See
+           :meth:`unit_table` / :meth:`connection_units`.
+       10. ``unit_policy`` : ``'lenient'`` (default) passes values whose unit is
+           unspecified through unscaled (with a warning); ``'strict'`` makes an
+           unspecified unit on any connected variable an error at ``add_connections``.
+       11. ``power_unit`` : shorthand for the unit of power-like variable names
+           (``p``, ``P_cmd``, ``power``...) of every simulator that does not declare
+           its own; ``None`` (default) uses the unit system's ``active_power`` unit.
+
+    Unit resolution per connected variable: simulator ``units={var: unit}`` (and
+    ``power_unit`` for power-like names) -> the component's own ``units`` ->
+    ``from_unit``/``to_unit`` on the connection -> name suffix (``p_mw``) ->
+    the unit system's default for the quantity the name denotes -> unspecified
+    (never scaled).  Values are converted into the receiver's unit.
 
     >>> my_world = world(start_time=0, stop_time=1000, logging=True, t_macro=60)
 
@@ -107,7 +124,8 @@ class world(RegistryMixin, ConnectionsMixin, CouplingMixin, RunnerMixin, Validat
 
     def __init__(self, start_time=0, stop_time=1000, logging=False, t_macro=60,
                  coupling='jacobi', extrapolation='zero-order',
-                 power_unit='kW', start_datetime=None, seed=None, out_dir=None, unit_system=None):
+                 power_unit=None, start_datetime=None, seed=None, out_dir=None, unit_system=None,
+                 unit_policy='lenient'):
         self.start_time = start_time
         self.stop_time = stop_time
         self.logging = logging
@@ -137,7 +155,13 @@ class world(RegistryMixin, ConnectionsMixin, CouplingMixin, RunnerMixin, Validat
         self.seed = seed
         self.out_dir = out_dir
         self.last_results = None
-        self.unit_system = UnitSystem.coerce(unit_system)
+        self.unit_system = coerce_unit_system(unit_system)
+        if unit_policy not in UNIT_POLICIES:
+            raise ValueError(f"unit_policy must be one of {UNIT_POLICIES}, got {unit_policy!r}")
+        self.unit_policy = unit_policy
+        self._unit_warned = set()
+        if logging:
+            self._log_unit_system()
         if coupling == 'iterative':
             raise ValueError(ITERATIVE_REMOVED_MSG)
         if coupling not in _COUPLINGS:

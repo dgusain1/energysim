@@ -38,6 +38,8 @@ class signal_adapter(SimulatorAdapter):
         )
 
     def get_value(self, parameters, time):
+        if not parameters:
+            return []
         result = self.signal(time)
         # Always return a list so the orchestrator can call list() on the result
         # without a TypeError when the signal lambda returns a plain scalar.
