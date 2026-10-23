@@ -179,11 +179,7 @@ FACTORIES = {
 }
 
 ALL = list(FACTORIES)
-# py_adapter.cleanup() drops its module/function and init() does not reload them, and its
-# input/output state survives -> not re-runnable (pyScriptAdapter.py is outside this task's scope).
-RERUN = [pytest.param(n, marks=pytest.mark.xfail(
-    reason="py_adapter is not re-runnable after cleanup() (needs fix in pyScriptAdapter.py)", strict=False))
-    if n == "script" else n for n in ALL]
+RERUN = ALL
 
 
 @pytest.fixture
