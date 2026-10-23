@@ -1,319 +1,269 @@
 # Architecture
 
-This page describes the internal architecture of `energysim` (v2.2+).
+## Coordinator and adapters
 
-## Overview
+`energysim` follows a **coordinator / adapter** pattern.
 
-`energysim` follows a **coordinator–adapter** pattern:
+* The **coordinator** is the `world` class (`energysim.world`, composed from mixins in `energysim._world`). It owns
+  the simulator registry, the connections, the unit resolution, the macro-step loop, events and the recording of
+  results.
+* Each simulator is wrapped in an **adapter**, a subclass of `SimulatorAdapter` (`energysim.base`). The world never
+  branches on the simulator type; everything goes through the adapter contract. That is what makes an FMU, a
+  pandapower network, a CSV profile, a built-in physical model and your own class interchangeable
+  (`tests/test_adapter_contract.py` runs one contract suite over every adapter kind).
 
-- The **coordinator** (`world` class in `world.py`, exposed via `__init__.py`) manages the
-  simulation loop, time progression, variable exchange, dependency
-  ordering, coupling strategy, and results collection.
-- Each simulator is wrapped in an **adapter** that conforms to the
-  `SimulatorAdapter` abstract base class defined in `energysim.base`.
+| Mixin (`energysim._world`) | Responsibility |
+|---|---|
+| `registry` | `add_signal`, `add_model`, `add_simulator`, `add_fmu`, `add_powerflow`, `add_pypsa`, `add_opendss`, `add_csv`, `add_script`, `add_external_simulator`, `add_container`, ...; `get_adapter`, `get_model` |
+| `connections` | parse and validate connections, dependency graph, execution order |
+| `unit_resolution` | per-variable unit resolution, `unit_table`, `connection_units` |
+| `coupling` | Jacobi / Gauss-Seidel stepping, exchange, extrapolation |
+| `events` | `schedule`, `add_trigger`, step-size planning |
+| `runner` | run lifecycle, `simulate`, `options`, results assembly |
+| `validation` | `validate()` |
+| `scenario` | `to_dict`, `to_yaml`, `from_dict`, `from_yaml`, safe mode |
 
-The coordinator never inspects the simulator type directly. All
-interaction goes through the uniform `SimulatorAdapter` interface.
+## The adapter contract
 
----
+Required:
 
-## Exception hierarchy
+| Method | Description |
+|---|---|
+| `step(time)` | Advance the model by one micro step (`step_size` seconds) starting at `time`. |
+| `get_value(parameters, time)` | Return a **list** with one value per requested name. |
+| `set_value(parameters, values)` | Receive inputs (and parameters). |
 
-`energysim` uses structured exceptions (defined in `energysim.base`)
-instead of `sys.exit()` calls:
+Optional, with defaults:
 
-| Exception                          | Description                                              |
-|------------------------------------|----------------------------------------------------------|
-| `EnergysimError(Exception)`        | Base class for all energysim errors.                     |
-| `SimulatorVariableError`           | Invalid variable name or type mismatch.                  |
-| `SimulatorElementNotFoundError`    | Named element not found in a network.                    |
-| `ConnectionError`                  | Malformed or invalid connection specification.           |
-| `ValidationError`                  | World pre-flight semantic or graph check failure.        |
+| Method / attribute | Description |
+|---|---|
+| `configure(start_time, stop_time, macro_step)` | Called on every adapter at the start of every run, before parameters and `init()`. |
+| `init()` | Prepare a run. Must (re)create all run state: a world can be simulated repeatedly. |
+| `set_parameters(params)` | Apply `{name: value}` initial values (default: `set_value`). FMUs call `apply_start_values`. |
+| `SET_PARAMS_BEFORE_INIT` | `True` if initial values must be applied **before** `init()` (FMUs). Default `False`: after `init()`. |
+| `advance(start, stop)` | Advance over a macro interval. Default: loop `step()`; a final shorter piece is delegated to `step_partial`. Adapters with an internal solver override it. |
+| `advance_with_recording(start, stop, outputs)` | Same, returning one row `[time, v1, ...]` per micro step (used when `record_all=True`). |
+| `step_partial(time, dt)` | Shorter final micro step when an interval is not a multiple of `step_size`. Default: `step(time)`. |
+| `micro_steps(start, stop)` | The plan `[(t, dt, full), ...]` used by the defaults. |
+| `max_step(time)`, `next_event_time(time)` | Step-size hints for [variable macro steps](events.md). Default `inf`. |
+| `get_available_variables()` | `{'inputs': [...], 'outputs': [...]}`; used by connection validation. |
+| `cleanup()` | Release resources; always called, even after an error. |
 
-Import them as:
+Rollback (`save_state` / `restore_state`) is not part of the contract in 3.0.
+
+Built-in adapters:
+
+| Class | `sim_type` | Wraps |
+|---|---|---|
+| `FmuCsAdapter` / `FmuMeAdapter` | `'fmu'` | FMI 1.0 / 2.0 co-simulation / model exchange (FMPy; ME uses CVode or Euler) |
+| `pp_adapter` | `'powerflow'` | pandapower network, AC or DC power flow |
+| `pypsa_adapter` | `'pypsa'` | PyPSA network, one snapshot per step (AC `pf` or DC `lpf`) |
+| `opendss_adapter` | `'opendss'` | OpenDSS circuit via OpenDSSDirect.py (AC snapshot only) |
+| `pf_adapter` | `'powerfactory'` | DIgSILENT PowerFactory |
+| `matlab_adapter` | `'matlab'` | MATLAB / Octave `.m` functions |
+| `csv_simulator` | `'csv'` | CSV time series (read-only) |
+| `signal_adapter` | `'signal'` | `f(t)` signal (read-only) |
+| `py_adapter` | `'script'` | a function in a Python file |
+| your class | `'external'` | any `SimulatorAdapter` |
+| `ModelComponent` | `'model'` | built-in and custom physical models |
+| `VectorizedContainerAdapter` | `'container'` | fleets of N units |
+
+CSV and signal adapters are read-only: a connection that writes to them is reported by `validate()` and
+`set_value()` warns and discards the value.
+
+## Life of a run
+
+`simulate()` does the following (`validate=True` runs `validate(raise_on_error=True)` first):
+
+1. `init()` of the world: reset run state, compute the macro step (`t_macro`, or the LCM of all step sizes if
+   `t_macro=0`), call `configure(start, stop, macro)` on every adapter, then for every adapter apply initial values
+   from `options({'init': ...})` / `set_parameters` and call `init()` (in the order given by
+   `SET_PARAMS_BEFORE_INIT`).
+2. The macro-step loop (below).
+3. One final row per simulator at `stop_time`.
+4. `cleanup()` of every adapter (in a `finally`: also when a simulator raised). If the run fails, the partial
+   `Results` (`meta['status'] == 'failed'`) is stored in `world.last_results` and the error is re-raised.
+5. A `Results` object is returned (and kept as `world.last_results`).
+
+The loop, for a step from `t` to `t_end` (`t_end = t + t_macro` unless [events or hints](events.md) shorten it):
+
+```text
+evaluate triggers; fire due scheduled events and triggered actions
+plan the step (t_end)
+couple:   Jacobi        - exchange all connections, then step every simulator
+          Gauss-Seidel  - for each simulator in topological order: exchange its inputs, then step it
+record:   one row per simulator before stepping (or one per micro step with record_all=True)
+```
+
+Execution order is a topological sort of the dependency graph built from the connections (loops: see below);
+unconnected simulators carry no ordering constraint.
+
+## Coupling
+
+* **Jacobi** (default): all values are exchanged from the state at the start of the step, then everything advances.
+  A simulator therefore sees its inputs from the *previous* macro step's end state: a one-step delay on every
+  connection.
+* **Gauss-Seidel**: simulators advance one at a time in topological order and pass their fresh outputs on, so a
+  feed-forward chain has no delay.
+
+The difference is visible on a chain `src -> dst` where `src.n` counts completed steps:
 
 ```python
-from energysim.base import (
-    EnergysimError,
-    SimulatorVariableError,
-    SimulatorElementNotFoundError,
-    ConnectionError,
-    ValidationError,
-)
+from energysim import SimulatorAdapter, world
+
+
+class Count(SimulatorAdapter):
+    """n = number of completed micro steps."""
+
+    def __init__(self):
+        self.inputs, self.outputs = [], ["n"]
+        self.n = 0
+
+    def init(self):
+        self.n = 0
+
+    def step(self, time):
+        self.n += 1
+
+    def get_value(self, parameters, time):
+        return [self.n for _ in parameters]
+
+    def set_value(self, parameters, values):
+        pass
+
+
+class Follow(SimulatorAdapter):
+    """y = the input u as received before the step."""
+
+    def __init__(self):
+        self.inputs, self.outputs = ["u"], ["y"]
+        self.u = self.y = 0.0
+
+    def init(self):
+        self.u = self.y = 0.0
+
+    def step(self, time):
+        self.y = self.u
+
+    def get_value(self, parameters, time):
+        return [self.y for _ in parameters]
+
+    def set_value(self, parameters, values):
+        self.u = values[0]
+
+
+for coupling in ("jacobi", "gauss-seidel"):
+    w = world(start_time=0, stop_time=50, t_macro=10, coupling=coupling)
+    w.add_model("src", Count(), step_size=10, units={"n": "1"})
+    w.add_model("dst", Follow(), step_size=10, units={"u": "1"})
+    w.add_connections({"src.n": "dst.u"})
+    res = w.simulate(pbar=False, record_all=False)
+    print(coupling, res["src.n"].tolist(), res["dst.y"].tolist())
+# jacobi        [0, 1, 2, 3, 4, 5] [0.0, 0.0, 1.0, 2.0, 3.0, 4.0]   <- one step behind
+# gauss-seidel  [0, 1, 2, 3, 4, 5] [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
 ```
 
----
+### Algebraic loops
 
-## SimulatorAdapter ABC
+If the connections form a cycle, `add_connections` warns (`UserWarning`, listing the simulators), the dependency graph is
+condensed into strongly connected components for the execution order, and the simulators of a loop exchange their
+inputs from the previous step (Jacobi) even under `coupling='gauss-seidel'`. The loop therefore carries a
+**one-macro-step delay**, and `validate()` repeats the advice:
 
-Defined in `energysim.base`, the abstract base class provides:
+* reduce `t_macro` (the delay shrinks with it), or
+* merge the coupled components into one simulator.
 
-### Abstract methods (must be implemented)
-
-| Method                         | Description                              |
-|--------------------------------|------------------------------------------|
-| `step(time)`                   | Advance the model by one micro-step.     |
-| `get_value(parameters, time)`  | Return a list of output values.          |
-| `set_value(parameters, values)`| Set input values.                        |
-
-### Default implementations (override when needed)
-
-| Method                                                    | Description                                                                                                                                                                                                |
-|-----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `init()`                                                  | No-op; override to initialise the model.                                                                                                                                                                   |
-| `cleanup()`                                               | No-op; override to release resources.                                                                                                                                                                      |
-| `advance(start_time, stop_time)`                          | Loops `step()` from *start_time* to *stop_time* at `step_size` intervals using **index-based** time computation to avoid floating-point drift. Complex adapters (e.g. FMU ME with CVode) override this.    |
-| `set_parameters(params)`                                  | Delegates to `set_value()`. FMU adapters override to call `apply_start_values()`.                                                                                                                          |
-| `advance_with_recording(start_time, stop_time, outputs)`  | Advance and collect intermediate results at each micro-step. Default calls `advance()` then `get_value()`. FMU ME overrides to use the ODE solver's internal time points. Used when `record_all=True`.     |
-| `save_state() -> Any`                                     | Snapshot the model state. Used by iterative coupling. Default returns `None`. FMU CS implements via `getFMUstate()` for FMI 2.0.                                                                           |
-| `restore_state(state)`                                    | Restore a previously saved state. Default is a no-op.                                                                                                                                                      |
-| `get_available_variables() -> dict`                       | Return known variable names grouped by category. Used by connection validation. Default returns `{}`. Implemented in `ppAdapter`, `csAdapter`, and `csv_adapter`.                                          |
-
----
-
-## Built-in adapters
-
-| Adapter              | `sim_type`       | Description                                      |
-|----------------------|------------------|--------------------------------------------------|
-| `FmuCsAdapter`       | `'fmu'`          | FMI Co-Simulation (1.0 & 2.0)                    |
-| `FmuMeAdapter`       | `'fmu'`          | FMI Model Exchange with ODE solver               |
-| `pp_adapter`         | `'powerflow'`    | Pandapower network                               |
-| `pypsa_adapter`      | `'pypsa'`        | PyPSA network (Pattern B online dispatch)        |
-| `opendss_adapter`    | `'opendss'`      | OpenDSS distribution network (OpenDSSDirect.py)  |
-| `csv_simulator`      | `'csv'`          | Time-indexed CSV data (read-only)                |
-| `signal_adapter`     | *(via add_signal)*| User-defined Python function (read-only)        |
-| `pyScriptAdapter`    | `'script'`       | Standalone Python script                         |
-| `external_simulator` | `'external'`     | User-defined class                               |
-| `pf_adapter`         | `'powerfactory'` | DIgSILENT PowerFactory (ldf / shc / rms)        |
-| `matlab_adapter`     | `'matlab'`       | MATLAB / GNU Octave `.m` functions               |
-
-!!! note
-    CSV and signal adapters are **read-only**. If a connection writes to
-    them, `set_value()` emits a `UserWarning` and discards the value
-    instead of silently ignoring it.
-
----
-
-## SimEntry dataclass
-
-Each simulator registered with `world` is stored as a `SimEntry`:
+There is no iteration to convergence in 3.0 (it needed rollback, which no adapter implements).
 
 ```python
-@dataclass
-class SimEntry:
-    sim_type: str                    # 'fmu', 'pf', 'csv', 'signal', ...
-    adapter: SimulatorAdapter        # the adapter instance
-    step_size: float                 # micro-step size
-    outputs: List[str]              # variable names to record
-    inputs: List[str] = field(...)  # input variable names (from connections)
-    variable_step: bool = False     # variable-step integration (CS FMU only)
-    pf_mode: Optional[str] = None   # 'pf'/'opf'/... for powerflow
+import warnings
+
+from energysim import SimulatorAdapter, world
+
+
+class Damped(SimulatorAdapter):
+    def __init__(self):
+        self.inputs, self.outputs = ["u"], ["y"]
+        self.u = self.y = 0.0
+
+    def init(self):
+        self.u = self.y = 1.0
+
+    def step(self, time):
+        self.y = 0.5 * self.u + 1.0
+
+    def get_value(self, parameters, time):
+        return [self.y for _ in parameters]
+
+    def set_value(self, parameters, values):
+        self.u = values[0]
+
+
+w = world(start_time=0, stop_time=50, t_macro=10)
+w.add_model("a", Damped(), step_size=10, units={"u": "1", "y": "1"})
+w.add_model("b", Damped(), step_size=10, units={"u": "1", "y": "1"})
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    w.add_connections({"a.y": "b.u", "b.y": "a.u"})
+print(caught[0].message)                       # Algebraic loop detected involving simulators: ['a', 'b'] ...
+print(w.validate().warnings[0][:60])           # Algebraic feedback loop detected among simulators ...
 ```
 
-Access adapters via:
+### Extrapolation
 
-```python
-entry = my_world.simulator_dict["grid"]
-entry.adapter          # the pp_adapter instance
-entry.adapter.network  # the pandapower network object
-entry.step_size        # 300
-entry.sim_type         # 'pf'
-entry.inputs           # ['PV.p_mw', 'Load.p_mw']
-entry.outputs          # ['Bus1.vm_pu', 'grid.p_mw']
-```
+`world(extrapolation=...)` controls what a receiver gets between exchanges: `'zero-order'` (default) holds the last
+exchanged value; `'linear'` extrapolates one macro step ahead from the two most recent exchanged values (zero-order
+until two are known). Linear extrapolation helps smooth signals and can amplify noise or jumps.
 
----
+## Recording
 
-## Connection validation
+Every simulator contributes one table. By default (`record_all=True`) one row per **micro step**, taken before the
+step; with `record_all=False` one row per macro step. A final row at `stop_time` is always added. Rows are buffered
+in typed columns (float, int, bool, str) and, with `out_dir`, streamed to Parquet. See [Results](results.md).
 
-When `add_connections()` is called, `energysim` performs three
-validation checks before parsing:
+## Registry and glass-box access
 
-1. **Simulator existence** — every simulator name referenced in the
-   connection strings must already be registered in `simulator_dict`.
-   Missing names raise `ConnectionError`.
+Every simulator is stored in `world.simulator_dict` as a `SimEntry`:
 
-2. **Variable name validity** — if the adapter implements
-   `get_available_variables()`, variable names are checked against the
-   known set. Unrecognised names produce a `UserWarning` (not an
-   error, since some adapters accept arbitrary variable names).
+| Field | Meaning |
+|---|---|
+| `adapter` | the `SimulatorAdapter` instance |
+| `sim_type` | `'fmu'`, `'powerflow'`, `'pypsa'`, `'opendss'`, `'csv'`, `'signal'`, `'script'`, `'external'`, `'powerfactory'`, `'matlab'`, `'model'`, `'container'` |
+| `step_size`, `inputs`, `outputs` | micro step and variable lists |
+| `mode` | `'ac'` / `'dc'` for power-flow adapters |
+| `power_unit`, `units` | declared units, see [Units](units.md) |
+| `model` | the model reference you passed (object, path, name) |
 
-3. **Read-only target detection** — connections that write to CSV or
-   signal simulators are warned about, since those adapters discard
-   incoming values.
+`world.get_adapter(name)` returns the adapter, `world.get_model(name)` the native object inside it:
 
----
+| Type | `get_model` returns |
+|---|---|
+| `powerflow`, `pypsa` | the pandapower net / PyPSA `Network` |
+| `opendss` | the OpenDSSDirect handle |
+| `powerfactory` | the active project |
+| `fmu` | the FMPy FMU object |
+| `matlab` | the MATLAB / Octave engine |
+| `script` | the loaded module |
+| `csv` | the pandas DataFrame |
+| `signal` | the signal callable |
+| `model`, `external`, `container` | usually the adapter itself (or its `model` attribute if it has one) |
 
-## Dependency graph
+Because adapters are re-runnable (`pp_adapter` and `pypsa_adapter` keep a pristine copy and restore it on the next
+`init()`; FMUs are re-instantiated), results stay inspectable after a run.
 
-After parsing connections, `energysim` builds a **directed graph**
-(`nx.DiGraph`) where:
+## Validation and errors
 
-- **Nodes** are simulator names.
-- **Edges** represent data flow (`source → destination`).
+`validate()` checks that simulators exist, step sizes are positive and divide the macro step, the span is a multiple of
+the macro step (fixed-step runs), connection endpoints exist, read-only simulators are not written to, variable names
+are known to adapters that can introspect, loops, events/triggers reference known simulators and units
+(`unit_policy='strict'` turns unspecified units into errors). It returns a `ValidationReport`
+(`is_valid`, `errors`, `warnings`, `conversions`, `unit_system`).
 
-This graph is used for:
+Exceptions (`energysim.base`): `EnergysimError` (base), `SimulatorVariableError`, `SimulatorElementNotFoundError`,
+`ConnectionSpecError` (alias `ConnectionError`), `ValidationError`.
 
-- **Topological ordering** — determining the execution order of
-  simulators so that upstream simulators are stepped before downstream
-  ones (when possible).
-- **Algebraic loop detection** — identifying cycles via
-  strongly-connected-component (SCC) analysis.
+## Dependencies and copies
 
-If the graph is a DAG (no cycles), simulators are sorted in topological
-order. If cycles exist, `energysim` performs SCC condensation:
-
-1. Each SCC (group of mutually dependent simulators) is treated as a
-   single node in the condensed DAG.
-2. The condensed DAG is topologically sorted.
-3. A `UserWarning` is emitted listing the simulators involved in each
-   algebraic loop.
-4. Within each SCC, Jacobi coupling is used (regardless of the global
-   coupling mode).
-
----
-
-## Coupling modes
-
-`energysim` supports three coupling strategies, selected via the
-`coupling` parameter of `world()`.
-
-### Jacobi (default)
-
-```python
-my_world = world(coupling='jacobi', ...)
-```
-
-1. **Exchange all** variables between simulators based on the previous step's outputs.
-2. **Step all** simulators from *t* to *t + t_macro* (in execution order).
-
-This introduces a **one-step delay** in feedback loops — each simulator sees the *previous* macro-step's outputs from its dependencies. This is simple, robust, and suitable for loosely coupled systems.
-
-### Gauss-Seidel
-
-```python
-my_world = world(coupling='gauss-seidel', ...)
-```
-
-1. For each simulator in **topological order**:
-    1. Exchange inputs from already-stepped simulators.
-    2. Step the simulator from *t* to *t + t_macro*.
-
-Downstream simulators immediately see the *current* macro-step's
-outputs from upstream simulators. This reduces the coupling delay for
-feed-forward chains. Within algebraic loops (SCCs), Jacobi coupling
-is used as a fallback.
-
-### Iterative (fixed-point)
-
-```python
-my_world = world(
-    coupling='iterative',
-    max_iterations=10,
-    convergence_tolerance=1e-6,
-)
-```
-
-1. **Save state** of all simulators (via `save_state()`).
-2. Perform a Gauss-Seidel step.
-3. **Check convergence** — compare current outputs to previous
-   iteration. If the maximum relative change is below
-   `convergence_tolerance`, accept the step.
-4. If not converged and iterations remain, **restore state** (via
-   `restore_state()`) and repeat from step 2.
-5. If `max_iterations` is reached without convergence, accept the
-   last result and emit a `UserWarning`.
-
-!!! note
-    Iterative coupling requires adapters that support `save_state()`
-    and `restore_state()`. FMU CS adapters implement this via
-    `getFMUstate()` / `setFMUstate()` for FMI 2.0 FMUs with
-    `canGetAndSetFMUstate=true`. External simulators can implement
-    these methods by saving and restoring their internal state variables.
-
----
-
-## Extrapolation
-
-Exchanged variable values can be extrapolated between macro time-steps:
-
-- **`'zero-order'`** (default) — hold the last exchanged value constant until the next exchange. This is the standard zero-order hold.
-- **`'linear'`** — linearly extrapolate from the two most recent exchanged values. A `deque(maxlen=2)` per variable stores `(time, value)` pairs. Until two data points are available, zero-order hold is used as a fallback.
-
----
-
-## Simulation loop
-
-The simulation loop in `world.simulate()` works as follows:
-
-1. **Initialise** all adapters by calling `adapter.init()`.
-2. Compute the **execution order** from the dependency graph.
-3. For each macro time-step, dispatch to the selected coupling method:
-    - `_step_jacobi()` — exchange all, then step all.
-    - `_step_gauss_seidel()` — step in order with immediate exchange.
-    - `_step_iterative()` — iterate until convergence.
-4. **Record outputs** to an HDF5 file after each macro step.
-5. **Cleanup** all adapters by calling `adapter.cleanup()`.
-
-When `record_all=True`, the coordinator calls
-`adapter.advance_with_recording()` instead of `adapter.advance()`
-to capture intermediate results at every micro-step. This is
-particularly important for FMU Model Exchange, where the ODE solver
-may use adaptive time steps.
-
----
-
-## Lazy imports
-
-Simulator-specific dependencies (FMPy, pandapower, PyPSA, oct2py) are
-imported lazily — only when the first simulator of that type is added.
-This means core `energysim` works with just:
-
-- NumPy
-- Pandas
-- Matplotlib
-- NetworkX (core dependency since v2.2)
-- tqdm
-- PyTables
-
-NetworkX was previously optional (only for plotting). It is now a core
-dependency because it is used for dependency graph construction and
-topological ordering.
-
----
-
-## Pre-parsed connections
-
-Connections are parsed once in `add_connections()` and stored as a
-list of `(src_sim, src_var, dst_sim, dst_var)` tuples. This avoids
-repeated string splitting during the simulation loop.
-
-Malformed connection strings (missing `.` separator) now raise
-`ConnectionError` instead of causing cryptic index errors later.
-
----
-
-## Data flow summary
-
-```
-User code
-  │
-  ▼
-world()
-  ├── add_simulator() / add_signal() / add_fmu() / add_powerflow()
-  │     └── Creates SimEntry + adapter instance
-  ├── add_connections()
-  │     ├── _validate_connections()   → errors / warnings
-  │     ├── _build_dependency_graph() → nx.DiGraph
-  │     └── _compute_execution_order()→ topological sort / SCC
-  ├── options()
-  │     └── Sets init values, modify_signal, record_all, etc.
-  └── simulate()
-        ├── init all adapters
-        ├── for each macro step:
-        │     ├── _step_jacobi / _step_gauss_seidel / _step_iterative
-        │     │     ├── exchange variables (with extrapolation)
-        │     │     └── adapter.advance() or advance_with_recording()
-        │     └── record to HDF5
-        └── cleanup all adapters
-```
+Simulator packages (FMPy, pandapower, PyPSA, OpenDSSDirect.py, pyarrow, scipy, matplotlib, plotly) are imported lazily,
+only when needed. Worlds, including their parsed connections, are deep-copyable and picklable; [`Sweep`](ensemble.md)
+relies on this to give every run a pristine copy.

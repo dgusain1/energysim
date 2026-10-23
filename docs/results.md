@@ -96,4 +96,4 @@ Registered KPIs (add your own with `energysim.register_kpi`): `min`, `max`, `mea
 
 ## Ensembles
 
-A `Results` object can hold several runs (`is_ensemble`, `res.run(i)`, `Results.concat`). Parameter sweeps and ensembles are tracked as *planned* in `features.yaml`.
+A `Results` object can hold several runs (`is_ensemble`, `res.run(i)`, `Results.concat`). `Ensemble` and `Sweep` build such objects from many runs; see [Ensembles and sweeps](ensemble.md).

@@ -7,7 +7,7 @@ world:
   start_time: 0
   stop_time: 3600
   t_macro: 60
-  coupling: jacobi              # Options: jacobi, gauss-seidel, iterative
+  coupling: jacobi              # Options: jacobi, gauss-seidel
   extrapolation: zero-order     # Options: zero-order, linear
   # out_dir: runs   # uncomment to write each run to runs/<timestamp>_<hash>/
   logging: true

@@ -100,7 +100,7 @@ features:
   - id: adapter-powerfactory
     group: adapters
     title: DIgSILENT PowerFactory
-    description: Load flow / short circuit / RMS through the PowerFactory Python API; CI uses a mock, a licensed run is manual.
+    description: AC / DC load flow through the PowerFactory Python API; CI uses a mock, a licensed run is manual.
     status: beta
     since: "2.1"
     tests: ["tests/adapters/test_powerfactory_mock.py"]
@@ -175,8 +175,8 @@ features:
     docs: docs/units.md
   - id: unit-strict
     group: units
-    title: Strict unit policy
-    description: A variable with no determinable unit is never silently scaled; a manual scale disables conversion.
+    title: Unit policy
+    description: A variable with no determinable unit is never scaled (a warning by default, an error with unit_policy='strict'); a manual scale disables conversion.
     status: stable
     since: "3.0"
     tests: ["tests/strengths/test_unit_aware_connections.py::test_unknown_units_are_never_guessed", "tests/strengths/test_unit_aware_connections.py::test_manual_scale_disables_automatic_conversion", "tests/test_core_fixes.py::test_unit_table_and_strictness"]
@@ -206,7 +206,7 @@ features:
     status: stable
     since: "3.0"
     tests: ["tests/strengths/test_validation_and_cli.py::test_safe_mode_*", "tests/test_core_fixes.py::test_safe_mode_rejects_code_execution", "tests/test_core_fixes.py::test_hostile_signal_strings_rejected", "tests/test_core_fixes.py::test_cli_safe_flag"]
-    docs: docs/yaml-cli.md
+    docs: docs/safe-mode.md
   - id: yaml-scenarios
     group: workflow
     title: Declarative YAML scenarios
@@ -286,7 +286,7 @@ features:
   - id: models-thermal
     group: models
     title: Thermal generation models
-    description: OCGT with start-up timers, CCGT (HRSG + steam), reciprocating genset and CHP steam turbine.
+    description: OCGT with start-up timers, CCGT (fixed GT/ST split, part-load heat rate), reciprocating genset and CHP steam turbine.
     status: stable
     since: "3.0"
     tests: ["tests/test_models_thermal.py"]
@@ -420,7 +420,7 @@ features:
     status: stable
     since: "3.0"
     tests: ["tests/test_ensemble.py", "tests/test_sweep.py"]
-    docs: docs/results.md
+    docs: docs/ensemble.md
   - id: events
     group: coupling
     title: Events and variable macro step
@@ -428,7 +428,7 @@ features:
     status: stable
     since: "3.0"
     tests: ["tests/test_events.py"]
-    docs: docs/yaml-cli.md
+    docs: docs/events.md
   - id: rollback
     group: planned
     title: State rollback API

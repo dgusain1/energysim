@@ -84,9 +84,13 @@ nav:
       - Notebook Gallery & Case Studies: notebooks-gallery.md
   - Workflows & CLI:
       - Declarative YAML & Scenarios: yaml-cli.md
+      - Events & Variable Macro Step: events.md
+      - Ensembles & Sweeps: ensemble.md
+      - Safe Mode & Trust Model: safe-mode.md
   - Core & Architecture:
       - Orchestration Architecture: architecture.md
       - Engine Features: features.md
+      - Migrating to 3.0: migration-3.0.md
   - Reference:
       - Units: units.md
       - Results & KPIs: results.md
