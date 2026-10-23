@@ -228,6 +228,35 @@ class FmuMeAdapter(_FmuAdapterBase):
             self.fixed_step = True
 
     # ------------------------------------------------------------------
+    # variables
+    # ------------------------------------------------------------------
+    def _needs_event_mode(self, name):
+        """FMI 2.0 ME: discrete / tunable / non-Real variables may only be set in event mode."""
+        vr = self.vrs.get(name)
+        if vr is None:
+            return False
+        return vr[1] != 'Real' or self._variability.get(name) in ('discrete', 'tunable')
+
+    def set_value(self, parameterName, Value):
+        self._ensure_instance()
+        names, vals = list(parameterName), list(Value)
+        if not self._initialized or self.is_fmi1 or self._terminated or self.solver is None:
+            return super().set_value(names, vals)
+        cont = [(n, v) for n, v in zip(names, vals) if not self._needs_event_mode(n)]
+        disc = [(n, v) for n, v in zip(names, vals) if self._needs_event_mode(n)]
+        if cont:
+            super().set_value([n for n, _ in cont], [v for _, v in cont])
+        if disc:
+            self.fmu.enterEventMode()
+            try:
+                super().set_value([n for n, _ in disc], [v for _, v in disc])
+            finally:
+                self._discrete_update()
+                if not self._terminated:
+                    self.fmu.enterContinuousTimeMode()
+            self.solver.reset(self.t_next)
+
+    # ------------------------------------------------------------------
     # stepping
     # ------------------------------------------------------------------
     def step(self, time, csStep=False):

@@ -39,8 +39,36 @@ except ImportError:
 from random import random
 import os
 import shutil
+import stat
+import sys
 
 from .base import SimulatorAdapter, SimulatorVariableError
+
+
+def _rmtree(path):
+    """Remove a directory tree.
+
+    Deletes read-only files and retries briefly: on Windows a just-unloaded FMU
+    shared library can stay locked for a few milliseconds.
+    """
+    import time
+
+    def _make_writable_and_retry(func, p, _exc):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            pass
+
+    for attempt in range(10):
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(path, onexc=_make_writable_and_retry)
+        else:
+            shutil.rmtree(path, onerror=_make_writable_and_retry)
+        if not os.path.exists(path):
+            return
+        time.sleep(0.05 * (attempt + 1))
+    shutil.rmtree(path, ignore_errors=True)
 
 
 def _require_fmpy():
@@ -94,6 +122,7 @@ class _FmuAdapterBase(SimulatorAdapter):
                 f"{'Co-Simulation' if self._INTERFACE == 'coSimulation' else 'Model Exchange'} interface."
             )
         self.vrs = {v.name: [v.valueReference, v.type] for v in self.modelDescription.modelVariables}
+        self._variability = {v.name: v.variability for v in self.modelDescription.modelVariables}
 
         self.fmu = None
         self.unzipDir = None
@@ -176,7 +205,7 @@ class _FmuAdapterBase(SimulatorAdapter):
 
     def _remove_unzip(self):
         if self._owns_unzip and self.unzipDir and os.path.isdir(self.unzipDir):
-            shutil.rmtree(self.unzipDir, ignore_errors=True)
+            _rmtree(self.unzipDir)
         if self._owns_unzip:
             self.unzipDir = None
             self._owns_unzip = False
@@ -255,7 +284,14 @@ class _FmuAdapterBase(SimulatorAdapter):
                 temp = self.fmu.getString([vr])
             else:
                 raise SimulatorVariableError(f"Unsupported FMU variable type '{typ}' for '{name}'.")
-            values.append(temp[0])
+            val = temp[0]
+            if isinstance(val, bytes):
+                val = val.decode('utf-8')
+            if typ == 'Boolean':
+                val = bool(val)
+            elif typ in ('Integer', 'Enumeration'):
+                val = int(val)
+            values.append(val)
         return values
 
     def setInput(self, inputValues):
