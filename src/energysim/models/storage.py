@@ -210,9 +210,23 @@ class BatteryBESS(ModelComponent):
         # Scale the request so SoC stays inside the operating window.
         new_soc = self.soc + d_soc
         if dt > 0 and d_soc != 0.0 and (new_soc > self.soc_max or new_soc < self.soc_min):
+            # Bisect on the scale factor (the DC solve is slightly nonlinear in P)
+            # so SoC lands exactly on the window bound.
             bound = self.soc_max if new_soc > self.soc_max else self.soc_min
-            frac = max(0.0, min(1.0, (bound - self.soc) / d_soc))
-            p_req *= frac
+            p_full = p_req
+            lo_f, hi_f = 0.0, 1.0
+            for _ in range(50):
+                mid = 0.5 * (lo_f + hi_f)
+                _, i_mid, _ = self._solve_dc(p_full * mid, voc, rin)
+                d_mid = (voc * i_mid / 1e6) * dt * soc_per_mw_s
+                if abs(self.soc + d_mid - bound) < 1e-15:
+                    lo_f = mid
+                    break
+                if (self.soc + d_mid > self.soc_max) or (self.soc + d_mid < self.soc_min):
+                    hi_f = mid
+                else:
+                    lo_f = mid
+            p_req = p_full * lo_f
             p_dc, i_cell, inv_eff = self._solve_dc(p_req, voc, rin)
             d_soc = (voc * i_cell / 1e6) * dt * soc_per_mw_s
 
