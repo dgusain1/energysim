@@ -11,7 +11,7 @@
 * **No implicit physics.** Currencies (EUR vs USD), per-unit vs volts, and actual volume flow (`m3/h`) vs normal volume flow (`Nm3/h`) are different dimensions and are never converted. Unknown units and incompatible dimensions of explicitly known units raise `ValueError`; incompatible units that were only *guessed* from names are passed through with a warning.
 * **Spelling lookup.** Exact spelling first (`MV` is megavolt, `mV` millivolt), then a spelling-insensitive match that is used only when unambiguous (`kw`, `KW`, `kW_el` -> `kW`; `mv` is rejected as ambiguous).
 
-Default system: `energysim-default` (hash `60b559c9acca`).
+Default system: `energysim-default` (hash `b5362311eccf`).
 
 ## Default unit per quantity
 
@@ -63,6 +63,10 @@ Default system: `energysim-default` (hash `60b559c9acca`).
 | `energy_price_usd` | `USD/kWh` | generic | Energy price in USD (separate from EUR) | `USD/kWh`, `USD/MWh`, `USDct/kWh` |
 | `cost` | `EUR` | generic | Cost in EUR | `EUR`, `kEUR`, `MEUR` |
 | `cost_usd` | `USD` | generic | Cost in USD | `USD`, `kUSD`, `MUSD` |
+| `fuel_power` | `kW` | gas | Fuel energy flow (MMBtu/h accepted; 1 MMBtu/h = 293.07107 kW) | `MMBtu/h`, `W`, `kW`, `MW`, `GW` |
+| `fuel_energy` | `kWh` | gas | Fuel energy (MMBtu accepted; 1 MMBtu = 293.07107 kWh) | `MMBtu`, `J`, `kJ`, `MJ`, `GJ`, `Wh`, `kWh`, `MWh`, `GWh` |
+| `irradiance` | `W/m2` | generic | Solar irradiance (kW/m2 accepted) | `W/m2`, `kW/m2` |
+| `wind_speed` | `m/s` | generic | Wind speed (km/h, kn, mph accepted) | `m/s`, `km/h`, `kn`, `mph` |
 | `co2_mass` | `kg` | co2 | Emitted CO2 mass | `g_CO2`, `kg_CO2`, `t_CO2`, `kt_CO2`, `g`, `kg`, `t`, `kt` |
 | `emission_factor` | `kg/kWh` | co2 | CO2 emission factor | `kg/kWh`, `g/kWh`, `kg/J` |
 
@@ -494,6 +498,46 @@ Default system: `energysim-default` (hash `60b559c9acca`).
 | `USD` | 1 | 0 |
 | `kUSD` | 1000 | 0 |
 | `MUSD` | 1000000 | 0 |
+
+### `fuel_power` (to `kW`)
+
+| Unit | Factor | Offset |
+|---|---|---|
+| `MMBtu/h` | 293.07107 | 0 |
+| `W` | 0.001 | 0 |
+| `kW` | 1 | 0 |
+| `MW` | 1000 | 0 |
+| `GW` | 1000000 | 0 |
+
+### `fuel_energy` (to `kWh`)
+
+| Unit | Factor | Offset |
+|---|---|---|
+| `MMBtu` | 293.0710694 | 0 |
+| `J` | 2.777777778e-07 | 0 |
+| `kJ` | 0.0002777777778 | 0 |
+| `MJ` | 0.2777777778 | 0 |
+| `GJ` | 277.7777778 | 0 |
+| `Wh` | 0.001 | 0 |
+| `kWh` | 1 | 0 |
+| `MWh` | 1000 | 0 |
+| `GWh` | 1000000 | 0 |
+
+### `irradiance` (to `W/m2`)
+
+| Unit | Factor | Offset |
+|---|---|---|
+| `W/m2` | 1 | 0 |
+| `kW/m2` | 1000 | 0 |
+
+### `wind_speed` (to `m/s`)
+
+| Unit | Factor | Offset |
+|---|---|---|
+| `m/s` | 1 | 0 |
+| `km/h` | 0.2777777778 | 0 |
+| `kn` | 0.5144444444 | 0 |
+| `mph` | 0.44704 | 0 |
 
 ### `co2_mass` (to `kg`)
 

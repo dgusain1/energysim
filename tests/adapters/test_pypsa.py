@@ -147,3 +147,37 @@ def test_available_variables(pypsa_net):
     assert {"ld.P", "g1.Q", "st.P"} <= set(v["inputs"])
     assert {"b1.V", "l01.p0", "l12.loading_percent", "g0.P"} <= set(v["outputs"])
     assert "g0.Pp" not in v["outputs"]
+
+
+def _slack_without_pset_net():
+    n = pypsa.Network()
+    n.set_snapshots([0])
+    for b in ("a", "b", "c"):
+        n.add("Bus", b, v_nom=110.0)
+    n.add("Generator", "g0", bus="a", control="Slack")          # no p_set: PyPSA leaves its P as NaN
+    n.add("Generator", "g1", bus="b", control="PQ", p_set=10.0)
+    n.add("Load", "ld", bus="c", p_set=30.0, q_set=5.0)
+    n.add("Line", "l1", bus0="a", bus1="b", x=0.1, r=0.01, s_nom=100.0)
+    n.add("Line", "l2", bus0="b", bus1="c", x=0.1, r=0.01, s_nom=100.0)
+    return n
+
+
+def test_slack_generator_without_p_set_falls_back_to_bus_balance():
+    ref = _slack_without_pset_net()
+    ref.pf()
+    s = _snap(ref)
+    assert math.isnan(ref.generators_t.p.at[s, "g0"])          # the PyPSA behaviour being worked around
+    a = pypsa_adapter("p", model=_slack_without_pset_net(), mode="ac")
+    a.init()
+    p, q, pb = a.get_value(["g0.P", "g0.Q", "a.P"])
+    assert not math.isnan(p) and not math.isnan(q)
+    assert p == pytest.approx(ref.buses_t.p.at[s, "a"], abs=1e-6)
+    assert p == pytest.approx(pb)
+    assert 20.0 < p < 21.0          # 30 MW load - 10 MW generator + losses
+    assert q == pytest.approx(ref.buses_t.q.at[s, "a"], abs=1e-6)
+
+
+def test_slack_generator_without_p_set_dc():
+    a = pypsa_adapter("p", model=_slack_without_pset_net(), mode="dc")
+    a.init()
+    assert a.get_value(["g0.P"])[0] == pytest.approx(20.0)

@@ -281,3 +281,52 @@ def test_roundtrip_property_seeded():
             x = rnd.uniform(-1e6, 1e6)
             y = s.convert(s.convert(x, a, b, quantity=qn), b, a, quantity=qn)
             assert math.isclose(y, x, rel_tol=1e-9, abs_tol=1e-6), (qn, a, b, x, y)
+
+
+# ---------------------------------------------------------------------------
+# weather and fuel units used by the component models
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('a,b,factor', [
+    ('kW/m2', 'W/m2', 1e3), ('W/m²', 'W/m2', 1.0),
+    ('km/h', 'm/s', 1 / 3.6), ('kn', 'm/s', 1852 / 3600), ('mph', 'm/s', 0.44704),
+    ('MMBtu/h', 'kW', 293.07107), ('MMBtu/h', 'MW', 0.29307107), ('MMBtu', 'kWh', 293.07107),
+])
+def test_weather_and_fuel_units(a, b, factor):
+    assert math.isclose(U.get_unit_scale(a, b), factor, rel_tol=1e-6)
+
+
+def test_weather_and_fuel_quantities():
+    s = UnitSystem.default()
+    assert s.default_unit('irradiance') == 'W/m2'
+    assert s.default_unit('wind_speed') == 'm/s'
+    assert s.default_unit('fuel_power') == 'kW'
+    assert s.default_unit('fuel_energy') == 'kWh'
+    assert U.quantity_of('MMBtu/h') == 'fuel_power'
+    assert U.quantity_of('MMBtu') == 'fuel_energy'
+    assert U.quantity_of('W/m2') == 'irradiance'
+    assert 'kW/m2' in U.accepted_units('irradiance')
+    assert 'MMBtu/h' in U.accepted_units('fuel_power')
+    with pytest.raises(ValueError):
+        U.get_unit_scale('W/m2', 'm/s')
+
+
+def test_every_model_unit_is_known():
+    """Every unit declared in a ``units`` dict of a model/network class is a registered unit."""
+    import inspect
+    import energysim.models as M
+    import energysim.networks as N
+    unknown = []
+    checked = 0
+    for mod in (M, N):
+        for name in dir(mod):
+            cls = getattr(mod, name)
+            declared = getattr(cls, 'units', None) if inspect.isclass(cls) else None
+            if not isinstance(declared, dict):
+                continue
+            for var, unit in declared.items():
+                checked += 1
+                if not U.is_known_unit(unit):
+                    unknown.append((name, var, unit))
+    assert checked > 50
+    assert not unknown, f"units unknown to energysim.units: {unknown}"

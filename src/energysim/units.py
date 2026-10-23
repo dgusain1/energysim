@@ -94,6 +94,8 @@ _u('power', 1.0, 'W_th', 'Wth', quantity='thermal_power')
 _u('power', 1e3, 'kW_th', 'kWth', 'kWt', quantity='thermal_power')
 _u('power', 1e6, 'MW_th', 'MWth', 'MWt', quantity='thermal_power')
 _u('power', 1e9, 'GW_th', 'GWth', quantity='thermal_power')
+# fuel energy flow: 1 MMBtu/h = 293.07107 kW (1 MMBtu = 1.055055853 GJ = 293.07107 kWh)
+_u('power', 293071.07, 'MMBtu/h', 'MMBtu/hr', quantity='fuel_power')
 _u('reactive_power', 1.0, 'var', 'vars')
 _u('reactive_power', 1e3, 'kvar', 'kvars')
 _u('reactive_power', 1e6, 'Mvar', 'mvars')
@@ -123,6 +125,7 @@ _u('energy', 3.6e3, 'Wh_LHV', quantity='hydrogen_energy')
 _u('energy', 3.6e6, 'kWh_LHV', quantity='hydrogen_energy')
 _u('energy', 3.6e9, 'MWh_LHV', quantity='hydrogen_energy')
 _u('energy', 3.6e12, 'GWh_LHV', quantity='hydrogen_energy')
+_u('energy', 1.05505585e9, 'MMBtu', quantity='fuel_energy')
 _u('reactive_energy', 1.0, 'varh')
 _u('reactive_energy', 1e3, 'kvarh')
 _u('reactive_energy', 1e6, 'Mvarh')
@@ -205,6 +208,14 @@ _u('specific_energy', 1e3, 'kJ/kg')
 _u('specific_energy', 1e6, 'MJ/kg')
 _u('specific_energy', 3.6e3, 'Wh/kg')
 _u('specific_energy', 3.6e6, 'kWh/kg', 'MWh/t')
+
+# ---- weather ----
+_u('irradiance', 1.0, 'W/m2', 'W/m²', 'W/m^2')
+_u('irradiance', 1e3, 'kW/m2', 'kW/m²', 'kW/m^2')
+_u('speed', 1.0, 'm/s')
+_u('speed', 1.0 / 3.6, 'km/h', 'kph', 'kmh')
+_u('speed', 1852.0 / 3600.0, 'kn', 'knot', 'knots')
+_u('speed', 0.44704, 'mph')
 
 # ---- geometry ----
 _u('length', 1e-3, 'mm')
@@ -428,6 +439,10 @@ _q('energy_price', 'price_eur', 'EUR/kWh', 'generic', 'Energy price in EUR (curr
 _q('energy_price_usd', 'price_usd', 'USD/kWh', 'generic', 'Energy price in USD (separate from EUR)')
 _q('cost', 'cost_eur', 'EUR', 'generic', 'Cost in EUR')
 _q('cost_usd', 'cost_usd', 'USD', 'generic', 'Cost in USD')
+_q('fuel_power', 'power', 'kW', 'gas', 'Fuel energy flow (MMBtu/h accepted; 1 MMBtu/h = 293.07107 kW)')
+_q('fuel_energy', 'energy', 'kWh', 'gas', 'Fuel energy (MMBtu accepted; 1 MMBtu = 293.07107 kWh)')
+_q('irradiance', 'irradiance', 'W/m2', 'generic', 'Solar irradiance (kW/m2 accepted)')
+_q('wind_speed', 'speed', 'm/s', 'generic', 'Wind speed (km/h, kn, mph accepted)')
 _q('co2_mass', 'mass', 'kg', 'co2', 'Emitted CO2 mass')
 _q('emission_factor', 'emission_factor', 'kg/kWh', 'co2', 'CO2 emission factor')
 
@@ -487,7 +502,7 @@ _SI_DEFAULTS = {
     'actual_volume_flow': 'm3/s', 'pressure': 'Pa', 'specific_energy': 'J/kg',
     'cell_area': 'm2', 'current_density': 'A/m2', 'ramp_rate': 'W/s', 'fraction_rate': '1/s',
     'energy_price': 'EUR/J', 'energy_price_usd': 'USD/kWh', 'emission_factor': 'kg/J',
-    'normal_volume': 'Nm3',
+    'normal_volume': 'Nm3', 'fuel_power': 'W', 'fuel_energy': 'J',
 }
 
 

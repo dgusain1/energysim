@@ -29,6 +29,10 @@ Outputs (``get_value``), read from the ``*_t`` result tables:
 In ``mode='dc'`` (``network.lpf()``) PyPSA computes active power only: all
 ``Q`` / reactive flow outputs are 0.0 and ``V`` is 1.0 p.u.
 
+A generator whose ``P`` / ``Q`` result is NaN (typically the slack generator
+when it has no ``p_set``) falls back to the bus balance, so its output is
+always available (see ``_slack_from_bus_balance``).
+
 Re-runnable: a pristine copy of the network is kept at construction and
 restored on the first ``init()`` after ``cleanup()`` (``cleanup`` never
 deletes the network).
@@ -267,6 +271,8 @@ class pypsa_adapter(SimulatorAdapter):
             series = getattr(t, key, None)
             if series is not None and name in series.columns:
                 val = float(series.at[snap, name])
+                if math.isnan(val) and static == 'generators' and key in ('p', 'q'):
+                    val = self._slack_from_bus_balance(name, key, snap)
                 if attr.lower() == 'va_deg':
                     val = math.degrees(val)
                 out.append(val)
@@ -277,6 +283,48 @@ class pypsa_adapter(SimulatorAdapter):
                     f"No result for '{parameter}': run a power flow first (init()/step())."
                 )
         return out
+
+    def _slack_from_bus_balance(self, name, key, snap):
+        """``P`` / ``Q`` of a generator whose result is NaN (slack without ``p_set``).
+
+        PyPSA leaves the power of a slack generator undefined when it has no
+        ``p_set``/``q_set``.  Its output follows from the bus balance: the net
+        injection of its bus minus the contribution of the other generators and
+        storage units and plus the load at that bus (losses are included in the
+        bus injection).  Several undetermined generators at the same bus share
+        the remainder equally.  Link and store flows are not accounted for.
+        """
+        n = self.network
+        bus = n.generators.at[name, 'bus']
+        bus_inj = getattr(n.buses_t, key)
+        if bus not in bus_inj.columns or math.isnan(float(bus_inj.at[snap, bus])):
+            return float('nan')
+        total = float(bus_inj.at[snap, bus])
+
+        def col_sum(static, sign):
+            table = getattr(n, static)
+            res = getattr(n, static + '_t')
+            series = getattr(res, key, None)
+            acc, unknown = 0.0, 0
+            if series is None:
+                return acc, unknown
+            for other in table.index[table['bus'] == bus]:
+                if static == 'generators' and other == name:
+                    continue
+                if other not in series.columns:
+                    continue
+                v = float(series.at[snap, other])
+                if math.isnan(v):
+                    unknown += 1
+                else:
+                    acc += sign * v
+            return acc, unknown
+
+        gens, g_unknown = col_sum('generators', 1.0)
+        stor, _ = col_sum('storage_units', 1.0)
+        loads, _ = col_sum('loads', -1.0)
+        rest = total - gens - stor - loads
+        return rest / (1 + g_unknown)
 
     def _loading(self, static, name, t, snap):
         def val(key):
