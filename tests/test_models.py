@@ -372,8 +372,7 @@ def test_full_btm_multi_energy_cosimulation(tmp_path):
     Integrates Solar PV + BESS + PEM Electrolyzer + CCGT into an energysim World.
     Verifies time stepping, variable routing, and results collection.
     """
-    res_file = str(tmp_path / "btm_cosim_res.h5")
-    my_world = world(start_time=0, stop_time=300, t_macro=60, res_filename=res_file)
+    my_world = world(start_time=0, stop_time=300, t_macro=60)
 
     # 1. Instantiate models
     pv = PhysicsPV(name="pv", p_dc_stc_mw=5.0, inverter_p_ac_max_mw=4.0)
@@ -405,7 +404,7 @@ def test_full_btm_multi_energy_cosimulation(tmp_path):
     my_world.simulate(pbar=False)
 
     # 6. Verify Results
-    results = my_world.results(to_csv=False)
+    results = my_world.last_results
     assert "pv" in results
     assert "bess" in results
     assert "electrolyzer" in results

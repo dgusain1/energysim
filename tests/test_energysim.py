@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from energysim.base import SimulatorAdapter, SimEntry
 import numpy as np
 import pytest
+from energysim.results import Results
 
 
 # =====================================================================
@@ -183,8 +184,7 @@ def test_signal_adapter_returns_list_for_tuple():
 def world_with_csv_and_signal(csv_file, tmp_path):
     """Set up a world with a CSV source and a signal source connected."""
     from energysim import world
-    res_file = str(tmp_path / 'test_res.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_signal('sig1', signal=lambda t: t * 0.1, step_size=900)
@@ -202,33 +202,31 @@ def test_world_simulate_no_connections(world_with_csv_and_signal):
     w = world_with_csv_and_signal
     w._parsed_connections = []  # no connections
     result = w.simulate(pbar=False, record_all=False)
-    assert result == 'Done'
+    assert isinstance(result, Results) and result.status == 'completed'
 
 
 def test_world_simulate_with_connection(csv_file, tmp_path):
     """Set up a connection and simulate — signal feeds into csv (which ignores set_value)."""
     from energysim import world
-    res_file = str(tmp_path / 'test_connected.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_signal('sig1', signal=lambda t: t * 0.1, step_size=900)
     # Signal output → csv input (csv ignores set_value, but the pipeline should not crash)
     w.add_connections({'sig1.y': 'csv1.temp'})
     result = w.simulate(pbar=False, record_all=False)
-    assert result == 'Done'
+    assert isinstance(result, Results) and result.status == 'completed'
 
 
 def test_world_results(csv_file, tmp_path):
     from energysim import world
-    res_file = str(tmp_path / 'test_results.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_signal('sig1', signal=lambda t: t * 0.1, step_size=900)
     w._parsed_connections = []
     w.simulate(pbar=False, record_all=False)
-    res = w.results(to_csv=False, dashboard=False)
+    res = w.last_results
     assert 'csv1' in res
     assert 'sig1' in res
     assert 'temp' in res['csv1'].columns
@@ -237,13 +235,12 @@ def test_world_results(csv_file, tmp_path):
 def test_world_record_all_true(csv_file, tmp_path):
     """record_all=True should capture more data points per step."""
     from energysim import world
-    res_file = str(tmp_path / 'test_rec_all.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900, logging=False)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w._parsed_connections = []
     w.simulate(pbar=False, record_all=True)
-    res = w.results(to_csv=False, dashboard=False)
+    res = w.last_results
     # With record_all and step_size == t_macro, each macro step yields 1 record
     assert len(res['csv1']) >= 2
 
@@ -254,8 +251,7 @@ def test_world_record_all_true(csv_file, tmp_path):
 
 def test_parsed_connections_single(csv_file, tmp_path):
     from energysim import world
-    res_file = str(tmp_path / 'test_parsed.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_signal('sig1', signal=lambda t: t, step_size=900)
@@ -268,8 +264,7 @@ def test_parsed_connections_single(csv_file, tmp_path):
 
 def test_parsed_connections_fan_out(csv_file, tmp_path):
     from energysim import world
-    res_file = str(tmp_path / 'test_fanout.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_simulator(sim_type='csv', sim_name='csv2', sim_loc=csv_file,
@@ -284,8 +279,7 @@ def test_parsed_connections_fan_out(csv_file, tmp_path):
 
 def test_parsed_connections_fan_in(csv_file, tmp_path):
     from energysim import world
-    res_file = str(tmp_path / 'test_fanin.h5')
-    w = world(start_time=0, stop_time=1800, t_macro=900, res_filename=res_file)
+    w = world(start_time=0, stop_time=1800, t_macro=900)
     w.add_simulator(sim_type='csv', sim_name='csv1', sim_loc=csv_file,
                     outputs=['temp'], step_size=900)
     w.add_signal('sig1', signal=lambda t: t, step_size=900)
@@ -382,22 +376,6 @@ def test_pyscript_adapter_parameter_filtering(tmp_path):
     assert pa.get_value(['out1', 'out2'], 0) == [10.0, 20.0]
     with pytest.raises(SimulatorVariableError):
         pa.get_value(['nonexistent'], 0)
-
-
-def test_convert_hdf_to_dict_to_csv_returns_dict(tmp_path):
-    """convert_hdf_to_dict with to_csv=True must return the dictionary of DataFrames."""
-    from energysim.utils import convert_hdf_to_dict, create_results_recorder, record_data
-    res_h5 = str(tmp_path / 'test_export.h5')
-    sim_dict = {'sim1': ['val']}
-    create_results_recorder(res_h5, sim_dict)
-    record_data(res_h5, {'sim1': np.array([[0.0, 42.0]])})
-
-    export_dir = str(tmp_path / 'my_res')
-    res = convert_hdf_to_dict(res_h5, sim_dict=sim_dict, to_csv=True, res_folder_name=export_dir)
-    assert isinstance(res, dict)
-    assert 'sim1' in res
-    assert 'val' in res['sim1'].columns
-    assert os.path.exists(os.path.join(export_dir, 'res_sim1.csv'))
 
 
 def test_dashboard_escapes_html_title():
@@ -540,7 +518,6 @@ world:
   stop_time: 100
   t_macro: 10
   coupling: jacobi
-  res_filename: test_cli.h5
 simulators:
   - name: s1
     type: signal
@@ -761,9 +738,7 @@ def test_end_to_end_pandapower_signal_cosim(tmp_path):
     pp.create_ext_grid(net, b1, name='SlackGrid')
     pp.create_line(net, b1, b2, length_km=10, std_type='149-AL1/24-ST1A 110.0', name='Line1')
     pp.create_load(net, b2, p_mw=20, q_mvar=10, name='Load1')
-
-    res_file = tmp_path / "cosim_res.h5"
-    w = world(start_time=0, stop_time=20, t_macro=10, power_unit='kW', res_filename=str(res_file))
+    w = world(start_time=0, stop_time=20, t_macro=10, power_unit='kW')
 
     # Add powerflow simulator with in-memory net
     w.add_powerflow('grid', net=net, inputs=['Load1.p_mw'], outputs=['Bus2.vm_pu'], step_size=10, mode='ac')
@@ -776,7 +751,7 @@ def test_end_to_end_pandapower_signal_cosim(tmp_path):
 
     # Simulate and check results
     w.simulate(pbar=False)
-    results = w.results(dashboard=False)
+    results = w.last_results
 
     assert 'grid' in results
     assert 'load_signal' in results
@@ -914,9 +889,7 @@ def test_world_container_co_simulation(tmp_path):
     import numpy as np
     from energysim import world
     from energysim.container import BatteryFleetAdapter
-
-    res_file = tmp_path / "fleet_res.h5"
-    w = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW', res_filename=str(res_file))
+    w = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 
     # Add 100-unit EV Battery Fleet via add_fleet
     w.add_fleet(
@@ -937,7 +910,7 @@ def test_world_container_co_simulation(tmp_path):
     w.add_connections({'charge_dispatch.y': 'ev_fleet.p_cmd'})
 
     w.simulate(pbar=False)
-    results = w.results(dashboard=False)
+    results = w.last_results
 
     assert 'ev_fleet' in results
     # Check that SoC increased over the hour

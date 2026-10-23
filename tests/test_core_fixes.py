@@ -107,7 +107,7 @@ def test_add_simulator_battery_fleet_types():
     assert w.simulator_dict['bf2'].adapter.size == 3
     assert w.simulator_dict['bld'].sim_type == 'container'
     w.simulate(pbar=False)
-    assert 'bf' in w.results(dashboard=False)
+    assert 'bf' in w.last_results
 
 
 def test_add_simulator_function_container_and_instance():
@@ -123,8 +123,8 @@ def test_add_simulator_function_container_and_instance():
     w.add_simulator('container', 'inst', model=inst, step_size=10)
     assert w.get_adapter('inst') is inst
     w.simulate(pbar=False)
-    res = w.results(dashboard=False)
-    assert res['fn']['mean_x'].tolist() == [0.0, 1.0]
+    res = w.last_results
+    assert res['fn']['mean_x'].tolist() == [0.0, 1.0, 2.0]   # + final row at stop_time
 
 
 def test_add_simulator_container_without_kind_raises():
@@ -156,9 +156,9 @@ def test_add_simulator_model_csv_signal_script_external(tmp_path, csv_file):
     w.add_simulator('external', 'ex', model=f'{ext}:Ext', outputs=['v'], step_size=10)
     w.add_connections({'s.y': 'sc.u'})
     w.simulate(pbar=False, record_all=False)
-    res = w.results(dashboard=False)
-    assert res['s']['y'].tolist() == [0.0, 20.0]
-    assert res['ex']['v'].tolist() == [7.0, 7.0]
+    res = w.last_results
+    assert res['s']['y'].tolist() == [0.0, 20.0, 40.0]
+    assert res['ex']['v'].tolist() == [7.0, 7.0, 7.0]
 
 
 def test_add_simulator_alias_normalisation(csv_file):
@@ -188,14 +188,14 @@ def test_get_lcm_scientific_notation():
 
 
 def test_total_steps_float_tolerance(tmp_path):
-    w = world(start_time=0, stop_time=0.3, t_macro=0.1, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=0.3, t_macro=0.1)
     w.add_signal('s', 't', step_size=0.1)
     w.simulate(pbar=False, record_all=False)
-    assert len(w.results(dashboard=False)['s']) == 3   # int(0.3/0.1) would give 2
+    assert len(w.last_results['s']) == 4   # 3 steps (int(0.3/0.1) would give 2) + final row
 
 
 def test_span_not_multiple_of_macro_raises(tmp_path):
-    w = world(start_time=0, stop_time=100, t_macro=60, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=100, t_macro=60)
     w.add_signal('s', 't', step_size=60)
     rep = w.validate()
     assert not rep.is_valid and any('integer multiple' in e for e in rep.errors)
@@ -213,7 +213,7 @@ class _BeforeAdapter(_Adapter):
 
 def test_param_order_and_configure(tmp_path):
     assert SimulatorAdapter.SET_PARAMS_BEFORE_INIT is False
-    w = world(start_time=0, stop_time=20, t_macro=10, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=20, t_macro=10)
     after, before = _Adapter(), _BeforeAdapter()
     w.add_model('after', model=after, step_size=10)
     w.add_model('before', model=before, step_size=10)
@@ -256,7 +256,7 @@ class _BadInit(_Adapter):
 
 
 def test_cleanup_runs_on_error(tmp_path):
-    w = world(start_time=0, stop_time=20, t_macro=10, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=20, t_macro=10)
     ok, bad_cleanup, boom = _Adapter(), _BadCleanup(), _Boom()
     w.add_model('ok', model=ok, step_size=10)
     w.add_model('bc', model=bad_cleanup, step_size=10)
@@ -268,7 +268,7 @@ def test_cleanup_runs_on_error(tmp_path):
 
 
 def test_init_failure_names_simulator(tmp_path):
-    w = world(start_time=0, stop_time=20, t_macro=10, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=20, t_macro=10)
     good = _Adapter()
     w.add_model('good', model=good, step_size=10)
     w.add_model('broken', model=_BadInit(), step_size=10)
@@ -284,21 +284,20 @@ def test_world_rerunnable(tmp_path, csv_file):
                       'def run(inputs):\n'
                       '    STATE[0] += inputs.get("u", 0)\n'
                       '    return [STATE[0]]\n')
-    w = world(start_time=0, stop_time=30, t_macro=10, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=30, t_macro=10)
     w.add_csv('c', csv_file, step_size=10, outputs=['temp'])
     w.add_signal('s', {'type': 'ramp', 'start_time': 0, 'end_time': 30, 'start_value': 0, 'end_value': 3},
                  step_size=10)
     w.add_script('sc', script_loc=str(script), function='run', inputs=['u'], outputs=['acc'], step_size=10)
     w.add_connections({'s.y': 'sc.u'})
     w.simulate(pbar=False, record_all=False)
-    r1 = {k: v.copy() for k, v in w.results(dashboard=False).items()}
+    r1 = {k: v.copy() for k, v in w.last_results.items()}
     w.simulate(pbar=False, record_all=False)
-    r2 = w.results(dashboard=False)
+    r2 = w.last_results
     for k in r1:
         assert r1[k].equals(r2[k]), k
     w.reset()
-    with pytest.raises(RuntimeError, match="simulate"):
-        w.results(dashboard=False)
+    assert w.last_results is None
 
 
 # =====================================================================
@@ -351,18 +350,18 @@ def test_hostile_signal_strings_rejected(payload, tmp_path, monkeypatch):
 
 def test_yaml_signal_specs_and_roundtrip(tmp_path):
     yml = """
-world: {start_time: 0, stop_time: 20, t_macro: 10, res_filename: %s}
+world: {start_time: 0, stop_time: 20, t_macro: 10}
 simulators:
   - {name: a, type: signal, step_size: 10, signal: {type: constant, value: 5}}
   - {name: b, type: signal, step_size: 10, options: {signal: "lambda t: t*2"}}
   - {name: c, type: signal, step_size: 10, model: "t + 1"}
-""" % (tmp_path / 'r.h5').as_posix()
+"""
     w = world.from_yaml(yml)
     w.simulate(pbar=False, record_all=False)
-    res = w.results(dashboard=False)
-    assert res['a']['y'].tolist() == [5.0, 5.0]
-    assert res['b']['y'].tolist() == [0.0, 20.0]
-    assert res['c']['y'].tolist() == [1.0, 11.0]
+    res = w.last_results
+    assert res['a']['y'].tolist() == [5.0, 5.0, 5.0]
+    assert res['b']['y'].tolist() == [0.0, 20.0, 40.0]
+    assert res['c']['y'].tolist() == [1.0, 11.0, 21.0]
     w2 = world.from_yaml(w.to_yaml())
     assert w2.simulator_dict['a'].adapter.get_value(['y'], 3) == [5.0]
     assert w2.simulator_dict['b'].adapter.get_value(['y'], 3) == [6]
@@ -404,8 +403,8 @@ def test_cli_safe_flag(tmp_path):
     assert cli_main(['validate', str(f), '--safe']) == 1
     assert cli_main(['run', str(f), '--safe', '--validate-only']) == 1
     ok = tmp_path / 'ok.yaml'
-    ok.write_text("world: {start_time: 0, stop_time: 10, t_macro: 10, res_filename: %s}\nsimulators:\n"
-                  "  - {name: s, type: signal, step_size: 10, signal: '3'}\n" % (tmp_path / 'o.h5').as_posix())
+    ok.write_text("world: {start_time: 0, stop_time: 10, t_macro: 10}\nsimulators:\n"
+                  "  - {name: s, type: signal, step_size: 10, signal: '3'}\n")
     assert cli_main(['validate', str(ok), '--safe']) == 0
     assert cli_main(['run', str(ok), '--safe', '--no-pbar']) == 0
 
@@ -445,18 +444,21 @@ def test_dashboard_json_line_separators():
     assert json.loads(s) == {'a': 'x y <&>'}
 
 
-def test_export_csv_sanitises_names(tmp_path, monkeypatch):
+def test_export_csv_sanitises_names(tmp_path):
     import pandas as pd
-    from energysim.utils import export_to_csv, safe_filename_component
-    monkeypatch.chdir(tmp_path)
-    export_to_csv({'../../evil': pd.DataFrame({'time': [0]}), 'a/b\\c:d': pd.DataFrame({'time': [0]})},
-                  f_name='out')
-    files = sorted(os.listdir(tmp_path / 'out'))
+    from energysim.results import Results
+    from energysim.utils import safe_filename_component
+    res = Results({'../../evil': pd.DataFrame({'v': [0.0]}, index=pd.Index([0.0], name='time')),
+                   'a/b\\c:d': pd.DataFrame({'v': [0.0]}, index=pd.Index([0.0], name='time'))})
+    res.to_csv(tmp_path / 'out')
+    files = sorted(f for f in os.listdir(tmp_path / 'out') if f != 'meta.json')
     assert len(files) == 2
     for f in files:
         assert '/' not in f and '\\' not in f and '..' not in f and ':' not in f
-    assert not (tmp_path.parent / 'res_evil.csv').exists()
+    assert not (tmp_path.parent / 'evil.csv').exists()
     assert safe_filename_component('..') == '_'
+    back = Results.load(tmp_path / 'out')
+    assert sorted(back.sims) == sorted(res.sims)
 
 
 # =====================================================================
@@ -590,7 +592,7 @@ def test_validation_errors_are_exceptions():
 
 def test_world_uses_logging_not_print(capsys, caplog, tmp_path):
     import logging
-    w = world(start_time=0, stop_time=10, t_macro=10, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=10, t_macro=10)
     with caplog.at_level(logging.INFO, logger='energysim'):
         w.add_signal('s', '1', step_size=10)
         w.simulate(pbar=False)
@@ -694,7 +696,7 @@ def test_pyscript_sibling_imports(tmp_path):
 # =====================================================================
 
 def test_options_unknown_key_and_record_all(tmp_path, csv_file):
-    w = world(start_time=0, stop_time=30, t_macro=30, res_filename=str(tmp_path / 'r.h5'))
+    w = world(start_time=0, stop_time=30, t_macro=30)
     w.add_csv('c', csv_file, step_size=10, outputs=['temp'])
     with pytest.raises(ValueError, match="Unknown option"):
         w.options({'record_alll': True})
@@ -702,10 +704,10 @@ def test_options_unknown_key_and_record_all(tmp_path, csv_file):
         w.options({'modify_signal': {'c.temp': [1, 2, 3]}})
     w.options({'record_all': False})
     w.simulate(pbar=False)
-    assert len(w.results(dashboard=False)['c']) == 1
+    assert len(w.last_results['c']) == 2   # t=0 + final row
     w.options({'record_all': True})
     w.simulate(pbar=False)
-    assert len(w.results(dashboard=False)['c']) == 3
+    assert len(w.last_results['c']) == 4   # micro steps 0,10,20 + final row
 
 
 def test_csv_unknown_column_raises(csv_file):
