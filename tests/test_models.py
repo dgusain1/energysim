@@ -386,7 +386,7 @@ def test_full_btm_multi_energy_cosimulation(tmp_path):
     # 3. Add constant input signals
     my_world.add_signal("irr_signal", signal=lambda t: 900.0)
     my_world.add_signal("bess_cmd", signal=lambda t: 0.5)
-    my_world.add_signal("h2_cmd", signal=lambda t: 2.0)
+    my_world.add_signal("h2_cmd", signal=lambda t: 2000.0)  # kW; PEM declares P_cmd in MW
     my_world.add_signal("ccgt_cmd", signal=lambda t: 4.0)
 
     # 4. Connections
