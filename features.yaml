@@ -202,10 +202,10 @@ features:
   - id: safe-mode
     group: workflow
     title: Safe mode
-    description: Refuses scripts, external code and dotted imports when running untrusted scenario files.
+    description: Refuses scripts, external code, FMUs, pickles, dotted imports and paths outside the scenario directory when running untrusted scenario files.
     status: stable
     since: "3.0"
-    tests: ["tests/strengths/test_validation_and_cli.py::test_safe_mode_*", "tests/test_core_fixes.py::test_safe_mode_rejects_code_execution", "tests/test_core_fixes.py::test_hostile_signal_strings_rejected", "tests/test_core_fixes.py::test_cli_safe_flag"]
+    tests: ["tests/strengths/test_validation_and_cli.py::test_safe_mode_*", "tests/test_core_fixes.py::test_safe_mode_rejects_code_execution", "tests/test_core_fixes.py::test_hostile_signal_strings_rejected", "tests/test_core_fixes.py::test_cli_safe_flag", "tests/test_scenario_models_and_safety.py::test_safe_mode_*"]
     docs: docs/safe-mode.md
   - id: yaml-scenarios
     group: workflow
@@ -213,7 +213,7 @@ features:
     description: Describe a world in YAML, load it with world.from_yaml and round-trip it with to_yaml.
     status: stable
     since: "2.0"
-    tests: ["tests/test_energysim.py::test_yaml_*", "tests/test_core_fixes.py::test_yaml_signal_specs_and_roundtrip", "tests/test_results.py::test_yaml_world_keys_roundtrip"]
+    tests: ["tests/test_energysim.py::test_yaml_*", "tests/test_core_fixes.py::test_yaml_signal_specs_and_roundtrip", "tests/test_results.py::test_yaml_world_keys_roundtrip", "tests/test_scenario_models_and_safety.py::test_yaml_model_*", "tests/test_scenario_models_and_safety.py::test_model_roundtrip_*"]
     docs: docs/yaml-cli.md
   - id: glass-box
     group: workflow

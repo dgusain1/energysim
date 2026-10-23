@@ -14,16 +14,18 @@ With the defaults (`t_macro_min=None`, no events) a run is the fixed-step loop o
 not even queried.
 
 !!! note "Recording"
-    `simulate()` records every micro step by default (`record_all=True`). The examples below pass
-    `record_all=False` so that one row corresponds to one macro step.
+    `simulate()` records one row per macro step by default (`record_all=False`); `record_all=True` records every
+    micro step. The examples below pass `record_all=False` explicitly to make clear that one row is one macro step.
 
 ## Scheduled events
 
 An action is either a declarative `{'set': {'sim.var': value}}` or a `callable(world)`. It runs at the
 **start of the step that begins at `t`, before that step's exchange**. Consequences:
 
-* A `set` on an input that is also **connected** is overwritten by the exchange of the same step. Use events
-  for unconnected inputs and parameters.
+* A declarative `set` on an input that is also **connected** is **held for that step**: the exchange skips
+  that input in the step in which the event fires and resumes with the next step. (A `callable(world)` action that
+  writes to an adapter itself is not held and is overwritten by the exchange, as before.) To change a connected
+  input for good, change the upstream signal or add an offset, not a one-off `set`.
 * `set` writes the value as given (`set_value`): no unit conversion is applied.
 * In fixed-step mode the step after the event re-aligns with the `start_time + k * t_macro` grid.
 * Events at or after `stop_time` never fire; they are reported with `success: None`.

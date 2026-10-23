@@ -82,6 +82,7 @@ All top-level keys are optional except `simulators`; unknown `world:` keys are r
 | `start_datetime` | wall-clock start; results are then indexed by datetime |
 | `seed` | recorded in the results metadata |
 | `out_dir` | write every run to `<out_dir>/<timestamp>_<hash>/` |
+| `record_all` | `true` records every micro step; default `false` (one row per macro step, as `simulate()`) |
 | `logging` | print INFO messages |
 
 `res_filename` is **removed** (it raises): `simulate()` returns a `Results` object and nothing is written to disk
@@ -92,6 +93,7 @@ unless you set `out_dir` or pass `--out`.
 | `name`, `type` | required; the type is any `sim_type` of [add_simulator](add-simulator.md) |
 | `model` (alias `location`) | the model reference: path, project name, or (with `allow_import`) a dotted import |
 | `step_size`, `inputs`, `outputs`, `mode`, `power_unit`, `units` | as in `add_simulator`; `mode` is `ac` or `dc` |
+| `parameters` | for `type: model` only: constructor parameters of the component (merged with `options`; a name in both is an error) |
 | `signal` | for `type: signal`: a number, a safe expression string or a structured spec |
 | `options` | extra keyword arguments of the adapter: `delimiter`, `align_to_rows` (csv), `validate`, `solver_name` (fmu), `size`, `capacity_kwh`, ... (fleets), `function` (script), `engine` (matlab), `breakpoints` (signal) |
 
@@ -101,16 +103,59 @@ A `connections:` entry is `{from, to, scale, offset, from_unit, to_unit}`; `from
 
 Which simulator types can a scenario create on its own? `signal`, `csv`, `fmu`, `powerflow`, `pypsa`, `opendss`,
 `powerfactory`, `matlab`, `script`, `external` (a file or `file.py:Class`) and the built-in fleets (`battery_fleet`,
-`building_fleet`, `pv_fleet`). Built-in physical models (`ModelComponent` classes) are
-Python objects: add them to a world loaded from YAML in Python (`w = world.from_yaml(...)`; `w.add_model(...)`;
-`w.add_connections(...)`), or wrap them in a small file and reference it as `external: my_models.py:MyClass`.
+`building_fleet`, `pv_fleet`). Built-in physical models (`ModelComponent` classes) are created with `type: model`, see below.
+
+## Components in a scenario (`type: model`)
+
+`type: model` instantiates a component from its name. `model:` is one of
+
+* the name of a class exported by `energysim.models` or `energysim.networks` (`PEMElectrolyzer`, `BatteryBESS`,
+  `HeatNetwork`, ...) - allowed in [safe mode](safe-mode.md);
+* the name of a catalog archetype (`BESS_4h_2MW`, `PEM_5MW`, ...) - allowed in safe mode;
+* `path/to/file.py:ClassName` (a class in a Python file, relative to the scenario file) - **not** allowed in safe mode.
+
+Constructor parameters go under `parameters:` (or `options:`, same meaning). Unknown parameter names raise
+`ValueError` listing the valid ones, because the component base class would otherwise ignore typos silently. The
+simulator name is passed as the component's `name`. For network classes (`HeatNetwork`, `GasNetwork`,
+`EnergyNetwork`), `topology:` under `parameters` holds the `producers`, `consumers`, `storages`, `junctions` and `pipes`
+(the format of `EnergyNetwork.to_dict()`).
+
+```python
+from energysim import world
+
+w = world.from_yaml("""
+world: {start_time: 0, stop_time: 1800, t_macro: 60}
+simulators:
+  - {name: cmd, type: signal, signal: 1.0, step_size: 60, units: {y: MW}}
+  - name: ely
+    type: model
+    model: PEMElectrolyzer
+    step_size: 60
+    parameters: {p_nominal_mw: 2.0}
+  - {name: bess, type: model, model: BESS_4h_2MW, step_size: 60, options: {capacity_mwh: 6.0}}
+connections:
+  - {from: cmd.y, to: ely.P_cmd}
+  - {from: cmd.y, to: bess.P_cmd}
+""", safe=True)
+print(w.get_model("ely").p_nominal_mw, w.get_model("bess").capacity_mwh)      # 2.0 6.0
+res = w.simulate(pbar=False)
+print(res["ely.m_dot_H2_kg_hr"].max() > 0)                                    # True
+```
+
+**Round trip.** `w.to_dict()` / `w.to_yaml()` write a `type: model` entry back only when the component is an instance
+of a class exported by `energysim.models` / `energysim.networks` (a catalog archetype serialises as its class) *and*
+its constructor parameters can be recovered: the parameters listed in `describe()['parameters']` are read back from
+same-named attributes, only values that differ from the default are written, and the component is rebuilt from them
+and compared. Anything else (a subclass of your own, a model with non-plain parameters such as curve objects, or
+parameters that do not survive a rebuild) is **not serialised**: `to_dict()` logs a warning and writes the entry
+without `model:`. Runtime state is never serialised, only constructor parameters.
 
 ## Python API
 
 | Call | Meaning |
 |---|---|
-| `world.from_yaml(path_or_yaml_string, safe=False, allow_import=False)` | build a world; `base_dir` for relative paths is the file's directory |
-| `world.from_dict(data, base_dir=None, safe=False, allow_import=False)` | same from a dictionary |
+| `world.from_yaml(path_or_yaml_string, safe=False, allow_import=False, allow_native=False)` | build a world; `base_dir` for relative paths is the file's directory |
+| `world.from_dict(data, base_dir=None, safe=False, allow_import=False, allow_native=False)` | same from a dictionary |
 | `w.to_dict()`, `w.to_yaml(filepath=None)` | serialise: world settings, simulators, connections, events and triggers. Python callables (signals, event actions, trigger conditions) cannot be serialised and are skipped with a warning |
 | `w.validate(raise_on_error=False)` | pre-flight report |
 
@@ -121,22 +166,24 @@ runs write it as `scenario.yaml` next to the data, so a run directory is self-de
 
 ```bash
 energysim --version
-energysim validate scenario.yaml [--safe] [-v]
+energysim validate scenario.yaml [--safe [--allow-native]] [-v]
 energysim run scenario.yaml [--out DIR] [--to-csv] [--dashboard] [--dashboard-path FILE] [--offline]
-                            [--no-pbar] [--safe] [--validate-only] [-v]
+                            [--no-pbar] [--record-all] [--safe [--allow-native]] [--validate-only] [-v]
 energysim units [--system default|si] [--set QUANTITY=UNIT ...] [--json]
 ```
 
 | Command / flag | Description |
 |---|---|
 | `validate` | Build the world and print the `ValidationReport`; exit `0` if valid, `1` on errors (including a file that cannot be loaded or is refused by `--safe`). |
-| `run` | Validate, then simulate with `record_all=False` (one row per macro step), print the run summary; exit `0` on success, `1` on any failure. |
+| `run` | Validate, then simulate (one row per macro step unless `--record-all` or `world.record_all`), print the run summary (`min max mean last count unit`); exit `0` on success, `1` on any failure. |
 | `--out DIR` | Write the run to `DIR/<YYYYmmdd-HHMMSS>_<hash8>/`: Parquet (CSV without pyarrow) per simulator, `meta.json`, `scenario.yaml`. |
 | `--to-csv` | Also export CSV files into `<run dir>/csv` (implies `--out runs` if no directory is given). |
 | `--dashboard`, `--dashboard-path FILE`, `--offline` | Write the HTML dashboard (opened in the browser with `--dashboard`); `--offline` embeds plotly.js (needs `plotly`). |
 | `--no-pbar` | Disable the progress bar. |
+| `--record-all` | Record every micro step instead of one row per macro step (`run` only). |
 | `--validate-only` | Stop after pre-flight validation (`run` only). |
-| `--safe` | [Safe mode](safe-mode.md). |
+| `--safe` | [Safe mode](safe-mode.md): no code-executing types, FMUs, pickles, dotted imports; file paths and `out_dir` confined to the scenario directory tree. |
+| `--allow-native` | With `--safe`: still allow FMUs (native code). |
 | `-v`, `--verbose` | Also print the unit system (name and hash) and every connection's unit conversion. |
 | `units` | Print the default unit per quantity of a unit system, optionally with overrides, or as JSON. |
 

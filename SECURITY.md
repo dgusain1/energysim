@@ -9,14 +9,21 @@ references, and the package treats it the way a Python script is treated:
   `external`, `matlab`, and `powerfactory`, and dotted-import model references, execute code
   from disk. Run them only when you trust their author.
 - **`--safe` mode** (`energysim run --safe` and `energysim validate --safe`, or
-  `safe=True` in the Python API) refuses those code-executing simulator types, dotted-import
-  model references, and pickle model files. Use it for scenarios from untrusted sources. Safe
-  mode limits what a scenario can ask the package to do; it is not a sandbox against a
-  malicious Python environment.
+  `safe=True` in the Python API) refuses those code-executing simulator types, FMUs (native
+  code; re-enable with `--allow-native` / `allow_native=True`), `file.py:Class` component
+  references, dotted-import model references, and pickle model files, and confines every
+  model / csv / script / option file path and the scenario's `out_dir` to the scenario
+  directory tree (symlinks and `..` are resolved before the check; absolute paths outside it
+  are refused). Use it for scenarios from untrusted sources. Safe mode limits what a scenario
+  can ask the package to do; it is not a sandbox against a malicious Python environment.
+  Assumptions and limits (files inside the scenario tree are trusted, no resource limits,
+  the Python API is out of scope, time-of-check/time-of-use) are listed in
+  [docs/safe-mode.md](docs/safe-mode.md#threat-model).
 - **Signal expressions are not `eval`-ed.** They are parsed and checked by a restricted
   evaluator (`src/energysim/_safeexpr.py`).
 - **FMUs are native code.** A Functional Mock-up Unit is a shared library that runs inside the
-  process when loaded with `fmpy`. Only load FMUs from sources you trust.
+  process when loaded with `fmpy`. Safe mode refuses FMUs unless you opt in with
+  `allow_native=True`; only opt in for FMUs from sources you trust.
 - **Pickle is unsafe.** Unpickling a file can run arbitrary code. Some network inputs
   (for example pandapower network files) may be stored as pickle. Do not load pickle files
   from untrusted sources, and prefer the JSON or other non-pickle formats where available.

@@ -104,10 +104,11 @@ print(list(w._dep_graph.edges))             # [('sun', 'pv'), ('pv', 'bess')]
 
 ## Recording
 
-`simulate(record_all=True)` (the default) records every micro step through each adapter's
-`advance_with_recording`, which for FMU model exchange honours the solver's own time points. `record_all=False`
-records one row per macro step, before stepping. Either way each simulator gets a final row at `stop_time`.
-`options({'record_all': False})` changes the default. See [Results](results.md).
+`simulate()` records one row per macro step, before stepping (`record_all=False`, the default).
+`simulate(record_all=True)` records every micro step through each adapter's `advance_with_recording`, which for FMU
+model exchange honours the solver's own time points (expensive for long runs with fine micro steps). Either way each
+simulator gets a final row at `stop_time`. `options({'record_all': True})`, the YAML `world: {record_all: true}` and
+`energysim run --record-all` change the default. See [Results](results.md).
 
 ## Introspection and glass-box access
 

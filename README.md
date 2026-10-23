@@ -63,7 +63,7 @@ It bridges electrical power networks with **built-in physical models for green h
 |---|---|---|
 | [Pre-run validation](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | world.validate() reports unknown names, unit clashes and step-size problems before running. |
 | [Command-line interface](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | `energysim validate` and `energysim run` with stable exit codes and --out / --safe flags. |
-| [Safe mode](https://energysim.readthedocs.io/en/latest/safe-mode/) | stable | Refuses scripts, external code and dotted imports when running untrusted scenario files. |
+| [Safe mode](https://energysim.readthedocs.io/en/latest/safe-mode/) | stable | Refuses scripts, external code, FMUs, pickles, dotted imports and paths outside the scenario directory when running untrusted scenario files. |
 | [Declarative YAML scenarios](https://energysim.readthedocs.io/en/latest/yaml-cli/) | stable | Describe a world in YAML, load it with world.from_yaml and round-trip it with to_yaml. |
 | [Glass-box access](https://energysim.readthedocs.io/en/latest/architecture/) | stable | get_adapter / get_model expose the live objects inside a world. |
 

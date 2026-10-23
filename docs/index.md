@@ -109,7 +109,7 @@ three signal generators. Signals are safe expressions of the time `t` in seconds
 
     print(res["tank.mass_stored_kg"].iloc[[0, -1]])   # pandas Series indexed by time [s]
     print(res.units["tank.mass_stored_kg"])           # 'kg'
-    print(res.summary().loc[["pv.P_ac", "pem.m_dot_H2_kg_hr"], ["min", "max", "mean"]])
+    print(res.summary().loc[["pv.P_ac", "pem.m_dot_H2_kg_hr"], ["min", "max", "mean"]].round(2))
     ```
 
 === "Declarative YAML"

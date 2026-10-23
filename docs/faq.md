@@ -32,9 +32,9 @@ fitting `t_macro`, or set `t_macro_min` below `t_macro` (variable macro step), w
 ([Events](events.md)).
 
 ### My results have one row per second (or per micro step) and are huge
-`simulate()` defaults to `record_all=True`: every micro step is recorded. Use `simulate(record_all=False)` (or
-`options({'record_all': False})`) for one row per macro step. `energysim run` records per macro step. A final row at
-`stop_time` is always added.
+`simulate()` defaults to `record_all=False`: one row per macro step (taken before the step). If you see micro-step
+rows, `record_all=True` was passed or set via `options({'record_all': True})` / `world: {record_all: true}` /
+`energysim run --record-all`. A final row at `stop_time` is always added.
 
 ### The first row is zero (or an old value), and values seem one step late
 Rows are taken **before** stepping, so the row at `t` shows the state at the start of the step beginning at `t`. With

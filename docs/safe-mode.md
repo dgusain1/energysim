@@ -7,8 +7,8 @@ to. This page defines what `energysim` guarantees for scenario files from untrus
 
 | You load ... | What can execute |
 |---|---|
-| a scenario with `safe=True` / `--safe` | Only the simulator types and model references listed under [What safe mode allows](#what-safe-mode-allows). Strings are parsed, never `eval`-ed. |
-| a scenario without safe mode | Everything you reference: Python files (`script`, `external`), MATLAB functions, PowerFactory projects, pickled networks (`.p`, `.pkl`) and, with `allow_import=True`, dotted imports such as `pandapower.networks.case14`. Treat such a file like a Python script from the same source. |
+| a scenario with `safe=True` / `--safe` | Only the simulator types and model references listed under [What safe mode allows](#what-safe-mode-allows), on paths inside the scenario directory. Strings are parsed, never `eval`-ed. The full list of defences and limits is in the [threat model](#threat-model). |
+| a scenario without safe mode | Everything you reference: Python files (`script`, `external`, `type: model` with `file.py:Class`), MATLAB functions, PowerFactory projects, FMUs (native code), pickled networks (`.p`, `.pkl`) and, with `allow_import=True`, dotted imports such as `pandapower.networks.case14`; it can read and write any path your user can. Treat such a file like a Python script from the same source. |
 | Python code that builds a `world` | Whatever the code does. Safe mode does not apply to the Python API. |
 
 Even without safe mode, `energysim` never passes a scenario string to `eval`: signal strings and trigger
@@ -60,15 +60,26 @@ except ValueError as exc:
 
 * Simulator types that execute code or external programs: `external`, `script` (`pyscript`), `matlab`,
   `powerfactory`.
+* **FMUs** (`type: fmu`): an FMU is a shared library that runs inside the process. Refused unless you pass
+  `allow_native=True` (`from_yaml` / `from_dict`) or `--allow-native` (CLI), for FMUs you trust.
 * **Pickle model files** (`.p`, `.pkl`, `.pickle`) in `model` / `location` or in any `options` value:
   unpickling executes code. Use a JSON export instead (pandapower: `pp.to_json`).
 * **Dotted import references** such as `pandapower.networks.case14` in `model` / `location` / path aliases.
   `allow_import` is forced to `False` in safe mode.
+* **Component files**: `type: model` with `model: file.py:Class` imports and runs the file. Class names exported by
+  `energysim.models` / `energysim.networks` and catalog archetypes (`model: PEMElectrolyzer`, `BESS_4h_2MW`) are fine.
+* **Paths outside the scenario directory tree.** Every `model` / `location` value and every path-like `options` value
+  (`csv_path`, `net_loc`, `dss_path`, ...) of the file-based types (`csv`, `fmu`, `powerflow`, `pypsa`, `opendss`)
+  and the world's `out_dir` must resolve - after following symlinks and `..` - to a location inside the directory of
+  the scenario file (the current working directory when the scenario is given as a string or dictionary).
+  Absolute paths outside it and `..` escapes raise `ValueError`; absolute paths inside it are accepted. In safe
+  mode the accepted path is replaced by its resolved absolute form, so a later `chdir` cannot redirect it.
 
 ## What safe mode allows
 
-* `signal` simulators with expression strings or structured specs, `csv` profiles, and the `fmu`, `powerflow`,
-  `pypsa`, `opendss` and fleet types with file or in-process models.
+* `signal` simulators with expression strings or structured specs, `csv` profiles, `type: model` components by
+  class or archetype name, and the `powerflow`, `pypsa`, `opendss` and fleet types, all with files inside the
+  scenario tree (and `fmu` with `allow_native=True`).
 * `events:` and `triggers:` with the declarative `set` action. There is no `call` / `exec` action in scenario
   files; unknown keys are rejected.
 
@@ -117,16 +128,37 @@ The same signals without string syntax; `step`, `ramp` and `piecewise` expose th
 - {name: f, type: signal, signal: {type: expression, expr: "3 * sin(t / 60)"}}
 ```
 
-## What safe mode does not do
+## Threat model
 
-Safe mode is a filter on scenario *definitions*, not a sandbox.
+Safe mode defends against a scenario file written by someone else that you load and run on your machine. The
+assumption is that **the scenario file is hostile and the Python environment, the installed packages and the files
+inside the scenario directory are trusted**.
 
-* **FMUs are not refused.** An FMU contains native binaries that run in your process. Do not load FMUs from sources
-  you do not trust, with or without safe mode.
-* OpenDSS scripts and other model files are read from the paths the scenario names; the scenario can point at any
-  file your user can read, and `world.out_dir` / `--out` can write results to any directory you can write to.
-  Run untrusted scenarios in a container or a restricted account if that matters.
-* It does not limit CPU time or memory; a scenario can request a very long run or a very large fleet.
-* The Python API (`add_external_simulator`, callables as events, `allow_import=True`) is outside its scope.
+| Threat | Mitigation |
+|---|---|
+| Run arbitrary Python from the scenario (`script`, `external`, `file.py:Class`, dotted imports, `eval` in strings) | Refused types and references; expressions go through a whitelisted AST evaluator; events and triggers support only the declarative `set` action |
+| Run native code (FMU shared libraries) | `fmu` refused unless `allow_native=True` |
+| Run code through deserialisation (pickle network files) | `.p` / `.pkl` / `.pickle` refused |
+| Read files outside the project (`../../etc/passwd`, `C:\Users\...`, symlinks pointing out) | Paths are resolved (symlinks, `..`) and must stay inside the scenario directory tree |
+| Write files outside the project (`out_dir`) | `out_dir` must resolve inside the scenario directory tree |
+| Hide any of the above in an option value | The checks cover `model`, `location`, every path alias and every string in `options` |
+
+What safe mode does **not** do - it is a filter on scenario *definitions*, not a sandbox:
+
+* **Files inside the scenario tree are trusted.** A scenario can reference a pickle, script or FMU that sits next to
+  it only if it passes the checks above; the checks look at the *reference*, not at what the file does. Pickle and
+  script references are refused by name and extension, but an OpenDSS (`.dss`) file may itself `Redirect` or `Compile`
+  other files, and a model file may name further files that safe mode never sees. Do not run untrusted scenarios
+  together with untrusted data files.
+* **`--out DIR` is yours.** The command-line `--out` is chosen by the person running the command and is not
+  restricted; only the scenario's own `out_dir` is.
+* **TOCTOU.** The path check happens when the scenario is loaded. A process that changes the directory tree between
+  the check and the use (for example by swapping a file for a symlink) is outside the model.
+* **Resource exhaustion.** There are no limits on CPU time, memory or output size; a scenario can request a very long
+  run or a very large fleet.
+* **The Python API** (`add_external_simulator`, callables as events, `allow_import=True`, `allow_native=True`) is
+  outside its scope.
+
+Run untrusted scenarios in a container or a restricted account if any of that matters.
 
 If your own scenarios need scripts, run them without `--safe` and keep them in version control.
