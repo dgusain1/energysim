@@ -586,8 +586,8 @@ def test_mode_standardization_and_rejection():
     # OpenDSS mode normalization
     dss_ac = opendss_adapter('dss1', 'dummy.dss', mode='ac')
     assert dss_ac.mode == 'ac'
-    dss_dc = opendss_adapter('dss2', 'dummy.dss', mode='dc')
-    assert dss_dc.mode == 'dc'
+    with pytest.raises(ValueError, match="does not provide a DC power flow"):
+        opendss_adapter('dss2', 'dummy.dss', mode='dc')
     with pytest.raises(ValueError, match="only supports 'ac' and 'dc'"):
         opendss_adapter('dss3', 'dummy.dss', mode='unsupported')
 

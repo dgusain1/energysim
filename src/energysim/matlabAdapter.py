@@ -36,7 +36,11 @@ Requirements
 from __future__ import annotations
 
 
-from .base import SimulatorAdapter
+import os
+
+import numpy as np
+
+from .base import SimulatorAdapter, SimulatorVariableError, EnergysimError
 
 
 class matlab_adapter(SimulatorAdapter):
@@ -69,10 +73,10 @@ class matlab_adapter(SimulatorAdapter):
         self.outputs = outputs or []
         self.engine_pref = engine.lower()
 
-        assert self.engine_pref in ('auto', 'matlab', 'octave'), (
-            f"engine must be 'auto', 'matlab', or 'octave', "
-            f"got '{engine}'."
-        )
+        if self.engine_pref not in ('auto', 'matlab', 'octave'):
+            raise ValueError(
+                f"engine must be 'auto', 'matlab', or 'octave', got '{engine}'."
+            )
 
         # Populated by init()
         self._engine = None       # matlab.engine or Oct2Py instance
@@ -84,23 +88,43 @@ class matlab_adapter(SimulatorAdapter):
     # Life-cycle
     # ------------------------------------------------------------------
 
+    @property
+    def engine(self):
+        """The live MATLAB / Octave engine (``None`` before ``init``/after ``cleanup``)."""
+        return self._engine
+
     def init(self):
-        """Start engine, add script path, validate the function."""
+        """Start engine, add script path, validate the function.
+
+        Safe to call again after ``cleanup()`` (the engine is restarted).
+        """
+        if self._engine is not None:  # re-init without cleanup
+            self.cleanup()
+        if not self.script_loc or not os.path.exists(self.script_loc):
+            raise FileNotFoundError(
+                f"MATLAB/Octave script location not found: {self.script_loc!r}"
+            )
+        self._input_values = {}
+        self._output_values = {}
         self._start_engine()
-        self._add_path(self.script_loc)
-        self._validate_function()
+        try:
+            self._add_path(self.script_loc)
+            self._validate_function()
+        except Exception:
+            self.cleanup()
+            raise
 
     def cleanup(self):
-        """Shut down the engine."""
-        if self._engine is not None:
+        """Shut down the engine (never raises)."""
+        engine, self._engine = self._engine, None
+        if engine is not None:
             try:
                 if self._backend == 'matlab':
-                    self._engine.quit()
+                    engine.quit()
                 else:
-                    self._engine.exit()
+                    engine.exit()
             except Exception:
                 pass
-        self._engine = None
 
     # ------------------------------------------------------------------
     # Abstract method implementations
@@ -109,39 +133,79 @@ class matlab_adapter(SimulatorAdapter):
     def step(self, time):
         """Call the .m function with current inputs + time."""
         # Build positional arg list in declared input order + time
+        if self._engine is None:
+            raise EnergysimError(
+                f"MATLAB/Octave simulator '{self.func_name}' is not initialised (call init() first)."
+            )
         args = [
-            self._input_values.get(name, 0.0)
+            self._to_engine_value(self._input_values.get(name, 0.0))
             for name in self.inputs
         ]
         args.append(float(time))
 
         n_out = len(self.outputs)
 
-        if self._backend == 'matlab':
-            results = self._call_matlab(args, n_out)
-        else:
-            results = self._call_octave(args, n_out)
+        try:
+            if self._backend == 'matlab':
+                results = self._call_matlab(args, n_out)
+            else:
+                results = self._call_octave(args, n_out)
+        except Exception as exc:
+            raise EnergysimError(
+                f"MATLAB/Octave function '{self.func_name}' failed at t={time}: {exc}"
+            ) from exc
 
         # Store outputs
         if n_out == 1:
             self._output_values[self.outputs[0]] = self._to_float(
-                results
+                results, self.outputs[0]
             )
         elif n_out > 1:
+            if not isinstance(results, (tuple, list)) or len(results) != n_out:
+                got = len(results) if isinstance(results, (tuple, list)) else 1
+                raise SimulatorVariableError(
+                    f"Function '{self.func_name}' returned {got} value(s), "
+                    f"expected {n_out} (outputs={self.outputs})."
+                )
             for name, val in zip(self.outputs, results):
-                self._output_values[name] = self._to_float(val)
+                self._output_values[name] = self._to_float(val, name)
 
     def set_value(self, parameters, values):
-        """Store input values for the next step() call."""
+        """Store input values for the next step() call (scalars -> float, arrays -> float arrays)."""
         for name, val in zip(parameters, values):
-            self._input_values[name] = float(val)
+            if name not in self.inputs:
+                raise SimulatorVariableError(
+                    f"'{name}' is not a declared input of '{self.func_name}' "
+                    f"(inputs={self.inputs})."
+                )
+            arr = np.asarray(val, dtype=float)
+            self._input_values[name] = float(arr) if arr.ndim == 0 else arr
 
     def get_value(self, parameters, time=None):
-        """Return the latest output values."""
-        return [
-            self._output_values.get(name, 0.0)
-            for name in parameters
-        ]
+        """Return the latest output values (0.0 for declared outputs before the first step)."""
+        out = []
+        for name in parameters:
+            if name not in self.outputs:
+                raise SimulatorVariableError(
+                    f"'{name}' is not a declared output of '{self.func_name}' "
+                    f"(outputs={self.outputs})."
+                )
+            out.append(self._output_values.get(name, 0.0))
+        return out
+
+    def get_available_variables(self):
+        """Declared inputs / outputs (the .m signature has no variable names)."""
+        return {'inputs': list(self.inputs), 'outputs': list(self.outputs),
+                'all': list(self.inputs) + list(self.outputs)}
+
+    def _to_engine_value(self, val):
+        """Scalars pass as float; arrays as matlab.double on MATLAB, ndarray on Octave."""
+        if isinstance(val, np.ndarray):
+            if self._backend == 'matlab':
+                import matlab  # noqa
+                return matlab.double(val.tolist())
+            return val
+        return float(val)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -263,13 +327,23 @@ class matlab_adapter(SimulatorAdapter):
         )
 
     @staticmethod
-    def _to_float(val):
-        """Convert a MATLAB/Octave return value to a Python float."""
+    def _to_float(val, name=None):
+        """Convert a MATLAB/Octave return value to a Python float.
+
+        Raises ``SimulatorVariableError`` when the value cannot be converted
+        (never silently returns 0.0).
+        """
+        label = f" for output '{name}'" if name else ""
         try:
+            if val is None:
+                raise TypeError("function returned no value")
             if hasattr(val, '__iter__') and not isinstance(val, str):
-                import numpy as np
-                arr = np.asarray(val).flatten()
-                return float(arr[0]) if len(arr) > 0 else 0.0
+                arr = np.asarray(val, dtype=float).flatten()
+                if arr.size == 0:
+                    raise ValueError("empty result")
+                return float(arr[0])
             return float(val)
-        except (TypeError, ValueError, IndexError):
-            return 0.0
+        except (TypeError, ValueError, IndexError) as exc:
+            raise SimulatorVariableError(
+                f"Could not convert MATLAB/Octave result{label} to float: {val!r} ({exc})."
+            ) from exc

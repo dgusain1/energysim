@@ -31,13 +31,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fmu = ["fmpy>=0.3"]
-powerflow = ["pandapower"]
-pypsa = ["pypsa"]
-opendss = ["opendssdirect.py"]
+fmu = ["fmpy>=0.3.27,<0.4"]
+powerflow = ["pandapower>=3.0,<4"]
+pypsa = ["pypsa>=0.30,<2"]
+opendss = ["opendssdirect.py>=0.9,<1"]
 plotting = ["matplotlib"]
 networks = ["scipy"]
-all = ["fmpy>=0.3", "pandapower", "pypsa", "opendssdirect.py", "matplotlib", "scipy"]
+all = ["fmpy>=0.3.27,<0.4", "pandapower>=3.0,<4", "pypsa>=0.30,<2", "opendssdirect.py>=0.9,<1", "matplotlib", "scipy"]
 docs = ["mkdocs-material", "mkdocs-material-extensions"]
 test = ["pytest", "pytest-cov", "hypothesis"]
 dev = ["energysim[test]", "ruff", "mypy", "build", "twine"]
@@ -63,6 +63,15 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_pypsa: needs the optional 'pypsa' package",
+    "requires_pandapower: needs the optional 'pandapower' package",
+    "requires_opendss: needs the optional 'opendssdirect.py' package",
+    "requires_fmu: needs 'fmpy' and the downloadable Reference-FMUs (skipped when offline)",
+    "requires_octave: needs 'oct2py' and a GNU Octave installation",
+    "requires_matlab: needs the MATLAB Engine for Python and a MATLAB licence",
+    "requires_powerfactory: needs DIgSILENT PowerFactory and a licence (manual only)",
+]
 
 [tool.ruff]
 target-version = "py310"
