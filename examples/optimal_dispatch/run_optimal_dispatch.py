@@ -53,11 +53,8 @@ CSV_DATA = str(HERE / "data.csv")
 FLEX_LOADS = ("Power2Gas", "Power2Heat")
 
 
-def build_world(stop_time=86_400, t_macro=900, res_filename=None):
-    kwargs = dict(start_time=0, stop_time=stop_time, t_macro=t_macro, power_unit="MW")
-    if res_filename is not None:
-        kwargs["res_filename"] = res_filename
-    w = world(**kwargs)
+def build_world(stop_time=86_400, t_macro=900):
+    w = world(start_time=0, stop_time=stop_time, t_macro=t_macro, power_unit="MW")
 
     # Profiles: wind / PV infeed, flexibility limits and bid prices (EUR/MWh).
     w.add_csv("data", CSV_DATA, step_size=t_macro,
@@ -104,28 +101,10 @@ def build_world(stop_time=86_400, t_macro=900, res_filename=None):
     return w, opf
 
 
-def _collect_results(w, sim_return):
-    """Return the run's results for both the 3.0 Results API and the legacy dict API.
-
-    REVIEW AFTER RESULTS-API MERGE: once ``world.simulate()`` returns a Results
-    object (``res['sim.var']``, ``res.to_frame()``) the two fallbacks below can go.
-    """
-    if hasattr(sim_return, "to_frame"):
-        return sim_return
-    res = getattr(w, "last_results", None)
-    if res is not None:
-        return res
-    return w.results(dashboard=False)
-
-
 def summarize(res, opf):
     print("\n===  Optimal dispatch summary  ===")
-    if hasattr(res, "to_frame"):
-        df = res.to_frame()
-        print(f"  {df.shape[0]} time steps, {df.shape[1]} recorded variables")
-    else:  # legacy dict {sim_name: DataFrame}
-        for name, df in res.items():
-            print(f"  {name:6s} -> {df.shape[0]} time-steps, {df.shape[1] - 1} variables")
+    df = res.to_frame()
+    print(f"  {df.shape[0]} time steps, {df.shape[1]} recorded variables")
     hist = opf.history
     ok = sum(1 for h in hist if h["solver_status"] == 0)
     print(f"  OPF solves: {len(hist)} ({ok} optimal), mean solve time "
@@ -141,8 +120,7 @@ def main(stop_time=86_400):
     print("Starting co-simulation ...")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)   # algebraic-loop / unit notices
-        ret = w.simulate(pbar=False)
-    res = _collect_results(w, ret)
+        res = w.simulate(pbar=False)
     summarize(res, opf)
     return res
 

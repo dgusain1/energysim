@@ -71,7 +71,7 @@ class _Boom(SimulatorAdapter):
 
 class _Warner(_Boom):
     def step(self, time):
-        warnings.warn("adapter says hi", UserWarning)
+        warnings.warn("adapter says hi", UserWarning, stacklevel=2)
 
 
 def _typed_world(**kw):

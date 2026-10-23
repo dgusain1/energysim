@@ -52,11 +52,7 @@ def load_fc(t, times):
 
 def make_world(tmp_path, monkeypatch, stop, t_macro):
     monkeypatch.chdir(tmp_path)
-    try:
-        return world(start_time=0, stop_time=stop, t_macro=t_macro, power_unit="MW",
-                     res_filename=str(tmp_path / "res.h5"))
-    except TypeError:  # results API without res_filename
-        return world(start_time=0, stop_time=stop, t_macro=t_macro, power_unit="MW")
+    return world(start_time=0, stop_time=stop, t_macro=t_macro, power_unit="MW")
 
 
 def run_world(w):

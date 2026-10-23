@@ -186,7 +186,7 @@ def _frame_from_arrays(t: np.ndarray, arrays: List[np.ndarray], variables: List[
 def _parquet_safe(df: pd.DataFrame) -> pd.DataFrame:
     """Make object columns Parquet-friendly (all-str or None), converting mixed values to str."""
     out = None
-    for i, col in enumerate(df.columns):
+    for i, _col in enumerate(df.columns):
         s = df.iloc[:, i]
         if s.dtype == object:
             vals = s.to_numpy()
