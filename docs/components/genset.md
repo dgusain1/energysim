@@ -10,7 +10,10 @@ Reciprocating Internal Combustion Engine (Genset) with thermal heat recovery.
 
 Fixed electrical and heat-recovery efficiencies (no part-load curve, no
 start-up delay or ramp limit). Validity: 0 to rated power; the sum of
-electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor).
+electrical and heat-recovery efficiency must not exceed 1 (energy balance). A larger
+sum raises ``ValueError`` unless ``allow_efficiency_sum_above_one=True``, which uses the given
+values as they are and only logs a warning (e.g. for efficiencies quoted on different
+LHV/HHV bases).
 
 ## Parameters
 
@@ -21,6 +24,7 @@ electrical and heat-recovery efficiency should not exceed 1 (not enforced by the
 | `electrical_efficiency` | `float` | `0.44` | - | - |
 | `heat_recovery_efficiency` | `float` | `0.42` | - | - |
 | `step_size` | `float` | `1.0` | s | - |
+| `allow_efficiency_sum_above_one` | `bool` | `False` | - | - |
 
 ## Inputs
 
@@ -39,7 +43,10 @@ electrical and heat-recovery efficiency should not exceed 1 (not enforced by the
 ## Validity and notes
 
 Validity: 0 to rated power; the sum of
-electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor).
+electrical and heat-recovery efficiency must not exceed 1 (energy balance). A larger
+sum raises ``ValueError`` unless ``allow_efficiency_sum_above_one=True``, which uses the given
+values as they are and only logs a warning (e.g. for efficiencies quoted on different
+LHV/HHV bases).
 
 ## Usage example
 

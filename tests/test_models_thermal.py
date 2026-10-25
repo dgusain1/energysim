@@ -264,6 +264,18 @@ def test_genset_energy_balance_and_limits():
         assert p + _get(g, "Q_thermal_MW") <= fuel_mw + 1e-9
 
 
+def test_genset_efficiency_sum_above_one_raises_unless_enforced(caplog):
+    with pytest.raises(ValueError, match="allow_efficiency_sum_above_one"):
+        ReciprocatingGenset(electrical_efficiency=0.47, heat_recovery_efficiency=0.60)
+    with pytest.raises(ValueError):
+        ReciprocatingGenset(electrical_efficiency=0.0)
+    with caplog.at_level("WARNING", logger="energysim"):
+        g = ReciprocatingGenset(electrical_efficiency=0.47, heat_recovery_efficiency=0.60,
+                                allow_efficiency_sum_above_one=True)
+    assert "exceeds 1" in caplog.text
+    assert g.eff_th == 0.60
+
+
 def test_chp_initial_and_extraction_penalty():
     c = CHP_SteamTurbine(p_max_mw=50.0, power_loss_coefficient_beta=0.18)
     c.init()
