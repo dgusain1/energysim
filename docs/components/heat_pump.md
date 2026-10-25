@@ -45,7 +45,7 @@ Validity: source -10..60 C, sink 30..120 C, lift 10..90 K.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: source -10..60 C, sink 30..120 C, lift 10..90 K.
 
 ## Usage example
 

@@ -10,8 +10,8 @@
 
 Electric vapor-compression chiller.
 
-COP degrades linearly with ambient temperature (1.5 % per K above 25 C) and
-is clamped to [2, 8]; it is evaluated continuously, also when idle.
+COP changes linearly with ambient temperature (-1.5 % per K above 25 C and
++1.5 % per K below it) and is clamped to [2, 8]; it is evaluated continuously, also when idle.
 Validity: T_amb 5..45 C, constant-COP part-load behaviour.
 
 ### Parameters
@@ -40,7 +40,7 @@ Validity: T_amb 5..45 C, constant-COP part-load behaviour.
 
 ### Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: T_amb 5..45 C, constant-COP part-load behaviour.
 
 ### Usage example
 

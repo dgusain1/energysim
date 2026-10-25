@@ -51,12 +51,13 @@ transients, no turbine inertia dynamics, no humidity or altitude effects.
 |---|---|---|
 | `P_actual` | MW | Delivered active power |
 | `fuel_consumption_MMBtu_hr` | MMBtu/h | Fuel gas consumption rate |
-| `Q_exhaust_MW` | MW | Thermal energy in exhaust flue gas |
+| `Q_exhaust_MW` | MW | Fuel energy not converted to electricity (fuel input minus electrical output, including all losses) |
 | `state` | - | Operating state string |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: T_amb -20..45 C, loads between MSG and rated; no emissions
+transients, no turbine inertia dynamics, no humidity or altitude effects.
 
 ## Usage example
 

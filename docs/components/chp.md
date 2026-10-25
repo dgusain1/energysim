@@ -42,7 +42,7 @@ Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power.
 
 ## Usage example
 

@@ -33,7 +33,7 @@ thermal demand = demand x enthalpy. No header pressure dynamics.
 |---|---|---|
 | `steam_demand_t_hr` | t/h | Process steam demand |
 | `steam_deficit_t_hr` | t/h | Unmet steam demand |
-| `Q_demand_MW_th` | MW | - |
+| `Q_demand_MW_th` | MW | Thermal power equivalent of the steam demand |
 
 ## Validity and notes
 

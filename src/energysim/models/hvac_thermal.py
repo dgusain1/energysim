@@ -188,8 +188,8 @@ class ElectricChiller(ModelComponent):
     """
     Electric vapor-compression chiller.
 
-    COP degrades linearly with ambient temperature (1.5 % per K above 25 C) and
-    is clamped to [2, 8]; it is evaluated continuously, also when idle.
+    COP changes linearly with ambient temperature (-1.5 % per K above 25 C and
+    +1.5 % per K below it) and is clamped to [2, 8]; it is evaluated continuously, also when idle.
     Validity: T_amb 5..45 C, constant-COP part-load behaviour.
 
     Parameters
@@ -328,8 +328,12 @@ class ThermalStorageTank(ModelComponent):
 
     Outputs
     -------
+    Q_actual_MW : MW
+        Thermal power actually charged (+) or discharged (-)
     SoC : 1
         Thermal state of charge
+    Q_loss_MW : MW
+        Standing thermal loss
     """
 
     units = {"Q_cmd_MW": "MW", "Q_actual_MW": "MW", "SoC": "1", "Q_loss_MW": "MW"}

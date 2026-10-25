@@ -47,7 +47,7 @@ STANDBY or RUNNING. A step with ``dt == 0`` leaves the dynamic state unchanged.
 |---|---|---|
 | `P_actual` | MW | Actual active power absorbed |
 | `m_dot_H2_kg_hr` | kg/h | Hydrogen mass production rate |
-| `state` | 1 | Operating status ('RUNNING', 'CUTOFF_TRIP', 'OFF') |
+| `state` | 1 | Operating status ('RUNNING', 'STANDBY', 'OFF') |
 
 ## Validity and notes
 

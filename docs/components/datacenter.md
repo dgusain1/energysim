@@ -19,7 +19,7 @@ thermal inertia or workload dynamics). Validity: T_amb -10..40 C,
 |---|---|---|---|---|
 | `name` | `str` | `'DataCenter'` | - | - |
 | `it_capacity_mw` | `float` | `100.0` | MW | Nominal IT compute server capacity in MW. |
-| `base_pue` | `float` | `1.15` | - | Base Power Usage Effectiveness at mild ambient temperatures (<=15 C). |
+| `base_pue` | `float` | `1.15` | - | Base Power Usage Effectiveness at mild ambient temperatures (<=10 C with the default curve). |
 | `pue_curve` | `Optional[Curve1D]` | `None` | - | PUE vs ambient dry-bulb temperature. |
 | `step_size` | `float` | `1.0` | s | - |
 
@@ -36,13 +36,14 @@ thermal inertia or workload dynamics). Validity: T_amb -10..40 C,
 |---|---|---|
 | `P_total_grid_MW` | MW | - |
 | `P_it_MW` | MW | - |
-| `P_cooling_MW` | MW | Active power consumed solely by chillers and HVAC |
+| `P_cooling_MW` | MW | Total grid power minus IT power (cooling plus other infrastructure) |
 | `PUE` | 1 | Operating Power Usage Effectiveness |
 | `Q_waste_heat_MW` | MW | - |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: T_amb -10..40 C,
+0 <= IT <= it_capacity_mw.
 
 ## Usage example
 

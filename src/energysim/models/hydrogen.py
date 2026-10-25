@@ -281,7 +281,7 @@ class AlkalineElectrolyzer(ModelComponent):
     m_dot_H2_kg_hr : kg/h
         Hydrogen mass production rate
     state : 1
-        Operating status ('RUNNING', 'CUTOFF_TRIP', 'OFF')
+        Operating status ('RUNNING', 'STANDBY', 'OFF')
 
     Notes
     -----

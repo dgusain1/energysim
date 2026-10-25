@@ -87,7 +87,7 @@ class GasTurbine_OCGT(ModelComponent):
     fuel_consumption_MMBtu_hr : MMBtu/h
         Fuel gas consumption rate
     Q_exhaust_MW : MW
-        Thermal energy in exhaust flue gas
+        Fuel energy not converted to electricity (fuel input minus electrical output, including all losses)
     state : -
         Operating state string
     """
@@ -408,7 +408,7 @@ class ReciprocatingGenset(ModelComponent):
 
     Fixed electrical and heat-recovery efficiencies (no part-load curve, no
     start-up delay or ramp limit). Validity: 0 to rated power; the sum of
-    electrical and heat-recovery efficiency must not exceed 1.
+    electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor).
 
     Parameters
     ----------

@@ -167,7 +167,7 @@ SUFFIX_UNITS = [
     ("_gj_tco2", "GJ/tCO2"), ("_pct_per_s", "%/s"), ("_pct_per_day", "%/day"), ("_pct_hr", "%/h"),
     ("_pct_per_year_25c", "%/year"), ("_m3", "m3"), ("_sec", "s"), ("_kg_per_kg_h2", "kg/kg H2"),
     ("_t_hr", "t/h"), ("_mwh_th", "MWh_th"), ("_mw_th", "MW_th"), ("_w_m2_k", "W/m2/K"),
-    ("_w_m2_k2", "W/m2/K2"), ("_kg_hr", "kg/h"), ("_hr", "h"),
+    ("temp_coeff_p", "1/K"), ("_w_m2_k2", "W/m2/K2"), ("_kg_hr", "kg/h"), ("_hr", "h"),
 ]
 
 CONTROL_CLASSES = [
@@ -421,7 +421,9 @@ def render_model(cls, level: int) -> str:
         title = "Validity and notes" if tl == "notes" else t
         parts.append(render_section(title, b, level))
     if "notes" not in named:
-        parts.append(f"{h} Validity and notes\n\n*No validity range is documented for this model yet.*\n")
+        vm = re.search(r"Validity[^\n]*(?:\n[ \t]*\S[^\n]*)*", pre)
+        body = to_markdown(vm.group(0)) if vm else "*No validity range is documented for this model yet.*"
+        parts.append(f"{h} Validity and notes\n\n{body}\n")
     parts.append(f"{h} Usage example\n\n```python\n{model_example(cls, '')}\n```\n")
     return "\n".join(parts)
 
@@ -472,7 +474,7 @@ def render_physical_models() -> str:
     out = [BANNER, "", "# Physical Component Library", "",
            "`energysim` ships a library of state-dependent empirical models for multi-energy systems. Every model "
            "is a `ModelComponent`: it declares its inputs, outputs and a **unit for every variable**, can describe "
-           "itself with `describe()`, is deterministic and can be re-run after `cleanup()`. "
+           "itself with `describe()`, is deterministic and can be re-run after `init()` / `reset()`. "
            "Each reference page below is generated from the class docstring and `describe()`; the physical "
            "validity range of every model is documented in its *Validity and notes* section and benchmarked in "
            "[Validation](validation.md).", "",

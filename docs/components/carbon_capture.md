@@ -39,7 +39,8 @@ steady loads, capture rate 0.8-0.95.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity:
+steady loads, capture rate 0.8-0.95.
 
 ## Usage example
 

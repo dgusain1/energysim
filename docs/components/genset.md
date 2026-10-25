@@ -10,7 +10,7 @@ Reciprocating Internal Combustion Engine (Genset) with thermal heat recovery.
 
 Fixed electrical and heat-recovery efficiencies (no part-load curve, no
 start-up delay or ramp limit). Validity: 0 to rated power; the sum of
-electrical and heat-recovery efficiency must not exceed 1.
+electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor).
 
 ## Parameters
 
@@ -38,7 +38,8 @@ electrical and heat-recovery efficiency must not exceed 1.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: 0 to rated power; the sum of
+electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor).
 
 ## Usage example
 

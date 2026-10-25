@@ -2,7 +2,7 @@
 
 # Physical Component Library
 
-`energysim` ships a library of state-dependent empirical models for multi-energy systems. Every model is a `ModelComponent`: it declares its inputs, outputs and a **unit for every variable**, can describe itself with `describe()`, is deterministic and can be re-run after `cleanup()`. Each reference page below is generated from the class docstring and `describe()`; the physical validity range of every model is documented in its *Validity and notes* section and benchmarked in [Validation](validation.md).
+`energysim` ships a library of state-dependent empirical models for multi-energy systems. Every model is a `ModelComponent`: it declares its inputs, outputs and a **unit for every variable**, can describe itself with `describe()`, is deterministic and can be re-run after `init()` / `reset()`. Each reference page below is generated from the class docstring and `describe()`; the physical validity range of every model is documented in its *Validity and notes* section and benchmarked in [Validation](validation.md).
 
 ```python
 from energysim.models import BatteryBESS

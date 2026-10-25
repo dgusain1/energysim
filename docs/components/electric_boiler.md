@@ -35,7 +35,7 @@ Constant efficiency, ramp-limited electric input. Validity: 0 to p_max_mw.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: 0 to p_max_mw.
 
 ## Usage example
 

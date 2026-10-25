@@ -30,7 +30,7 @@ class DataCenterLoad(ModelComponent):
     it_capacity_mw : float
         Nominal IT compute server capacity in MW.
     base_pue : float, default 1.15
-        Base Power Usage Effectiveness at mild ambient temperatures (<=15 C).
+        Base Power Usage Effectiveness at mild ambient temperatures (<=10 C with the default curve).
     pue_curve : Curve1D, optional
         PUE vs ambient dry-bulb temperature.
 
@@ -42,7 +42,7 @@ class DataCenterLoad(ModelComponent):
     Outputs
     -------
     P_cooling_MW : MW
-        Active power consumed solely by chillers and HVAC
+        Total grid power minus IT power (cooling plus other infrastructure)
     PUE : 1
         Operating Power Usage Effectiveness
     """
@@ -129,6 +129,8 @@ class IndustrialProcessSteam(ModelComponent):
         Process steam demand
     steam_deficit_t_hr : t/h
         Unmet steam demand
+    Q_demand_MW_th : MW_th
+        Thermal power equivalent of the steam demand
 
     Notes
     -----

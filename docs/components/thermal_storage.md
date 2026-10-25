@@ -37,13 +37,13 @@ Validity: capacity-level studies at hours-to-days timescales.
 
 | Variable | Unit | Description |
 |---|---|---|
-| `Q_actual_MW` | MW | - |
+| `Q_actual_MW` | MW | Thermal power actually charged (+) or discharged (-) |
 | `SoC` | 1 | Thermal state of charge |
-| `Q_loss_MW` | MW | - |
+| `Q_loss_MW` | MW | Standing thermal loss |
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: capacity-level studies at hours-to-days timescales.
 
 ## Usage example
 

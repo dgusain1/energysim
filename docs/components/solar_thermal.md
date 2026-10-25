@@ -19,15 +19,15 @@ incidence-angle modifier. Validity: G > 10 W/m2, dT 0-100 K.
 | `name` | `str` | `'SolarThermal'` | - | Unique component name identifier |
 | `area_m2` | `float` | `1000.0` | m2 | Total collector aperture area |
 | `eta0` | `float` | `0.8` | 1 | Optical peak efficiency factor |
-| `a1_w_m2_k` | `float` | `3.5` | W/m2/K | - |
-| `a2_w_m2_k2` | `float` | `0.015` | W/m2/K2 | - |
+| `a1_w_m2_k` | `float` | `3.5` | W/m2/K | Linear heat-loss coefficient a1 in W/m2/K (default 3.5) |
+| `a2_w_m2_k2` | `float` | `0.015` | W/m2/K2 | Quadratic heat-loss coefficient a2 in W/m2/K2 (default 0.015) |
 | `step_size` | `float` | `1.0` | s | - |
 
 ## Inputs
 
 | Variable | Unit | Description |
 |---|---|---|
-| `G_solar` | W/m2 | - |
+| `G_solar` | W/m2 | Irradiance on the collector plane |
 | `T_in` | degC | Inlet heat transfer fluid temperature |
 | `T_amb` | degC | Ambient temperature |
 
@@ -39,7 +39,7 @@ incidence-angle modifier. Validity: G > 10 W/m2, dT 0-100 K.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: G > 10 W/m2, dT 0-100 K.
 
 ## Usage example
 

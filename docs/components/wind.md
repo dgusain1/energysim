@@ -47,7 +47,8 @@ wake, turbulence, icing or yaw-misalignment effects.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: hub-height wind 0-30 m/s, T_amb -30..45 C, altitude 0-3000 m; no
+wake, turbulence, icing or yaw-misalignment effects.
 
 ## Usage example
 

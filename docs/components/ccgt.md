@@ -55,7 +55,7 @@ Validity: T_amb -20..45 C, loads between MSG and rated.
 
 ## Validity and notes
 
-*No validity range is documented for this model yet.*
+Validity: T_amb -20..45 C, loads between MSG and rated.
 
 ## Usage example
 

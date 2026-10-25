@@ -68,6 +68,8 @@ class OPFController(Controller):
     opf_kwargs : dict, optional
         Extra keyword arguments for the pandapower OPF call.
 
+    Notes
+    -----
     On non-convergence the previous set-points are kept (``fallback = 1``) and
     ``solver_status`` is 2 (infeasible / not converged) or 4 (other error).
     """
