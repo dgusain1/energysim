@@ -60,6 +60,19 @@ def test_surface2d_bilinear_interpolation():
     assert s(-5.0, -5.0) == pytest.approx(0.0)
 
 
+def test_surface2d_accepts_arrays_and_matches_scalar_path():
+    s = Surface2D([-10.0, 0.0, 10.0], [30.0, 50.0], [[2.0, 1.5], [3.0, 2.5], [4.0, 3.5]], min_val=1.6)
+    xs = np.array([-20.0, -5.0, 0.0, 4.0, 10.0, 99.0])
+    ys = np.array([25.0, 40.0, 50.0, 35.0, 30.0, 60.0])
+    out = s(xs, ys)
+    assert isinstance(out, np.ndarray) and out.shape == xs.shape
+    assert out == pytest.approx([s(x, y) for x, y in zip(xs, ys)])
+    assert isinstance(s(1.0, 40.0), float)
+    # an array against a scalar broadcasts
+    assert s(xs, 40.0) == pytest.approx([s(x, 40.0) for x in xs])
+    assert s(np.array([0.0]), 50.0).shape == (1,)
+
+
 # =============================================================================
 # 2. Operating State Machine Tests
 # =============================================================================

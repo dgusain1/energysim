@@ -151,26 +151,30 @@ class Surface2D:
         self.max_val = max_val
         self.name = name
 
-    def evaluate(self, x_val: float, y_val: float) -> float:
-        """Bilinear interpolation at (x_val, y_val)."""
-        x_q = float(x_val)
-        y_q = float(y_val)
+    def evaluate(self, x_val: Union[float, Sequence[float]],
+                 y_val: Union[float, Sequence[float]]) -> Union[float, np.ndarray]:
+        """Bilinear interpolation at (x_val, y_val).
+
+        Scalars give a ``float``; arrays (broadcast against each other) give an array of
+        the broadcast shape, which is what vectorized fleet models need.
+        """
+        scalar = np.ndim(x_val) == 0 and np.ndim(y_val) == 0
+        x_q, y_q = np.broadcast_arrays(np.asarray(x_val, dtype=float), np.asarray(y_val, dtype=float))
 
         if self.clamp:
-            x_q = min(max(x_q, self.x[0]), self.x[-1])
-            y_q = min(max(y_q, self.y[0]), self.y[-1])
+            x_q = np.clip(x_q, self.x[0], self.x[-1])
+            y_q = np.clip(y_q, self.y[0], self.y[-1])
 
         # Find bounding indices
-        i = np.searchsorted(self.x, x_q) - 1
-        i = max(0, min(i, len(self.x) - 2))
-        j = np.searchsorted(self.y, y_q) - 1
-        j = max(0, min(j, len(self.y) - 2))
+        i = np.clip(np.searchsorted(self.x, x_q) - 1, 0, len(self.x) - 2)
+        j = np.clip(np.searchsorted(self.y, y_q) - 1, 0, len(self.y) - 2)
 
         x0, x1 = self.x[i], self.x[i + 1]
         y0, y1 = self.y[j], self.y[j + 1]
 
-        xd = (x_q - x0) / (x1 - x0) if x1 != x0 else 0.0
-        yd = (y_q - y0) / (y1 - y0) if y1 != y0 else 0.0
+        dx, dy = x1 - x0, y1 - y0
+        xd = np.where(dx != 0.0, (x_q - x0) / np.where(dx != 0.0, dx, 1.0), 0.0)
+        yd = np.where(dy != 0.0, (y_q - y0) / np.where(dy != 0.0, dy, 1.0), 0.0)
 
         z00 = self.z[i, j]
         z10 = self.z[i + 1, j]
@@ -183,11 +187,12 @@ class Surface2D:
         result = c0 * (1.0 - yd) + c1 * yd
 
         if self.min_val is not None:
-            result = max(result, self.min_val)
+            result = np.maximum(result, self.min_val)
         if self.max_val is not None:
-            result = min(result, self.max_val)
+            result = np.minimum(result, self.max_val)
 
-        return float(result)
+        return float(result) if scalar else result
 
-    def __call__(self, x_val: float, y_val: float) -> float:
+    def __call__(self, x_val: Union[float, Sequence[float]],
+                 y_val: Union[float, Sequence[float]]) -> Union[float, np.ndarray]:
         return self.evaluate(x_val, y_val)

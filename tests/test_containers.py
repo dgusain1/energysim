@@ -289,3 +289,77 @@ def test_large_fleet_timing():
     elapsed = _time.perf_counter() - t0
     assert elapsed < 10.0, f"100k units x 96 steps took {elapsed:.2f}s"
     assert np.all(np.isfinite(fleet.states['soc']))
+
+
+# ---------------------------------------------------------------------------
+# from_model & HeatPumpFleetAdapter tests
+# ---------------------------------------------------------------------------
+
+def test_fleet_from_model_factories():
+    from energysim.models import BatteryBESS, PhysicsPV, IndustrialHeatPump
+    from energysim.container import HeatPumpFleetAdapter
+
+    # Battery
+    b_mod = BatteryBESS(capacity_mwh=0.060, p_max_mw=0.011, soc_init=0.6)
+    b_fleet = BatteryFleetAdapter.from_model(b_mod, size=50, spread=0.1, seed=123)
+    assert b_fleet.size == 50
+    assert 50.0 < np.mean(b_fleet.capacity) < 70.0
+    assert np.all(b_fleet.states['soc'] >= 0.05)
+    assert np.all(b_fleet.states['soc'] <= 0.95)
+
+    # PV
+    pv_mod = PhysicsPV(p_dc_stc_mw=0.006)
+    pv_fleet = PVFleetAdapter.from_model(pv_mod, size=50, spread=0.1, seed=123)
+    assert pv_fleet.size == 50
+    assert 5.0 < np.mean(pv_fleet.peak_kw) < 7.0
+
+    # Heat pump
+    hp_mod = IndustrialHeatPump(q_max_thermal_mw=0.012, carnot_efficiency=0.55)
+    hp_fleet = HeatPumpFleetAdapter.from_model(hp_mod, size=50, spread=0.1, seed=123)
+    assert hp_fleet.size == 50
+    assert 10.0 < np.mean(hp_fleet.q_max_th) < 14.0
+    assert hp_fleet.carnot_efficiency == 0.55
+
+
+def test_heat_pump_fleet_carnot_and_control():
+    from energysim.container import HeatPumpFleetAdapter
+
+    hp = HeatPumpFleetAdapter(size=5, q_max_th_kw=10.0, carnot_efficiency=0.50, step_size=900)
+    hp.set_value(['t_ambient', 't_sink'], [5.0, 45.0]) # lift = 40 K, T_snk_K = 318.15, COP_carnot = 7.95, COP = 3.977
+    hp.set_value(['q_th_cmd_kw'], 8.0) # demand 8 kW thermal
+    hp.step(0.0)
+
+    cop = hp.get_value(['cop[0]'])[0]
+    q_th = hp.get_value(['q_th_kw[0]'])[0]
+    p_el = hp.get_value(['p_el_kw[0]'])[0]
+
+    assert 3.9 < cop < 4.1
+    assert np.isclose(q_th, 8.0)
+    assert np.isclose(p_el, 8.0 / cop)
+
+    tot_p = hp.get_value(['total_p_el_kw'])[0]
+    assert np.isclose(tot_p, 5 * p_el)
+
+
+def test_world_add_fleet_from_model():
+    import energysim as es
+    from energysim.models import BatteryBESS, PhysicsPV, IndustrialHeatPump
+
+    w = es.World(start_time=0, stop_time=1800, t_macro=900)
+    bess = BatteryBESS(capacity_mwh=0.050, p_max_mw=0.010)
+    pv = PhysicsPV(p_dc_stc_mw=0.005)
+    hp = IndustrialHeatPump(q_max_thermal_mw=0.008)
+
+    w.add_fleet('bess_fleet', model=bess, size=100, spread=0.1, seed=1)
+    w.add_fleet('pv_fleet', model=pv, size=100, spread=0.1, seed=2)
+    w.add_fleet('hp_fleet', model=hp, size=100, spread=0.1, seed=3)
+    w.add_fleet('house_fleet', kind='building', size=100)
+
+    assert w.get_adapter('bess_fleet').size == 100
+    assert w.get_adapter('pv_fleet').size == 100
+    assert w.get_adapter('hp_fleet').size == 100
+    assert w.get_adapter('house_fleet').size == 100
+
+    res = w.simulate()
+    df = res.to_frame()
+    assert len(df) == 3

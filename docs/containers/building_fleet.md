@@ -2,7 +2,7 @@
 
 # Building Thermal Fleet (BuildingFleetAdapter)
 
-> **Class**: `energysim.container.BuildingFleetAdapter` | add to a world with `add_fleet(fleet_type='building', ...)` (accepted kinds: `building`, `building_fleet`)
+> **Class**: `energysim.container.BuildingFleetAdapter` | add to a world with `add_fleet(fleet_type='building', ...)` (accepted kinds: `building`, `building_fleet`, `house`)
 
 ## Overview
 

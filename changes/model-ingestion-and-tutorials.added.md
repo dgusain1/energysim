@@ -1,0 +1,6 @@
+- New `HeatPumpFleetAdapter` for vectorized heat pump fleets with Carnot-lift temperature-dependent COP.
+- `.from_model()` classmethod on `BatteryFleetAdapter`, `PVFleetAdapter`, `BuildingFleetAdapter`, and `HeatPumpFleetAdapter` to directly ingest parameterized `ModelComponent` physical models and archetypes with optional stochastic `spread`.
+- Automatic detection of `ModelComponent` instances in `world.add_fleet(model=...)`.
+- `SimpleVectorizedModel` for functional, lightweight vectorized fleet definitions.
+- `Ensemble.sweep` for concise parameter sweeps over ensemble co-simulations.
+- Starter and specialized co-simulation notebooks: 00 (Model Catalog Starter Guide), 17 (GNU Octave & MATLAB Co-simulation), 18 (DIgSILENT PowerFactory Setup), 19 (Online FMUs and FMI Standards), and 20 (Simplified Vectorized and Ensemble Modeling).

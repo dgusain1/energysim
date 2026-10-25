@@ -335,6 +335,44 @@ class Ensemble:
         self.results: Optional[EnsembleResults] = None
 
     @classmethod
+    def sweep(cls, world_factory: Callable, params: Mapping[str, Sequence[Any]], **kwargs) -> 'Ensemble':
+        """Convenience factory for a full-factorial parameter sweep.
+
+        Accepts any world factory:
+          - make_world(**params)
+          - make_world(params)
+          - make_world(params, seed)
+          - make_world() with parameter_map or dotted names ('sim.var')
+
+        Parameters
+        ----------
+        world_factory : Callable
+            Function returning a world canvas.
+        params : Mapping[str, Sequence[Any]]
+            Parameter names mapped to lists of values to sweep.
+        **kwargs : Any
+            Passed directly to Ensemble(...) (e.g. kpis, keep, parallel).
+        """
+        from .samplers import Grid
+        import inspect
+
+        grid = Grid(params)
+        sig = inspect.signature(world_factory)
+        p_count = len(sig.parameters)
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+
+        if p_count == 0:
+            factory = _MapFactory(world_factory)
+        elif has_kwargs or any(k in sig.parameters for k in params):
+            factory = lambda p, s: world_factory(**p)
+        elif p_count == 1:
+            factory = lambda p, s: world_factory(p)
+        else:
+            factory = world_factory
+
+        return cls(world_factory=factory, sampler=grid, **kwargs)
+
+    @classmethod
     def from_world(cls, world_factory: Callable[[], Any], parameter_map: Optional[Mapping[str, str]] = None,
                    **kwargs) -> 'Ensemble':
         """Ensemble from a parameter-free ``world_factory() -> world``.

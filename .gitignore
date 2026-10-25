@@ -60,3 +60,6 @@ energysim-brand-kit.zip
 
 # Test caches
 tests/.cache/
+
+# AI assistant local settings
+.claude/

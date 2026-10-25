@@ -86,11 +86,13 @@ FAMILIES = [
 
 FLEET_PAGES = [
     ("storage_fleet", "Storage and EV Battery Fleet (BatteryFleetAdapter)", "BatteryFleetAdapter",
-     ["battery", "battery_fleet"], "add_fleet(fleet_type='battery', ...)"),
-    ("pv_fleet", "Solar PV Fleet (PVFleetAdapter)", "PVFleetAdapter", ["pv", "pv_fleet"],
+     ["battery", "battery_fleet", "ev"], "add_fleet(fleet_type='battery', ...)"),
+    ("pv_fleet", "Solar PV Fleet (PVFleetAdapter)", "PVFleetAdapter", ["pv", "pv_fleet", "solar"],
      "add_fleet(fleet_type='pv', ...)"),
     ("building_fleet", "Building Thermal Fleet (BuildingFleetAdapter)", "BuildingFleetAdapter",
-     ["building", "building_fleet"], "add_fleet(fleet_type='building', ...)"),
+     ["building", "building_fleet", "house"], "add_fleet(fleet_type='building', ...)"),
+    ("heat_pump_fleet", "Heat Pump Fleet (HeatPumpFleetAdapter)", "HeatPumpFleetAdapter",
+     ["heat_pump", "hp", "heat_pump_fleet"], "add_fleet(fleet_type='heat_pump', ...)"),
 ]
 
 FLEET_EXAMPLES = {
@@ -118,6 +120,16 @@ sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
 sim.add_fleet(fleet_type='building', name='homes', size=500, step_size=900, power_unit='kW')
 res = sim.simulate()
 print(res['homes.mean_t_indoor'])''',
+    "HeatPumpFleetAdapter": '''from energysim import world
+
+sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
+sim.add_fleet(fleet_type='heat_pump', name='heat_pumps', size=500, q_max_th_kw=10.0,
+              carnot_efficiency=0.50, step_size=900, power_unit='kW')
+sim.add_signal('t_amb', lambda t: [5.0], step_size=900)
+sim.add_signal('heat_req', lambda t: [7.5], step_size=900)
+sim.add_connections({'t_amb.y': 'heat_pumps.t_ambient', 'heat_req.y': 'heat_pumps.q_th_cmd_kw'})
+res = sim.simulate()
+print(res['heat_pumps.total_p_el_kw'])''',
 }
 
 # Descriptions of fleet constructor parameters (the container module has no Parameters sections).
@@ -138,6 +150,10 @@ FLEET_PARAM_DOC = {
     "c_th_kwh_per_k": ("kWh/K", "Thermal capacitance of the building (scalar or length-N array)."),
     "r_th_k_per_kw": ("K/kW", "Thermal resistance of the envelope (scalar or length-N array)."),
     "initial_t_indoor": ("degC", "Initial indoor temperature."),
+    "q_max_th_kw": ("kW", "Maximum thermal heating capacity per unit (scalar or length-N array)."),
+    "carnot_efficiency": ("1", "Carnot efficiency multiplier (default 0.50)."),
+    "cop_min": ("1", "Minimum clamped COP floor (default 1.2)."),
+    "cop_max": ("1", "Maximum clamped COP ceiling (default 7.0)."),
 }
 
 # Parameter-name suffix -> unit, used only for the "Unit" column of model parameter tables.

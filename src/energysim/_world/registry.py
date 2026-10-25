@@ -358,6 +358,7 @@ class RegistryMixin:
             BatteryFleetAdapter,
             BuildingFleetAdapter,
             PVFleetAdapter,
+            HeatPumpFleetAdapter,
             VectorizedFunctionAdapter,
         )
 
@@ -371,17 +372,35 @@ class RegistryMixin:
                 adapter.step_size = step_size
         elif isinstance(target, type) and issubclass(target, VectorizedContainerAdapter):
             adapter = target(name=sim_name, size=size, step_size=step_size, **kwargs)
+        elif target is not None and (hasattr(target, 'step_model') or hasattr(target, 'get_value')):
+            # Parameterized ModelComponent or archetype passed directly to add_fleet / add_container
+            t_name = type(target).__name__.lower()
+            if hasattr(target, 'capacity_mwh') or 'battery' in k_low or 'ev' in k_low or 'bess' in k_low or 'battery' in t_name or 'bess' in t_name:
+                adapter = BatteryFleetAdapter.from_model(target, size=size, name=sim_name, step_size=step_size, **kwargs)
+            elif hasattr(target, 'p_dc_stc_mw') or 'pv' in k_low or 'solar' in k_low or 'pv' in t_name:
+                adapter = PVFleetAdapter.from_model(target, size=size, name=sim_name, step_size=step_size, **kwargs)
+            elif hasattr(target, 'eta_carnot') or hasattr(target, 'carnot_efficiency') or 'hp' in k_low or 'heat_pump' in k_low or 'heatpump' in t_name:
+                adapter = HeatPumpFleetAdapter.from_model(target, size=size, name=sim_name, step_size=step_size, **kwargs)
+            elif hasattr(target, 'c_th') or 'building' in k_low or 'house' in k_low or 'building' in t_name:
+                adapter = BuildingFleetAdapter.from_model(target, size=size, name=sim_name, step_size=step_size, **kwargs)
+            else:
+                raise TypeError(
+                    f"ModelComponent '{type(target).__name__}' does not have an automatic fleet adapter mapping. "
+                    f"Use BatteryFleetAdapter, PVFleetAdapter, HeatPumpFleetAdapter, or BuildingFleetAdapter."
+                )
         elif target is not None:
             raise TypeError(
                 f"Container for '{sim_name}' must be a VectorizedContainerAdapter instance or subclass, "
-                f"got {type(target).__name__}."
+                f"or a ModelComponent, got {type(target).__name__}."
             )
-        elif 'battery' in k_low:
+        elif 'battery' in k_low or 'ev' in k_low or 'bess' in k_low:
             adapter = BatteryFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
-        elif 'building' in k_low or 'thermal' in k_low:
+        elif 'building' in k_low or 'thermal' in k_low or 'house' in k_low:
             adapter = BuildingFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
         elif 'pv' in k_low or 'solar' in k_low:
             adapter = PVFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
+        elif 'heat_pump' in k_low or 'hp' in k_low:
+            adapter = HeatPumpFleetAdapter(name=sim_name, size=size, step_size=step_size, **kwargs)
         elif ('function' in k_low or callable(kwargs.get('update_func'))
               or callable(kwargs.get('update_fn')) or callable(kwargs.get('func'))):
             adapter = VectorizedFunctionAdapter(
@@ -390,7 +409,7 @@ class RegistryMixin:
         else:
             raise ValueError(
                 f"Cannot build container '{sim_name}': specify kind='battery' | 'building' | 'pv' | "
-                f"'function' (or a fleet sim_type), or pass a container adapter via model=/container=."
+                f"'heat_pump' | 'function' (or a fleet sim_type), or pass a container adapter via model=/container=."
             )
 
         if outputs:

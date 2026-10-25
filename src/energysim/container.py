@@ -340,6 +340,59 @@ class BatteryFleetAdapter(VectorizedContainerAdapter):
         self.states['actual_p_kw'][:] = actual_p
         self.states['loss_kw'][:] = loss_kw
 
+    @classmethod
+    def from_model(
+        cls,
+        model: Any,
+        size: int = 100,
+        name: str = 'battery_fleet',
+        spread: float = 0.0,
+        seed: Optional[int] = None,
+        step_size: float = 900.0,
+        **kwargs
+    ) -> 'BatteryFleetAdapter':
+        """Create a vectorized battery/EV fleet initialized from a parameterized model or archetype."""
+        cap_mwh = getattr(model, 'capacity_mwh', None)
+        if cap_mwh is not None:
+            cap_kwh = float(cap_mwh) * 1000.0
+        else:
+            cap_kwh = float(getattr(model, 'capacity_kwh', kwargs.pop('capacity_kwh', 50.0)))
+
+        p_max_mw = getattr(model, 'p_max_mw', None)
+        if p_max_mw is not None:
+            p_max_kw = float(p_max_mw) * 1000.0
+        else:
+            p_max_kw = float(getattr(model, 'max_charge_kw', kwargs.pop('max_charge_kw', 11.0)))
+
+        soc_init = float(getattr(model, 'soc_init', kwargs.pop('initial_soc', 0.5)))
+        soc_min = float(getattr(model, 'soc_min', kwargs.pop('soc_min', 0.05)))
+        soc_max = float(getattr(model, 'soc_max', kwargs.pop('soc_max', 0.95)))
+        eff = float(getattr(model, 'eta_charge', getattr(model, 'efficiency', kwargs.pop('efficiency', 0.95))))
+
+        if spread > 0.0:
+            rng = np.random.default_rng(seed)
+            cap_vec = np.clip(rng.normal(cap_kwh, cap_kwh * spread, size), cap_kwh * 0.3, None)
+            p_vec = np.clip(rng.normal(p_max_kw, p_max_kw * spread, size), p_max_kw * 0.3, None)
+            soc_vec = np.clip(rng.uniform(max(soc_min, soc_init - spread), min(soc_max, soc_init + spread), size), soc_min, soc_max)
+        else:
+            cap_vec = cap_kwh
+            p_vec = p_max_kw
+            soc_vec = soc_init
+
+        return cls(
+            name=name,
+            size=size,
+            capacity_kwh=cap_vec,
+            max_charge_kw=p_vec,
+            max_discharge_kw=p_vec,
+            initial_soc=soc_vec,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            efficiency=eff,
+            step_size=step_size,
+            **kwargs
+        )
+
 
 class BuildingFleetAdapter(VectorizedContainerAdapter):
     """
@@ -395,6 +448,42 @@ class BuildingFleetAdapter(VectorizedContainerAdapter):
         q_net = self.input_values['q_heat_kw'] + self.input_values['q_solar_kw'] - q_loss
         self.states['t_indoor'][:] = t_in + (q_net / self.c_th) * dt_hours
 
+    @classmethod
+    def from_model(
+        cls,
+        model: Any = None,
+        size: int = 100,
+        name: str = 'building_fleet',
+        spread: float = 0.0,
+        seed: Optional[int] = None,
+        step_size: float = 900.0,
+        **kwargs
+    ) -> 'BuildingFleetAdapter':
+        """Create a vectorized building envelope fleet initialized from parameters or model."""
+        c_th = float(getattr(model, 'c_th', getattr(model, 'c_th_kwh_per_k', kwargs.pop('c_th_kwh_per_k', 15.0))))
+        r_th = float(getattr(model, 'r_th', getattr(model, 'r_th_k_per_kw', kwargs.pop('r_th_k_per_kw', 2.5))))
+        t_in = float(getattr(model, 'initial_t_indoor', getattr(model, 't_indoor', kwargs.pop('initial_t_indoor', 20.0))))
+
+        if spread > 0.0:
+            rng = np.random.default_rng(seed)
+            c_vec = np.clip(rng.normal(c_th, c_th * spread, size), c_th * 0.3, None)
+            r_vec = np.clip(rng.normal(r_th, r_th * spread, size), r_th * 0.3, None)
+            t_vec = rng.uniform(t_in - 2.0 * spread, t_in + 2.0 * spread, size)
+        else:
+            c_vec = c_th
+            r_vec = r_th
+            t_vec = t_in
+
+        return cls(
+            name=name,
+            size=size,
+            c_th_kwh_per_k=c_vec,
+            r_th_k_per_kw=r_vec,
+            initial_t_indoor=t_vec,
+            step_size=step_size,
+            **kwargs
+        )
+
 
 class PVFleetAdapter(VectorizedContainerAdapter):
     """
@@ -440,6 +529,219 @@ class PVFleetAdapter(VectorizedContainerAdapter):
         t_cell = self.input_values['t_ambient'] + (g / 800.0) * 25.0
         p_out = self.peak_kw * (g / 1000.0) * (1.0 + self.gamma * (t_cell - 25.0)) * self.pr
         self.states['p_kw'][:] = np.maximum(0.0, p_out)
+
+    @classmethod
+    def from_model(
+        cls,
+        model: Any,
+        size: int = 100,
+        name: str = 'pv_fleet',
+        spread: float = 0.0,
+        seed: Optional[int] = None,
+        step_size: float = 900.0,
+        **kwargs
+    ) -> 'PVFleetAdapter':
+        """Create a vectorized PV fleet initialized from a parameterized PhysicsPV model or archetype."""
+        p_dc = getattr(model, 'p_dc_stc_mw', None)
+        if p_dc is not None:
+            peak_kw = float(p_dc) * 1000.0
+        else:
+            peak_kw = float(getattr(model, 'peak_kw', kwargs.pop('peak_kw', 5.0)))
+        gamma = float(getattr(model, 'temp_coeff_p', kwargs.pop('gamma_temp_coeff', -0.004)))
+        pr = float(getattr(model, 'performance_ratio', kwargs.pop('performance_ratio', 0.85)))
+
+        if spread > 0.0:
+            rng = np.random.default_rng(seed)
+            peak_vec = np.clip(rng.normal(peak_kw, peak_kw * spread, size), peak_kw * 0.2, None)
+        else:
+            peak_vec = peak_kw
+
+        return cls(
+            name=name,
+            size=size,
+            peak_kw=peak_vec,
+            gamma_temp_coeff=gamma,
+            performance_ratio=pr,
+            step_size=step_size,
+            **kwargs
+        )
+
+
+class HeatPumpFleetAdapter(VectorizedContainerAdapter):
+    """
+    Vectorized Heat Pump fleet adapter with Carnot temperature lift COP.
+
+    Simulates N residential or commercial heat pumps simultaneously:
+      COP = eta_carnot * (T_sink + 273.15) / max(5.0, (T_sink - T_source))
+      COP clamped to [cop_min, cop_max] (typically [1.2, 7.0])
+
+    Supports thermal setpoint mode (given q_th_cmd_kw, computes p_el_kw = q_th / COP)
+    and electrical setpoint mode (given p_el_cmd_kw, computes q_th_kw = COP * p_el).
+    """
+
+    def __init__(
+        self,
+        name: str = 'heat_pump_fleet',
+        size: int = 100,
+        q_max_th_kw: Union[float, np.ndarray] = 10.0,
+        carnot_efficiency: float = 0.50,
+        cop_min: float = 1.2,
+        cop_max: float = 7.0,
+        step_size: float = 900.0,
+        **kwargs
+    ):
+        super().__init__(name=name, size=size, step_size=step_size)
+
+        self.carnot_efficiency = float(kwargs.get('eta_carnot', carnot_efficiency))
+        self.cop_min = float(cop_min)
+        self.cop_max = float(cop_max)
+        self.q_max_th = self._as_vector(kwargs.get('q_max', q_max_th_kw), 'q_max_th_kw')
+
+        self.register_state('p_el_kw', 0.0)
+        self.register_state('q_th_kw', 0.0)
+        self.register_state('cop', 3.0)
+
+        self.register_input('t_ambient', 7.0)        # Heat source inlet temp (deg C)
+        self.register_input('t_sink', 50.0)          # Delivery supply temp (deg C)
+        self.register_input('q_th_cmd_kw', 0.0)      # Thermal heating demand setpoint (kW)
+        self.register_input('p_el_cmd_kw', 0.0)      # Electric power limit/command (kW)
+
+        # Aliases
+        self.register_alias('t_amb', 't_ambient')
+        self.register_alias('t_source', 't_ambient')
+        self.register_alias('t_flow', 't_sink')
+        self.register_alias('p_el', 'p_el_kw')
+        self.register_alias('power', 'p_el_kw')
+        self.register_alias('q_th', 'q_th_kw')
+        self.register_alias('heat', 'q_th_kw')
+        self.register_alias('q_demand', 'q_th_cmd_kw')
+        self.register_alias('q_cmd', 'q_th_cmd_kw')
+
+    def step(self, time: float, step_size: Optional[float] = None) -> None:
+        """Advance all N heat pumps by one micro-step."""
+        effective_step = float(step_size) if step_size is not None else self.step_size
+        if effective_step <= 0.0:
+            return
+
+        t_src = self.input_values['t_ambient']
+        t_snk = self.input_values['t_sink']
+        lift = np.maximum(5.0, (t_snk - t_src))
+        cop_carnot = (t_snk + 273.15) / lift
+        cop = np.clip(self.carnot_efficiency * cop_carnot, self.cop_min, self.cop_max)
+
+        q_cmd = np.clip(self.input_values['q_th_cmd_kw'], 0.0, self.q_max_th)
+        p_cmd = np.maximum(0.0, self.input_values['p_el_cmd_kw'])
+
+        using_q = q_cmd > 0.0
+        q_out = np.where(using_q, q_cmd, np.minimum(p_cmd * cop, self.q_max_th))
+        p_out = np.where(using_q, q_cmd / cop, np.where(q_out > 0.0, q_out / cop, 0.0))
+
+        self.states['cop'][:] = cop
+        self.states['q_th_kw'][:] = q_out
+        self.states['p_el_kw'][:] = p_out
+
+    @classmethod
+    def from_model(
+        cls,
+        model: Any,
+        size: int = 100,
+        name: str = 'heat_pump_fleet',
+        spread: float = 0.0,
+        seed: Optional[int] = None,
+        step_size: float = 900.0,
+        **kwargs
+    ) -> 'HeatPumpFleetAdapter':
+        """Create a vectorized heat pump fleet initialized from an IndustrialHeatPump or thermal model."""
+        q_max = getattr(model, 'q_max', getattr(model, 'q_max_thermal_mw', None))
+        if q_max is not None:
+            q_max_kw = float(q_max) * 1000.0
+        else:
+            q_max_kw = float(getattr(model, 'q_max_th_kw', kwargs.pop('q_max_th_kw', 10.0)))
+        eta = float(getattr(model, 'eta_carnot', getattr(model, 'carnot_efficiency', kwargs.pop('carnot_efficiency', 0.50))))
+
+        if spread > 0.0:
+            rng = np.random.default_rng(seed)
+            q_vec = np.clip(rng.normal(q_max_kw, q_max_kw * spread, size), q_max_kw * 0.2, None)
+        else:
+            q_vec = q_max_kw
+
+        return cls(
+            name=name,
+            size=size,
+            q_max_th_kw=q_vec,
+            carnot_efficiency=eta,
+            step_size=step_size,
+            **kwargs
+        )
+
+
+
+class SimpleVectorizedModel(VectorizedContainerAdapter):
+    """
+    Simplified high-performance vectorized container simulator for fleets of DERs.
+
+    Allows defining large fleets with a simple state dict, input list/dict, and a
+    NumPy update function:
+
+    Parameters
+    ----------
+    name : str
+        Simulator name in the world.
+    size : int
+        Number of entities in the fleet (e.g. 1,000 EVs or heat pumps).
+    states : Dict[str, Union[float, np.ndarray]]
+        State variable names and initial values (scalar or array of length size).
+    inputs : Union[List[str], Dict[str, float]]
+        Input variable names (or dict of default values).
+    step_fn : Callable
+        Vectorized update function called each step: step_fn(states, inputs, dt, time).
+        Can mutate states in-place or return a dict of updated state arrays.
+    step_size : float
+        Internal simulator step size in seconds.
+    aliases : Optional[Dict[str, str]]
+        User-facing aliases mapping to state or input names.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        size: int,
+        states: Dict[str, Union[float, np.ndarray]],
+        inputs: Union[List[str], Dict[str, float]],
+        step_fn: Callable,
+        step_size: float = 1.0,
+        aliases: Optional[Dict[str, str]] = None,
+        **kwargs
+    ):
+        super().__init__(name=name, size=size, step_size=step_size)
+        self.step_fn = step_fn
+
+        for s_name, init_val in states.items():
+            self.register_state(s_name, init_val)
+
+        if isinstance(inputs, dict):
+            for inp_name, def_val in inputs.items():
+                self.register_input(inp_name, def_val)
+        else:
+            for inp_name in inputs:
+                self.register_input(inp_name, 0.0)
+
+        if aliases:
+            for a_name, target in aliases.items():
+                self.register_alias(a_name, target)
+
+    def step(self, time: float, step_size: Optional[float] = None) -> None:
+        effective_step = float(step_size) if step_size is not None else self.step_size
+        if effective_step <= 0.0:
+            return
+        try:
+            res = self.step_fn(self.states, self.input_values, effective_step, time)
+        except TypeError:
+            res = self.step_fn(time, self.states, self.input_values, effective_step)
+        if isinstance(res, dict):
+            for k, arr in res.items():
+                if k in self.states:
+                    self.states[k][:] = arr
 
 
 class VectorizedFunctionAdapter(VectorizedContainerAdapter):

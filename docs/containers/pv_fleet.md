@@ -2,7 +2,7 @@
 
 # Solar PV Fleet (PVFleetAdapter)
 
-> **Class**: `energysim.container.PVFleetAdapter` | add to a world with `add_fleet(fleet_type='pv', ...)` (accepted kinds: `pv`, `pv_fleet`)
+> **Class**: `energysim.container.PVFleetAdapter` | add to a world with `add_fleet(fleet_type='pv', ...)` (accepted kinds: `pv`, `pv_fleet`, `solar`)
 
 ## Overview
 

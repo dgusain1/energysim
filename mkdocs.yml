@@ -76,12 +76,14 @@ nav:
       - Storage & EV Battery Fleet: containers/storage_fleet.md
       - Solar PV Fleet: containers/pv_fleet.md
       - Building Thermal Fleet: containers/building_fleet.md
+      - Heat Pump Fleet: containers/heat_pump_fleet.md
       - Building Your Own Vectorized Fleet: containers/custom_fleet.md
   - Simulator Adapters:
       - Supported Simulators & Adapters: add-simulator.md
       - Custom External Simulators: external-simulators.md
   - Interactive Notebooks:
       - Notebook Gallery & Case Studies: notebooks-gallery.md
+      - Roadmap & Starter Guides: notebooks-roadmap.md
   - Workflows & CLI:
       - Declarative YAML & Scenarios: yaml-cli.md
       - Events & Variable Macro Step: events.md

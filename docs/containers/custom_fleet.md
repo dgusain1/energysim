@@ -169,6 +169,37 @@ print(res["quick_fleet"].tail(2))
 
 ---
 
+---
+
+## Approach 3: Simplified Modeling with `SimpleVectorizedModel`
+
+For the simplest declarative syntax, `SimpleVectorizedModel` lets you construct large DER fleets in just a few lines with initial states, declared inputs, and a concise update callback:
+
+```python
+import numpy as np
+from energysim import World, SimpleVectorizedModel
+
+def battery_step(states, inputs, dt, time):
+    # Vectorized update using pure NumPy operations
+    p_eff = np.clip(inputs["p_req"], -11.0, 11.0)
+    states["soc"] = np.clip(states["soc"] + (p_eff * 0.95 * (dt / 3600.0)) / 50.0, 0.05, 0.95)
+    states["actual_p"] = p_eff
+
+fleet = SimpleVectorizedModel(
+    name="ev_fleet",
+    size=1000,
+    states={"soc": 0.5, "actual_p": 0.0},
+    inputs=["p_req"],
+    step_fn=battery_step,
+    step_size=900.0,
+)
+
+w = World(start_time=0, stop_time=3600, t_macro=900)
+w.add_container("ev_fleet", fleet)
+res = w.simulate()
+print("Mean fleet SoC:", res["ev_fleet.mean_soc"].iloc[-1])
+```
+
 ## Performance Best Practices
 
 1. **Avoid Python Loops**: Never write `for i in range(self.size)` inside `step()`. Use boolean masks (`mask = soc < 0.2`) and NumPy array slices (`soc[mask] += ...`).

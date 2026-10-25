@@ -1,0 +1,3 @@
+- New notebooks 08-16 for battery, EV, heat-pump and PV fleets, a DSO feeder with fleets, district heat with Octave and OpenDSS, power-gas cold-snap adequacy, curves and 2-D maps with grid solvers, and FMU co-simulation.
+- `Surface2D` accepts NumPy arrays of query points, like `Curve1D`, for vectorized fleets.
+- `scripts/build_notebooks.py` builds notebooks from percent-format sources in `scripts/notebook_src/` (`--check` validates them without writing).

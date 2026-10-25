@@ -94,7 +94,8 @@ record fewer.
 `Curve1D(x, y, clamp=True, min_val=None, max_val=None, name='')` interpolates piecewise linearly and, by default,
 **clamps** queries to the data range (no wild extrapolation) and to optional output bounds. `Surface2D(x, y, z)` is
 the bilinear counterpart with `z.shape == (len(x), len(y))`. Both are immutable by convention, are shared (not
-copied) by the `init()` snapshot, and serialise with `to_dict()` / `from_dict()`.
+copied) by the `init()` snapshot, and serialise with `to_dict()` / `from_dict()`. Like `Curve1D`, `Surface2D` accepts
+NumPy arrays of query points, so one call evaluates a whole vectorized fleet.
 
 ```python
 from energysim.models.common import Curve1D, Surface2D

@@ -31,10 +31,12 @@ from .results import Results, register_kpi
 from .dashboard import generate_dashboard
 
 from .container import (
+    SimpleVectorizedModel,
     VectorizedContainerAdapter,
     BatteryFleetAdapter,
     BuildingFleetAdapter,
     PVFleetAdapter,
+    HeatPumpFleetAdapter,
     VectorizedFunctionAdapter,
 )
 from . import models
@@ -61,9 +63,11 @@ __all__ = [
     "networks",
     "control",
     "VectorizedContainerAdapter",
+    "SimpleVectorizedModel",
     "BatteryFleetAdapter",
     "BuildingFleetAdapter",
     "PVFleetAdapter",
+    "HeatPumpFleetAdapter",
     "VectorizedFunctionAdapter",
     "EnergysimError",
     "SimulatorVariableError",

@@ -39,9 +39,37 @@ flowchart LR
 
 ---
 
+## Ingesting Defined Physical Models and Archetypes
+
+You can instantiate large vectorized fleets directly from calibrated physical component models (e.g., [`BatteryBESS`](../components/bess.md), [`PhysicsPV`](../components/pv.md), [`IndustrialHeatPump`](../components/heat_pump.md)) or equipment archetypes (e.g., `models.archetypes.BESS_2h_2MW`):
+
+```python
+import energysim as es
+from energysim import models
+
+# 1. Define parameterized physical components / archetypes
+ev_pack = models.BatteryBESS(capacity_mwh=0.060, p_max_mw=0.011, soc_init=0.6)
+solar = models.PhysicsPV(p_dc_stc_mw=0.005)
+heat_pump = models.IndustrialHeatPump(q_max_thermal_mw=0.010, carnot_efficiency=0.50)
+
+# 2. Ingest directly into 1,000-unit vectorized fleets!
+sim = es.World(start_time=0, stop_time=3600, t_macro=900)
+
+# Pass model=... and optional spread for stochastic entity-to-entity heterogeneity
+sim.add_fleet("evs", model=ev_pack, size=1000, spread=0.10, seed=42)
+sim.add_fleet("solar", model=solar, size=1000, spread=0.15, seed=43)
+sim.add_fleet("hp", model=heat_pump, size=1000, spread=0.10, seed=44)
+sim.add_fleet("houses", kind="building", size=1000, initial_t_indoor=20.0, spread=0.10)
+```
+
+The `spread` parameter (e.g. `spread=0.10` for $\pm 10\%$) applies Gaussian variation across the $N$ entities' rated capacities and uniform variation across their initial states, ensuring realistic fleet diversity without manual loops.
+
+---
+
 ## Container Catalog
 
 * [**Storage Fleet**](storage_fleet.md): Heterogeneous residential battery storage and EV charging aggregation.
 * [**Solar PV Fleet**](pv_fleet.md): Distributed rooftop solar arrays with spatial irradiance and temperature derate.
 * [**Building Thermal Fleet**](building_fleet.md): 1R1C lumped thermal envelope fleets for demand response.
-* [**Build Your Own Vectorized Fleet**](custom_fleet.md): Step-by-step tutorial on subclassing `VectorizedContainerAdapter` or using `VectorizedFunctionAdapter`.
+* [**Heat Pump Fleet**](heat_pump_fleet.md): Temperature-lift dependent Carnot COP heat pump aggregation.
+* [**Build Your Own Vectorized Fleet**](custom_fleet.md): Step-by-step tutorial on subclassing `VectorizedContainerAdapter`, `SimpleVectorizedModel`, or using `VectorizedFunctionAdapter`.

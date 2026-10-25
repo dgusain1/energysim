@@ -2,7 +2,7 @@
 
 # Storage and EV Battery Fleet (BatteryFleetAdapter)
 
-> **Class**: `energysim.container.BatteryFleetAdapter` | add to a world with `add_fleet(fleet_type='battery', ...)` (accepted kinds: `battery`, `battery_fleet`)
+> **Class**: `energysim.container.BatteryFleetAdapter` | add to a world with `add_fleet(fleet_type='battery', ...)` (accepted kinds: `battery`, `battery_fleet`, `ev`)
 
 ## Overview
 
