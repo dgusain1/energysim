@@ -1,6 +1,6 @@
 # Notebooks and examples
 
-Sixteen Jupyter notebooks ship with the repository (08-16 are new and have not yet been executed end to end); see the
+Twenty-one Jupyter notebooks (00-20) ship with the repository; see the
 [notebook roadmap](notebooks-roadmap.md) for the assessment, the quality bar and the wave plan. Notebooks are authored as
 percent-format sources in `scripts/notebook_src/` and built into `examples/notebooks/` with
 `python scripts/build_notebooks.py` (use `--check` to syntax-check the sources without writing). Notebooks 01-07 were
@@ -23,13 +23,13 @@ for the checked benchmarks.
 | 07 | [`07_green_hydrogen_valley.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/07_green_hydrogen_valley.ipynb) | sector coupling | PEM, alkaline and SOEC electrolyzers, waste heat into a heat pump, hydrogen compression and storage, methanation. | matplotlib |
 | 08 | [`08_fleet_bess_physics.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/08_fleet_bess_physics.ipynb) | advanced | A battery fleet with OCV, internal resistance, thermal and SOH states, swept over C-rate and temperature, checked against the single-unit model. | none |
 | 09 | [`09_fleet_ev_mobility.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/09_fleet_ev_mobility.ipynb) | advanced | A stochastic EV fleet with arrival and departure schedules, per-vehicle state of charge, smart versus uncontrolled charging. | none |
-| 10 | [`10_fleet_heatpump_buildings.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/10_fleet_heatpump_buildings.ipynb) | advanced | A building fleet with heat pumps over a weather year, comfort-band violation counts, checked against a lumped-capacity step response. | none |
+| 10 | [`10_fleet_heatpump_buildings.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/10_fleet_heatpump_buildings.ipynb) | advanced | A building fleet with heat pumps over a weather year, comfort-band violation counts, compared against the built-in model. | none |
 | 11 | [`11_fleet_pv_smart_inverters.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/11_fleet_pv_smart_inverters.ipynb) | advanced | A PV fleet with volt-var and curtailment control, and the active / reactive power envelope against the inverter rating. | none |
 | 12 | [`12_dso_feeder_with_fleets.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/12_dso_feeder_with_fleets.ipynb) | expert | A pandapower feeder hosting the fleets from 08-11, with voltage and loading checks and an `Ensemble` hosting-capacity search. | pandapower; networks for the sweep |
 | 13 | [`13_district_heat_and_feeder.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/13_district_heat_and_feeder.ipynb) | expert | A district heat network, a building modelled in Octave and an OpenDSS feeder in one world, with energy balance closure across the three. | opendss, networks, Octave (guarded) |
-| 14 | [`14_power_gas_cold_snap.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/14_power_gas_cold_snap.ipynb) | expert | A winter cold snap with gas-fired generation, a gas network with linepack, and a loss-of-load probability over sampled weather. | networks |
+| 14 | [`14_power_gas_cold_snap.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/14_power_gas_cold_snap.ipynb) | expert | A winter cold snap with gas-fired generation, a gas network with linepack, and unserved-gas, gas-shortfall-to-power, expected-energy-not-served and peak KPIs. | networks |
 | 15 | [`15_curves_and_grid_solvers.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/15_curves_and_grid_solvers.ipynb) | expert | `Surface2D` operating maps (voltage against load and PV) from OpenDSS, PyPSA and Octave solvers on one grid, with a solver-agreement table. | opendss, pypsa, Octave (guarded) |
-| 16 | [`16_fmu_with_builtin_physics.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/16_fmu_with_builtin_physics.ipynb) | expert | Repository FMUs coupled with built-in models, with explicit unit declarations, and a tolerance check between FMU and built-in heat pump. | fmu (Windows-64 binaries, guarded) |
+| 16 | [`16_fmu_with_builtin_physics.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/16_fmu_with_builtin_physics.ipynb) | expert | Repository FMUs coupled with built-in models, with explicit unit declarations (a power-to-heat FMU coupled with a built-in thermal store). | fmu (Windows-64 binaries, guarded) |
 | 17 | [`17_gnu_octave_matlab_cosim.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/17_gnu_octave_matlab_cosim.ipynb) | intermediate | Setting up GNU Octave & MATLAB, function contract, and co-simulating `.m` models with energysim. | oct2py, GNU Octave or MATLAB |
 | 18 | [`18_powerfactory_cosim_setup.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/18_powerfactory_cosim_setup.ipynb) | enterprise | DIgSILENT PowerFactory (2020+) integration guide, Python API matching, element variable syntax, and load flow co-simulation. | powerfactory (guarded/mocked) |
 | 19 | [`19_online_fmus_and_fmi_standards.ipynb`](https://github.com/dgusain1/energysim/blob/master/examples/notebooks/19_online_fmus_and_fmi_standards.ipynb) | intermediate | Downloading online reference FMUs from Modelica Cross-Check repositories, schema introspection, and co-simulation. | FMPy |
@@ -46,7 +46,7 @@ jupyter lab examples/notebooks/
 ```
 
 Wave 1 notebooks are to be written to skip cells whose optional dependencies are missing and print a message; the
-"Extra dependencies" column lists what each notebook needs. Notebook 02 does not yet guard its imports.
+"Extra dependencies" column lists what each notebook needs. Notebook 02 guards its pandapower and PyPSA imports.
 
 ## Example scripts (`examples/`)
 

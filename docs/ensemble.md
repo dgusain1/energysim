@@ -123,8 +123,7 @@ across serial and process runs. Use the run `seed` of the factory to give every 
 ## Parallel runs
 
 `Ensemble(..., parallel='process', max_workers=4)` uses a `spawn` process pool. The factory (and every KPI callable)
-must then be importable from a module: lambdas, closures and functions defined in `__main__` of an interactive
-session are rejected with a hint. Worker results are bit-identical to the serial ones.
+must then be importable from a module: lambdas and closures (`<lambda>` / `<locals>`) and unpicklable objects are rejected with a hint, and functions defined in `__main__` of an interactive session will fail in the workers. Worker results are bit-identical to the serial ones.
 
 ```python notest
 # runs in a script, not in the docs test (needs an importable module and a __main__ guard)
@@ -170,7 +169,7 @@ info = {
 }
 single = Sweep(w, info, kind="single").sweep()            # SweepResult
 print(single.table.round(3))                              # columns: parameter, value, result
-print(single.baseline)                                    # unmodified-world value (single sweeps over a world)
+print(single.baseline)                                    # dict {'values': {...}, 'result': float}; None if a factory was passed
 
 grid = Sweep(w, info, kind="parametric").sweep()
 print(grid.table.shape)                                   # (12, 3): both parameters plus 'result'

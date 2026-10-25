@@ -177,8 +177,8 @@ energysim units [--system default|si] [--set QUANTITY=UNIT ...] [--json]
 | `validate` | Build the world and print the `ValidationReport`; exit `0` if valid, `1` on errors (including a file that cannot be loaded or is refused by `--safe`). |
 | `run` | Validate, then simulate (one row per macro step unless `--record-all` or `world.record_all`), print the run summary (`min max mean last count unit`); exit `0` on success, `1` on any failure. |
 | `--out DIR` | Write the run to `DIR/<YYYYmmdd-HHMMSS>_<hash8>/`: Parquet (CSV without pyarrow) per simulator, `meta.json`, `scenario.yaml`. |
-| `--to-csv` | Also export CSV files into `<run dir>/csv` (implies `--out runs` if no directory is given). |
-| `--dashboard`, `--dashboard-path FILE`, `--offline` | Write the HTML dashboard (opened in the browser with `--dashboard`); `--offline` embeds plotly.js (needs `plotly`). |
+| `--to-csv` | Also export CSV files into `<run dir>/csv` (implies `--out runs` if neither `--out` nor the scenario's `out_dir` is set). |
+| `--dashboard`, `--dashboard-path FILE`, `--offline` | Write the HTML dashboard (opened in the browser with `--dashboard`); `--offline` embeds plotly.js (needs `plotly`; warns and falls back to the CDN if missing). |
 | `--no-pbar` | Disable the progress bar. |
 | `--record-all` | Record every micro step instead of one row per macro step (`run` only). |
 | `--validate-only` | Stop after pre-flight validation (`run` only). |

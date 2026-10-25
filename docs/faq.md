@@ -47,8 +47,8 @@ Parquet (without it `Results.save` and `out_dir` fall back to CSV); `energysim[h
 of `.h5`.
 
 ### The dashboard does not open
-`res.dashboard(path, open=True)` and `energysim run --dashboard` need `plotly` (`pip install plotly`);
-`--offline` embeds plotly.js in the HTML. The file is written even if the browser cannot be opened.
+`res.dashboard(path, open=True)` and `energysim run --dashboard` load Plotly.js from a CDN by default (network access needed to view);
+`--offline` embeds plotly.js in the HTML and needs the `plotly` package (`pip install plotly`; otherwise it warns and falls back to the CDN). The file is written even if the browser cannot be opened.
 
 ## Units
 
@@ -134,7 +134,7 @@ The scenario uses a simulator type that executes code (`external`, `script`, `ma
 (`.p`, `.pkl`) or a dotted import. Remove it, or load the file without `--safe` if you trust it.
 
 ### `type: model` does not work in my YAML
-A scenario cannot instantiate a `ModelComponent` class by name. Load the scenario in Python and add models with
+`type: model` works with a model object, a file path or a factory, but a bare class-name string is not resolved, so a scenario cannot instantiate a `ModelComponent` class by name. Load the scenario in Python and add models with
 `add_model`, or put the class in a file and use `type: external, model: my_models.py:MyClass`.
 
 ### An algebraic loop warning appears

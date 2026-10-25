@@ -169,8 +169,11 @@ pandapower OPF wrapped as an energysim controller.
 | `costs` | dict, optional | `{element: cp1_eur_per_mw}` or `{element: {cp0_eur:..., cp1_eur_per_mw:..., ...}}`; missing `poly_cost` rows are created with `pp.create_poly_cost`. |
 | `mode` | 'ac' \| 'dc' | `runopp` or `rundcopp`. |
 | `opf_kwargs` | dict, optional | Extra keyword arguments for the pandapower OPF call. |
-| `On non-convergence the previous set-points are kept (``fallback = 1``) and` | - | - |
-| `solver_status`` is 2 (infeasible / not converged) or 4 (other error).` | - | - |
+
+#### Validity and notes
+
+On non-convergence the previous set-points are kept (``fallback = 1``) and
+``solver_status`` is 2 (infeasible / not converged) or 4 (other error).
 
 #### Methods
 

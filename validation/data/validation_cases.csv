@@ -49,7 +49,7 @@ pandapower,test_pandapower_via_energysim_matches_direct_runpp,energysim_vs_direc
 pandapower,test_pandapower_two_bus_vs_independent_solver,two_bus_vm_pu_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-6,
 pandapower,test_pandapower_two_bus_vs_independent_solver,two_bus_angle_deg_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-5,
 pypsa,test_pypsa_direct_two_bus_vs_independent_solver,two_bus_vm_pu_vs_fixed_point,fixed-point solution,analytic: independent complex fixed-point iteration,abs:1e-6,
-pypsa,test_pypsa_via_energysim_matches_direct_pypsa,energysim_vs_direct_pypsa_vm_pu,direct n.pf(),self-consistency: world-driven run equals direct PyPSA call,abs:1e-9,xfail when the adapter cannot import pypsa.pf (PyPSA >= 1)
+pypsa,test_pypsa_via_energysim_matches_direct_pypsa,energysim_vs_direct_pypsa_vm_pu,direct n.pf(),self-consistency: world-driven run equals direct PyPSA call,abs:1e-9,xfail if the adapter raises (e.g. a PyPSA version where n.pf() is unavailable); passes on PyPSA 1.1
 pypsa,test_pypsa_via_energysim_matches_direct_pypsa,energysim_vs_direct_pypsa_slack_P_MW,direct n.pf(),self-consistency: world-driven run equals direct PyPSA call,abs:1e-9,
 orchestrator,test_cascade_converges_first_order,jacobi_cascade_convergence_order,1,"analytic: A x'=ax, B y'=cy+dx with exact subsystem integration; only coupling error remains",abs:0.1,"observed order from h=0.25 and 0.125; zero-order hold coupling is first order"
 orchestrator,test_cascade_converges_first_order,gauss-seidel_cascade_convergence_order,1,analytic cascade as above,abs:0.1,"Gauss-Seidel is also first order for one-way coupling"

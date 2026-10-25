@@ -13,7 +13,7 @@ the native object inside it.
 | `'model'` | `add_model` | a `ModelComponent` / adapter instance, class or factory | core |
 | `'external'` | `add_external_simulator` | adapter instance, class, `'file.py:Class'` | core |
 | `'container'`, `'fleet'`, `'battery_fleet'`, `'building_fleet'`, `'pv_fleet'`, `'function_fleet'` | `add_container` / `add_fleet` | fleet adapter, or built from `kind=`, `size=` | core |
-| `'powerflow'` (`'pandapower'`) | `add_powerflow` | pandapower net, path (`.json`, `.p`, `.xlsx`, `.sqlite`) or factory | `energysim[powerflow]` |
+| `'powerflow'` (`'pandapower'`) | `add_powerflow` | pandapower net, path (`.json`, or pickle `.p` / `.pkl` / `.pickle`; pickle is refused in safe mode) or factory | `energysim[powerflow]` |
 | `'pypsa'` | `add_pypsa` | PyPSA `Network`, path or factory | `energysim[pypsa]` |
 | `'opendss'` | `add_opendss` | path of the master `.dss` file | `energysim[opendss]` |
 | `'fmu'` | `add_fmu` | path of an `.fmu` | `energysim[fmu]` |

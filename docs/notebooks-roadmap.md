@@ -1,7 +1,6 @@
 # Notebook roadmap
 
-Status: **planning document.** Notebooks 01-07 ship today. Notebooks 08-16 (wave 1) are specified here but not yet
-written; their sources do not exist in `scripts/notebook_src/` yet. Wave 2 is a list of ideas, not commitments.
+Status: **planning document.** Notebooks 00-20 ship today (wave 1, 08-16, is built from `scripts/notebook_src/`; 17-20 are the Octave/MATLAB, PowerFactory, FMU and ensemble guides). Wave 2 is a list of ideas, not commitments.
 
 ## 1. Candid assessment of the current notebooks
 
@@ -102,7 +101,7 @@ Numbers stay stable so that links do not break. The path reads top to bottom:
 | Multi-energy and adequacy | 05, 07, 13, 14 | District heat, gas, hydrogen, cold-snap adequacy |
 | Integration | 04, 16 | Custom simulator adapters, FMU co-simulation |
 
-Wave 2 notebooks take numbers 17 onward and are added to this table when their sources exist.
+Notebooks 17-20 already exist; new notebooks take numbers 21 onward and are added to this table when their sources exist.
 
 ## 6. Migration of notebooks 01-07
 

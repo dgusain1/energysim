@@ -68,8 +68,8 @@ Where a source is cited it is a physical constant, a textbook formula or a named
 | `pandapower` | two_bus_vm_pu_vs_fixed_point | fixed-point solution | analytic: independent complex fixed-point iteration | absolute 1e-6 | PASS |  |
 | `pandapower` | two_bus_angle_deg_vs_fixed_point | fixed-point solution | analytic: independent complex fixed-point iteration | absolute 1e-5 | PASS |  |
 | `pypsa` | two_bus_vm_pu_vs_fixed_point | fixed-point solution | analytic: independent complex fixed-point iteration | absolute 1e-6 | PASS |  |
-| `pypsa` | energysim_vs_direct_pypsa_vm_pu | direct n.pf() | self-consistency: world-driven run equals direct PyPSA call | absolute 1e-9 | SKIP / XFAIL | xfail when the adapter cannot import pypsa.pf (PyPSA >= 1) |
-| `pypsa` | energysim_vs_direct_pypsa_slack_P_MW | direct n.pf() | self-consistency: world-driven run equals direct PyPSA call | absolute 1e-9 | SKIP / XFAIL |  |
+| `pypsa` | energysim_vs_direct_pypsa_vm_pu | direct n.pf() | self-consistency: world-driven run equals direct PyPSA call | absolute 1e-9 | PASS | xfail if the adapter raises (e.g. a PyPSA version where n.pf() is unavailable); passes on PyPSA 1.1 |
+| `pypsa` | energysim_vs_direct_pypsa_slack_P_MW | direct n.pf() | self-consistency: world-driven run equals direct PyPSA call | absolute 1e-9 | PASS |  |
 | `orchestrator` | jacobi_cascade_convergence_order | 1 | analytic: A x'=ax, B y'=cy+dx with exact subsystem integration; only coupling error remains | absolute 0.1 | PASS | observed order from h=0.25 and 0.125; zero-order hold coupling is first order |
 | `orchestrator` | gauss-seidel_cascade_convergence_order | 1 | analytic cascade as above | absolute 0.1 | PASS | Gauss-Seidel is also first order for one-way coupling |
 | `orchestrator` | gauss_seidel_order_minus_jacobi_order | 0 | self-consistency | absolute 0.15 | PASS | difference of observed orders; asserted within +-0.15 (GS must not be worse) |
@@ -94,8 +94,8 @@ Extracted from the model docstrings.
 
 | Model | Validity |
 |---|---|
-| `AbsorptionChiller` | not documented |
-| `AlkalineElectrolyzer` | not documented |
+| `AbsorptionChiller` | Validity: constant thermal COP independent of source and sink temperatures; cooling between 0 and q_cooling_max_mw, limited by the available waste heat; steady state. |
+| `AlkalineElectrolyzer` | Validity: between min_turndown_pct and 100 % of p_nominal_mw (below that the plant is in STANDBY); system-level steady-state specific consumption with no stack temperature, pressure or degradation model. |
 | `BatteryBESS` | Validity: meaningful for roughly 0-45 C pack temperature, SoC between ~5 and 95 %, and \|P\| <= p_max_mw. SOH is floored at 0.5. ``Q_heat_kW`` is DC joule heat only (inverter losses are not included). |
 | `CHP_SteamTurbine` | Validity: steam flow 0-``p_max_mw`` kg/s, heat demand <= 2 x base power. |
 | `CarbonCapture_Amine` | Validity: steady loads, capture rate 0.8-0.95. |
@@ -105,18 +105,18 @@ Extracted from the model docstrings.
 | `ElectricChiller` | Validity: T_amb 5..45 C, constant-COP part-load behaviour. |
 | `FlowBattery` | Validity: an energy-bucket model; no electrolyte imbalance, crossover or temperature dependence. ``P_actual`` is the grid-side power including pump parasitics (positive = import). |
 | `Flywheel` | Validity: seconds-to-minutes duty cycles; no speed-dependent power limit or bearing/windage model beyond the lumped self-discharge. |
-| `FuelCell_PEM` | not documented |
-| `FuelCell_SOFC` | not documented |
+| `FuelCell_PEM` | Validity: constant electrical efficiency independent of load, power between 0 and p_nominal_mw, ramp limited to ramp_rate_mw_min; no degradation or stack-temperature model. |
+| `FuelCell_SOFC` | Validity: constant efficiencies independent of load, power between 0 and p_nominal_mw; no ramp limit and no thermal-cycling or start-up model. |
 | `GasTurbine_OCGT` | Validity: T_amb -20..45 C, loads between MSG and rated; no emissions transients, no turbine inertia dynamics, no humidity or altitude effects. |
-| `H2Compressor` | not documented |
-| `H2StorageTank` | not documented |
+| `H2Compressor` | Validity: ideal-gas hydrogen (gamma = 1.41, no compressibility correction), equal stage pressure ratios, steady-state flow up to max_flow_kg_hr; no start-up or surge behaviour. |
+| `H2StorageTank` | Validity: single-node, isothermal tank (gas temperature fixed at t_gas_c) with the linear compressibility Z = 1 + 0.0006 p[bar]; intended for pressures up to about 350 bar at roughly ambient temperature; no thermal effects of filling or discharging. |
 | `IndustrialHeatPump` | Validity: source -10..60 C, sink 30..120 C, lift 10..90 K. |
-| `IndustrialProcessSteam` | not documented |
-| `MethanationReactor` | not documented |
-| `PEMElectrolyzer` | not documented |
+| `IndustrialProcessSteam` | Validity: quasi-static demand header; no pressure, temperature or condensate-return dynamics; constant specific enthalpy. |
+| `MethanationReactor` | Validity: steady state with a constant conversion_efficiency independent of load, temperature and pressure; CO2 is assumed available; H2 feed up to max_h2_feed_kg_hr. |
+| `PEMElectrolyzer` | Validity: stack power between min_turndown * p_nominal_mw and p_nominal_mw (the polarization curve ends at 2.5 A/cm2); steady-state electrochemistry with no temperature dependence of the cell voltage and no degradation; dynamics are limited to the ramp limit and the lumped stack thermal mass. |
 | `PhysicsPV` | Validity: G_poa in 0-1300 W/m2, T_amb -20..50 C, v_wind 0..20 m/s; the output is a smooth surrogate for plant-level studies, not for bankable yield. |
-| `ReciprocatingGenset` | Validity: 0 to rated power; the sum of electrical and heat-recovery efficiency must not exceed 1. |
-| `SOECElectrolyzer` | validity guard (600-900 degC, ``ValueError`` otherwise); it does not enter the calculation. Stateless: ``dt`` has no effect. |
+| `ReciprocatingGenset` | Validity: 0 to rated power; the sum of electrical and heat-recovery efficiency should not exceed 1 (not enforced by the constructor). |
+| `SOECElectrolyzer` | validity guard (600-900 degC, ``ValueError`` otherwise); it does not enter the calculation. Stateless: ``dt`` has no effect. Validity: operating_temp_c between 600 and 900 degC (enforced at construction); steady state, constant specific electricity consumption independent of load and temperature; the heat for steam generation is supplied externally. |
 | `SolarThermalCollector` | Validity: G > 10 W/m2, dT 0-100 K. |
 | `ThermalStorageTank` | Validity: capacity-level studies at hours-to-days timescales. |
 | `WindTurbine` | Validity: hub-height wind 0-30 m/s, T_amb -30..45 C, altitude 0-3000 m; no wake, turbulence, icing or yaw-misalignment effects. |

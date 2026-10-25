@@ -219,7 +219,7 @@ until two are known). Linear extrapolation helps smooth signals and can amplify 
 
 Every simulator contributes one table. By default (`record_all=False`) one row per **macro step**, taken before the
 step; with `record_all=True` one row per micro step. A final row at `stop_time` is always added. Rows are buffered
-in typed columns (float, int, bool, str) and, with `out_dir`, streamed to Parquet. See [Results](results.md).
+in typed columns (float, int, bool, str) and, with `out_dir`, streamed to Parquet (CSV written at the end if `pyarrow` is missing). See [Results](results.md).
 
 ## Registry and glass-box access
 

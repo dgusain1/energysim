@@ -9,7 +9,7 @@
   <a href="https://pypi.org/project/energysim/"><img src="https://img.shields.io/pypi/v/energysim.svg?color=blue" alt="PyPI version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B%20%7C%203.14-blue.svg" alt="Python 3.10+ | 3.14"></a>
   <a href="https://energysim.readthedocs.io"><img src="https://img.shields.io/badge/docs-ReadTheDocs-teal.svg" alt="Documentation"></a>
-  <a href="https://github.com/dgusain1/energysim/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
+  <a href="https://github.com/dgusain1/energysim/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
 </p>
 
 <p align="center">
@@ -36,22 +36,26 @@ Traditional simulation approaches force engineers and researchers into painful t
 
 **`energysim` solves this through modular co-simulation.** 
 
-Instead of forcing all equipment into one rigid solver, `energysim` orchestrates specialized simulators, native physical ODE models, and high-speed vectorized asset fleets through a unified co-simulation coordinator (`World`):
+Instead of forcing all equipment into one rigid solver, `energysim` orchestrates specialized simulators, native physical ODE models, and high-speed vectorized asset fleets through a unified co-simulation coordinator (`World`). Connections, unit conversion, the coupling strategy (Jacobi or Gauss-Seidel), the macro-step loop and result recording are all handled by `World`:
 
 ```mermaid
 flowchart LR
-    subgraph W["energysim World Coordinator"]
-        direction TB
-        S["Lock-Step Macro Loop<br/>(fixed or event-driven)"]
-        C["Coupling Engine<br/>(Jacobi | Gauss-Seidel)"]
-        U["Automatic Unit Resolution & Conversion<br/>(kW ↔ MW, kg/h ↔ kg/s)"]
-        R["In-Memory Recorder → Typed Results"]
+    subgraph IN["Simulators (adapters)"]
+        M["Physical Models<br/>Electrolyzers, BESS, Heat Pumps, Turbines"]
+        F["Vectorized DER Fleets<br/>1,000s of batteries, PVs, buildings (NumPy)"]
+        G["Grid Solvers<br/>pandapower, PyPSA, OpenDSS, PowerFactory"]
+        X["Standards & Tools<br/>FMU / FMI 1.0 & 2.0, MATLAB, GNU Octave, CSV"]
     end
 
-    M["Physical Models<br/>Electrolyzers, BESS, Heat Pumps, Turbines"] --- W
-    F["Vectorized DER Fleets<br/>10,000s of EVs, PVs, Homes (NumPy SIMD)"] --- W
-    G["Grid Solvers<br/>pandapower, PyPSA, OpenDSS, PowerFactory"] --- W
-    X["Standards & Tools<br/>FMU / FMI 1.0 & 2.0, MATLAB, GNU Octave, CSV"] --- W
+    subgraph W["World (one class composed of mixins)"]
+        direction TB
+        C["Connections + unit resolution<br/>(kW ↔ MW, kg/h ↔ kg/s)"]
+        S["Macro-step loop<br/>Coupling strategy: Jacobi | Gauss-Seidel<br/>fixed or event-driven step"]
+        R["Recorder → typed Results"]
+        C --> S --> R
+    end
+
+    IN <-->|"outputs / inputs at each macro step"| W
 ```
 
 ### How it Works:
@@ -67,11 +71,11 @@ flowchart LR
 | Capability | What it gives you |
 |---|---|
 | 🔋 **25+ Multi-Physics Components** | Out-of-the-box physical ODE models for **PEM / Alkaline / SOEC electrolyzers**, hydrogen storage tanks, fuel cells, Li-ion batteries with degradation, industrial heat pumps, CCGT/OCGT, and solar/wind. |
-| ⚡ **C-Speed Vectorized Fleets** | Simulate **10,000+ residential batteries, EVs, rooftop PVs, or heat pumps simultaneously** in sub-millisecond NumPy array operations without slow Python object dispatch loops. |
+| ⚡ **Vectorized Fleets** | Simulate **thousands of residential batteries, rooftop PVs, buildings or heat pumps simultaneously** in single NumPy array operations (about 1 ms per step for 10,000 batteries) instead of Python object loops. |
 | 🔌 **Universal Co-Simulation** | Connect power grids (**pandapower, PyPSA, OpenDSS, PowerFactory**), multi-physics standards (**FMI 1.0 / 2.0 FMUs** via FMPy), and math models (**MATLAB / GNU Octave**) into a single unified world. |
 | 📐 **Parameter Ingestion (`.from_model`)** | Define a calibrated physical asset or archetype once and replicate it across a 1,000-unit fleet with realistic stochastic parameter variation (`spread`). |
-| 🛡️ **Zero-Surprise Pre-Run Validation** | `world.validate()` checks connection topologies, unit compatibility, and step-size alignment before execution. Safe mode sandboxes untrusted YAML scenarios. |
-| 📊 **Interactive Analytics** | Export results directly to Pandas / Polars DataFrames, Apache Parquet, or self-contained offline **HTML interactive dashboards** with zero extra setup. |
+| 🛡️ **Zero-Surprise Pre-Run Validation** | `world.validate()` checks connection topologies, unit compatibility, and step-size alignment before execution. Safe mode filters untrusted YAML scenarios (it refuses scripts, FMUs, pickles and external code, but is not an OS-level sandbox). |
+| 📊 **Interactive Analytics** | Export results to pandas DataFrames, Apache Parquet / CSV / HDF5, or a self-contained **HTML interactive dashboard** (Plotly is loaded from a CDN by default; pass `offline=True` to embed it). |
 
 ---
 
@@ -129,7 +133,7 @@ uv add energysim[all]       # everything above
 
 ### 60-Second Sector Coupling: Solar PV + Battery + PEM Electrolyzer + Hydrogen Tank
 
-This self-contained Python script simulates a 24-hour green hydrogen production facility. Note how irradiance, electric power, and hydrogen mass flow are connected across domains with **automatic unit scaling**:
+This self-contained Python script simulates a 24-hour green hydrogen production facility. Irradiance, electric power, and hydrogen mass flow are connected across domains. Declare units on signals (as for `p_pem` below) so energysim can convert them; a signal without declared units is passed through unscaled, with a warning:
 
 ```python
 import energysim as es
@@ -146,7 +150,7 @@ world.add_model("tank", H2StorageTank(volume_m3=100.0, p_init_bar=50.0), step_si
 
 # 3. Add dynamic solar irradiance and dispatch profiles
 daylight = "max(0, sin(pi * (t - 6*3600) / (12*3600)))"
-world.add_signal("sun", f"900 * {daylight}", step_size=900)
+world.add_signal("sun", f"900 * {daylight}", step_size=900, units={"y": "W/m2"})
 world.add_signal("p_pem", f"6 * {daylight}", step_size=900, units={"y": "MW"})
 
 # 4. Connect streams across domains
@@ -167,7 +171,7 @@ print(f"Final tank pressure: {res['tank.pressure_bar'].iloc[-1]:.1f} bar")
 
 ## Vectorized DER Fleets at Scale
 
-Simulating thousands of distributed assets (EVs, rooftop PVs, residential heat pumps) with individual Python objects creates severe interpreter bottlenecks. `energysim` provides **Vectorized Container Simulators** that step $N$ entities simultaneously in C-speed contiguous NumPy arrays:
+Simulating thousands of distributed assets (EVs, rooftop PVs, residential heat pumps) with individual Python objects creates severe interpreter bottlenecks. `energysim` provides **Vectorized Container Simulators** that step $N$ entities simultaneously in contiguous NumPy arrays:
 
 ```python
 import energysim as es
@@ -178,12 +182,15 @@ home_bess = models.BatteryBESS(capacity_mwh=0.0135, p_max_mw=0.005) # 13.5 kWh P
 
 world = es.World(start_time=0, stop_time=86400, t_macro=900)
 
-# Ingest directly into a 1,000-unit fleet with +/-10% stochastic spread across homes!
-world.add_fleet("ev_fleet", model=home_bess, size=1000, spread=0.10, seed=42)
-world.add_fleet("rooftop_pv", kind="pv", size=1000, peak_kw=5.0)
+# Ingest directly into a 1,000-unit battery fleet with +/-10% stochastic spread across homes
+world.add_fleet("homes", model=home_bess, size=1000, spread=0.10, seed=42)
+
+# Drive every home with the same dispatch signal (kW per unit)
+world.add_signal("dispatch", "4 * sin(2*pi*t/86400)", step_size=900, units={"y": "kW"})
+world.add_connections({"dispatch.y": "homes.p_cmd"})
 
 res = world.simulate()
-print("Community peak battery power:", res["ev_fleet.total_actual_p_kw"].max(), "kW")
+print("Community peak battery power:", res["homes.total_actual_p_kw"].abs().max(), "kW")
 ```
 
 ---
@@ -196,7 +203,7 @@ Simulations can be defined entirely in declarative YAML files for automated head
 # Validate scenario structure, units, and connections
 energysim validate scenario.yaml
 
-# Run simulation and launch the interactive HTML dashboard
+# Run simulation and open the interactive HTML dashboard (add --offline to embed Plotly)
 energysim run scenario.yaml --dashboard
 ```
 
@@ -209,7 +216,7 @@ The repository includes a curated collection of **21 executable Jupyter notebook
 | Category | Notebook | Description |
 |---|---|---|
 | **Getting Started** | `00_model_catalog_starter_guide.ipynb` | Starter guide for all physical components (BESS, PV, Wind, PEM, Heat Pumps). |
-| | `01_quickstart_multi_energy_cosim.ipynb` | Complete multi-carrier microgrid with solar, battery, and diesel dispatch. |
+| | `01_quickstart_multi_energy_cosim.ipynb` | Introduces the `World`, macro/micro steps, `BatteryBESS` and `PhysicsPV` models, signals, connections and automatic unit scaling. |
 | **Grid Co-Simulation** | `02_grid_cosim_pandapower_pypsa_opendss.ipynb` | AC power flow co-simulation across pandapower, PyPSA, and OpenDSS. |
 | | `12_dso_feeder_with_fleets.ipynb` | 1,000 rooftop PVs and EV fleets integrated into a medium-voltage distribution feeder. |
 | **Vectorized DER Fleets** | `06_vectorized_fleet_aggregation.ipynb` | SIMD vectorized container scaling to 10,000 residential batteries. |
@@ -228,7 +235,7 @@ The repository includes a curated collection of **21 executable Jupyter notebook
 
 ## Results & Standalone HTML Dashboard
 
-Results are returned as a typed `Results` container. You can query variables by dot notation, convert to wide DataFrames, calculate energy KPIs, or export a self-contained offline HTML dashboard:
+Results are returned as a typed `Results` container. You can query variables by dot notation, convert to wide DataFrames, calculate energy KPIs, or export an interactive HTML dashboard:
 
 ```python
 res = world.simulate()
@@ -237,7 +244,7 @@ df = res.to_frame(resample='15min')      # Wide pandas DataFrame
 kpis = res.kpis()                        # Energy integrals (kWh), peak demands, averages
 res.save('run_output')                   # Export as Apache Parquet + meta.json
 
-# Generate interactive standalone HTML dashboard with Plotly charts
+# Generate interactive HTML dashboard with Plotly charts (offline=True embeds Plotly)
 res.dashboard('dashboard.html', open=True)
 ```
 
