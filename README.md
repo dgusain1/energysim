@@ -5,20 +5,248 @@
   <img src="brand/energysim-full-dark.svg#gh-dark-mode-only" alt="energysim - Co-Simulation of Multi-Energy Systems" width="460">
 </p>
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+<p align="center">
+  <a href="https://pypi.org/project/energysim/"><img src="https://img.shields.io/pypi/v/energysim.svg?color=blue" alt="PyPI version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B%20%7C%203.14-blue.svg" alt="Python 3.10+ | 3.14"></a>
+  <a href="https://energysim.readthedocs.io"><img src="https://img.shields.io/badge/docs-ReadTheDocs-teal.svg" alt="Documentation"></a>
+  <a href="https://github.com/dgusain1/energysim/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
+</p>
 
-**Python-based co-simulation tool for multi-energy systems.**
+<p align="center">
+  <b>Open-source Python framework for multi-energy system (MES) modeling, sector coupling, and heterogeneous co-simulation.</b>
+</p>
 
-Documentation: [energysim.readthedocs.io](https://energysim.readthedocs.io)
+<p align="center">
+  <a href="https://energysim.readthedocs.io">Documentation</a> &bull;
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#interactive-tutorials--case-studies">Tutorials & Notebooks</a> &bull;
+  <a href="#supported-simulators--grid-solvers">Supported Simulators</a> &bull;
+  <a href="https://github.com/dgusain1/energysim/issues">Community & Issues</a>
+</p>
+
+---
 
 ## What is energysim?
 
-`energysim` is a high-performance Python framework for **multi-energy system (MES) modeling, sector coupling, and heterogeneous co-simulation**.
+Modern energy transitions rely heavily on **sector coupling** &mdash; the complex physical and economic interactions between electricity grids, district heating networks, natural gas pipelines, and green hydrogen supply chains. 
 
-It bridges electrical power networks with **built-in physical models for green hydrogen electrolyzers, gas turbines, battery storage, and district heating**, alongside bridges for external simulators (pandapower, PyPSA, OpenDSS, PowerFactory, FMUs, MATLAB, Octave) through a single `world` orchestrator with automatic unit scaling and dependency resolution.
+Traditional simulation approaches force engineers and researchers into painful trade-offs:
+- **Single-domain tools** (like pure power flow solvers or building envelope simulators) ignore cross-carrier feedback dynamics.
+- **Monolithic models** attempt to solve all equations simultaneously, becoming computationally intractable and difficult to maintain.
 
-### Key Capabilities
+**`energysim` solves this through modular co-simulation.** 
+
+Instead of forcing all equipment into one rigid solver, `energysim` orchestrates specialized simulators, native physical ODE models, and high-speed vectorized asset fleets through a unified co-simulation coordinator (`World`):
+
+```mermaid
+flowchart LR
+    subgraph W["energysim World Coordinator"]
+        direction TB
+        S["Lock-Step Macro Loop<br/>(fixed or event-driven)"]
+        C["Coupling Engine<br/>(Jacobi | Gauss-Seidel)"]
+        U["Automatic Unit Resolution & Conversion<br/>(kW ↔ MW, kg/h ↔ kg/s)"]
+        R["In-Memory Recorder → Typed Results"]
+    end
+
+    M["Physical Models<br/>Electrolyzers, BESS, Heat Pumps, Turbines"] --- W
+    F["Vectorized DER Fleets<br/>10,000s of EVs, PVs, Homes (NumPy SIMD)"] --- W
+    G["Grid Solvers<br/>pandapower, PyPSA, OpenDSS, PowerFactory"] --- W
+    X["Standards & Tools<br/>FMU / FMI 1.0 & 2.0, MATLAB, GNU Octave, CSV"] --- W
+```
+
+### How it Works:
+1. **Lock-Step Synchronization**: Simulators advance their internal physics independently during micro-steps and exchange boundary variables at coordinated macro-steps (`t_macro`).
+2. **Automatic Physical Unit Conversion**: Variables connected across models are validated and automatically scaled (e.g. converting `kW` to `MW` or `degC` to `K`) based on a first-class unit registry. Mismatched dimensions raise immediate validation errors.
+3. **Loop & Delay Resolution**: Feedback loops between coupled models are detected topologically and resolved with a deterministic one-macro-step delay.
+4. **Adaptive Event Stepping**: The simulation time grid automatically refines (`t_macro_min`) to land precisely on scheduled grid outages, control triggers, or device events.
+
+---
+
+## Why energysim?
+
+| Capability | What it gives you |
+|---|---|
+| 🔋 **25+ Multi-Physics Components** | Out-of-the-box physical ODE models for **PEM / Alkaline / SOEC electrolyzers**, hydrogen storage tanks, fuel cells, Li-ion batteries with degradation, industrial heat pumps, CCGT/OCGT, and solar/wind. |
+| ⚡ **C-Speed Vectorized Fleets** | Simulate **10,000+ residential batteries, EVs, rooftop PVs, or heat pumps simultaneously** in sub-millisecond NumPy array operations without slow Python object dispatch loops. |
+| 🔌 **Universal Co-Simulation** | Connect power grids (**pandapower, PyPSA, OpenDSS, PowerFactory**), multi-physics standards (**FMI 1.0 / 2.0 FMUs** via FMPy), and math models (**MATLAB / GNU Octave**) into a single unified world. |
+| 📐 **Parameter Ingestion (`.from_model`)** | Define a calibrated physical asset or archetype once and replicate it across a 1,000-unit fleet with realistic stochastic parameter variation (`spread`). |
+| 🛡️ **Zero-Surprise Pre-Run Validation** | `world.validate()` checks connection topologies, unit compatibility, and step-size alignment before execution. Safe mode sandboxes untrusted YAML scenarios. |
+| 📊 **Interactive Analytics** | Export results directly to Pandas / Polars DataFrames, Apache Parquet, or self-contained offline **HTML interactive dashboards** with zero extra setup. |
+
+---
+
+## Installation
+
+Install the lightweight core engine:
+
+```bash
+pip install energysim             # or: uv add energysim
+```
+
+The core package only requires `numpy`, `pandas`, `tqdm`, `networkx`, and `pyyaml`. Specialized grid solvers, FMU support, and optimization modules are available as optional extras:
+
+<!-- extras:start -->
+<!-- Generated from pyproject.toml by scripts/generate_readme_features.py. Do not edit by hand. -->
+
+With pip:
+
+```bash
+pip install energysim            # core: numpy, pandas, tqdm, networkx, pyyaml
+pip install energysim[fmu]       # adds fmpy>=0.3.27,<0.4
+pip install energysim[powerflow] # adds pandapower>=3.0,<4
+pip install energysim[pypsa]     # adds pypsa>=0.30,<2
+pip install energysim[opendss]   # adds opendssdirect.py>=0.9,<1
+pip install energysim[plotting]  # adds matplotlib
+pip install energysim[networks]  # adds scipy
+pip install energysim[control]   # adds scipy>=1.9
+pip install energysim[results]   # adds pyarrow
+pip install energysim[hdf5]      # adds tables
+pip install energysim[all]       # everything above
+```
+
+With uv:
+
+```bash
+uv add energysim
+uv add energysim[fmu]       # adds fmpy>=0.3.27,<0.4
+uv add energysim[powerflow] # adds pandapower>=3.0,<4
+uv add energysim[pypsa]     # adds pypsa>=0.30,<2
+uv add energysim[opendss]   # adds opendssdirect.py>=0.9,<1
+uv add energysim[plotting]  # adds matplotlib
+uv add energysim[networks]  # adds scipy
+uv add energysim[control]   # adds scipy>=1.9
+uv add energysim[results]   # adds pyarrow
+uv add energysim[hdf5]      # adds tables
+uv add energysim[all]       # everything above
+```
+<!-- extras:end -->
+
+*External tools requiring local installations: DIgSILENT PowerFactory (2020+ API), MATLAB (MATLAB Engine for Python), or GNU Octave (`pip install oct2py` + Octave on `PATH`).*
+
+---
+
+## Quick Start
+
+### 60-Second Sector Coupling: Solar PV + Battery + PEM Electrolyzer + Hydrogen Tank
+
+This self-contained Python script simulates a 24-hour green hydrogen production facility. Note how irradiance, electric power, and hydrogen mass flow are connected across domains with **automatic unit scaling**:
+
+```python
+import energysim as es
+from energysim.models import PhysicsPV, BatteryBESS, PEMElectrolyzer, H2StorageTank
+
+# 1. Create the world coordinator (24h simulation, 15-minute macro exchange)
+world = es.World(start_time=0, stop_time=86400, t_macro=900)
+
+# 2. Add physical component models
+world.add_model("pv", PhysicsPV(p_dc_stc_mw=12.0, inverter_p_ac_max_mw=10.0), step_size=900)
+world.add_model("bess", BatteryBESS(capacity_mwh=4.0, p_max_mw=2.0, soc_init=0.5), step_size=60)
+world.add_model("pem", PEMElectrolyzer(p_nominal_mw=8.0), step_size=60)
+world.add_model("tank", H2StorageTank(volume_m3=100.0, p_init_bar=50.0), step_size=60)
+
+# 3. Add dynamic solar irradiance and dispatch profiles
+daylight = "max(0, sin(pi * (t - 6*3600) / (12*3600)))"
+world.add_signal("sun", f"900 * {daylight}", step_size=900)
+world.add_signal("p_pem", f"6 * {daylight}", step_size=900, units={"y": "MW"})
+
+# 4. Connect streams across domains
+world.add_connections({
+    "sun.y": "pv.G_poa",
+    "p_pem.y": "pem.P_cmd",
+    "pem.m_dot_H2_kg_hr": "tank.m_dot_in_kg_hr",
+})
+
+# 5. Simulate and analyze results
+res = world.simulate()
+
+print(f"Total H2 produced: {res['tank.mass_stored_kg'].iloc[-1] - res['tank.mass_stored_kg'].iloc[0]:.1f} kg")
+print(f"Final tank pressure: {res['tank.pressure_bar'].iloc[-1]:.1f} bar")
+```
+
+---
+
+## Vectorized DER Fleets at Scale
+
+Simulating thousands of distributed assets (EVs, rooftop PVs, residential heat pumps) with individual Python objects creates severe interpreter bottlenecks. `energysim` provides **Vectorized Container Simulators** that step $N$ entities simultaneously in C-speed contiguous NumPy arrays:
+
+```python
+import energysim as es
+from energysim import models
+
+# Define a single calibrated asset or archetype
+home_bess = models.BatteryBESS(capacity_mwh=0.0135, p_max_mw=0.005) # 13.5 kWh Powerwall
+
+world = es.World(start_time=0, stop_time=86400, t_macro=900)
+
+# Ingest directly into a 1,000-unit fleet with +/-10% stochastic spread across homes!
+world.add_fleet("ev_fleet", model=home_bess, size=1000, spread=0.10, seed=42)
+world.add_fleet("rooftop_pv", kind="pv", size=1000, peak_kw=5.0)
+
+res = world.simulate()
+print("Community peak battery power:", res["ev_fleet.total_actual_p_kw"].max(), "kW")
+```
+
+---
+
+## Declarative YAML & CLI Runner
+
+Simulations can be defined entirely in declarative YAML files for automated headless execution, batch workflows, and CI/CD testing:
+
+```bash
+# Validate scenario structure, units, and connections
+energysim validate scenario.yaml
+
+# Run simulation and launch the interactive HTML dashboard
+energysim run scenario.yaml --dashboard
+```
+
+---
+
+## Interactive Tutorials & Case Studies
+
+The repository includes a curated collection of **21 executable Jupyter notebooks** in [`examples/notebooks/`](examples/notebooks/):
+
+| Category | Notebook | Description |
+|---|---|---|
+| **Getting Started** | `00_model_catalog_starter_guide.ipynb` | Starter guide for all physical components (BESS, PV, Wind, PEM, Heat Pumps). |
+| | `01_quickstart_multi_energy_cosim.ipynb` | Complete multi-carrier microgrid with solar, battery, and diesel dispatch. |
+| **Grid Co-Simulation** | `02_grid_cosim_pandapower_pypsa_opendss.ipynb` | AC power flow co-simulation across pandapower, PyPSA, and OpenDSS. |
+| | `12_dso_feeder_with_fleets.ipynb` | 1,000 rooftop PVs and EV fleets integrated into a medium-voltage distribution feeder. |
+| **Vectorized DER Fleets** | `06_vectorized_fleet_aggregation.ipynb` | SIMD vectorized container scaling to 10,000 residential batteries. |
+| | `10_fleet_heatpump_buildings.ipynb` | 1,000 heat pumps coupled with 1R1C thermal building envelopes. |
+| | `20_simplified_vectorized_and_ensemble_modeling.ipynb` | Functional fleet modeling (`SimpleVectorizedModel`) and parameter sweeps. |
+| **Hydrogen & Gas** | `07_green_hydrogen_valley.ipynb` | Green hydrogen valley: electrolyzers, compressors, storage tanks, and fuel cells. |
+| | `14_power_gas_cold_snap.ipynb` | Multi-carrier winter cold-snap adequacy study across power, gas, and heat. |
+| **External Standards & Tools** | `16_fmu_with_builtin_physics.ipynb` | FMI 2.0 Co-Simulation FMUs coupled with native `energysim` physical models. |
+| | `17_gnu_octave_matlab_cosim.ipynb` | GNU Octave & MATLAB co-simulation guide with custom `.m` model contracts. |
+| | `18_powerfactory_cosim_setup.ipynb` | DIgSILENT PowerFactory load flow co-simulation setup with transparent mock fallback. |
+| | `19_online_fmus_and_fmi_standards.ipynb` | Downloading and executing official Modelica Association FMI Cross-Check FMUs. |
+
+*See the full [Curriculum Roadmap & Learning Paths](https://energysim.readthedocs.io/en/latest/notebooks-roadmap/) on ReadTheDocs.*
+
+---
+
+## Results & Standalone HTML Dashboard
+
+Results are returned as a typed `Results` container. You can query variables by dot notation, convert to wide DataFrames, calculate energy KPIs, or export a self-contained offline HTML dashboard:
+
+```python
+res = world.simulate()
+
+df = res.to_frame(resample='15min')      # Wide pandas DataFrame
+kpis = res.kpis()                        # Energy integrals (kWh), peak demands, averages
+res.save('run_output')                   # Export as Apache Parquet + meta.json
+
+# Generate interactive standalone HTML dashboard with Plotly charts
+res.dashboard('dashboard.html', open=True)
+```
+
+---
+
+## Detailed Engine Capabilities & Status Matrix
+
+<details>
+<summary><b>Click to expand full capability matrix</b> (tracked across continuous integration test suite)</summary>
 
 <!-- features:start -->
 <!-- Generated from features.yaml by scripts/generate_readme_features.py. Do not edit by hand. -->
@@ -130,138 +358,14 @@ It bridges electrical power networks with **built-in physical models for green h
 Status legend: `stable` and `beta` features are covered by the test suite listed in `features.yaml`; `planned` features are not implemented yet; `removed` ones raise a clear error.
 <!-- features:end -->
 
-## Architecture
+</details>
 
-All simulator adapters inherit from the `SimulatorAdapter` abstract base
-class (in `energysim.base`). The `world` orchestrator interacts *only*
-through this interface:
+---
 
-| Method                              | Description                                       |
-|-------------------------------------|---------------------------------------------------|
-| `configure(start, stop, macro_step)` + `init()` | Called at the start of every run, before the first step. |
-| `set_parameters(params)`            | Apply initial values / parameters (default: `set_value`). |
-| `get_available_variables()`         | Introspection: `{"inputs": [...], "outputs": [...]}`. |
-| `step(time)`                        | Advance the model by one micro-step.              |
-| `advance(start, stop)`              | Advance from *start* to *stop* (loops `step()`).  |
-| `get_value(parameters, time)`       | Query output variables.                           |
-| `set_value(parameters, values)`     | Set input variables.                              |
-| `step_partial(time, dt)`            | Shorter final micro-step when an event shortens a macro step. |
-| `max_step(time)`, `next_event_time(time)` | Optional step-size hints for the variable macro step. |
-| `cleanup()`                         | Release resources after the simulation.           |
+## Parameter Reference
 
-Coupling is `'jacobi'` (default) or `'gauss-seidel'`; feedback loops are solved with a one-macro-step delay (reduce
-`t_macro` or merge the coupled components). Fixed-point (iterative) coupling and state rollback were
-removed in 3.0. See [Migrating to 3.0](https://energysim.readthedocs.io/en/latest/migration-3.0/).
-
-## Installation
-
-Install the core package:
-
-```bash
-pip install energysim   # or: uv add energysim
-```
-
-Only **numpy**, **pandas**, **tqdm**, **networkx** and **pyyaml** are required. Everything else is an
-optional extra:
-
-<!-- extras:start -->
-<!-- Generated from pyproject.toml by scripts/generate_readme_features.py. Do not edit by hand. -->
-
-With pip:
-
-```bash
-pip install energysim            # core: numpy, pandas, tqdm, networkx, pyyaml
-pip install energysim[fmu]       # adds fmpy>=0.3.27,<0.4
-pip install energysim[powerflow] # adds pandapower>=3.0,<4
-pip install energysim[pypsa]     # adds pypsa>=0.30,<2
-pip install energysim[opendss]   # adds opendssdirect.py>=0.9,<1
-pip install energysim[plotting]  # adds matplotlib
-pip install energysim[networks]  # adds scipy
-pip install energysim[control]   # adds scipy>=1.9
-pip install energysim[results]   # adds pyarrow
-pip install energysim[hdf5]      # adds tables
-pip install energysim[all]       # everything above
-```
-
-With uv:
-
-```bash
-uv add energysim
-uv add energysim[fmu]       # adds fmpy>=0.3.27,<0.4
-uv add energysim[powerflow] # adds pandapower>=3.0,<4
-uv add energysim[pypsa]     # adds pypsa>=0.30,<2
-uv add energysim[opendss]   # adds opendssdirect.py>=0.9,<1
-uv add energysim[plotting]  # adds matplotlib
-uv add energysim[networks]  # adds scipy
-uv add energysim[control]   # adds scipy>=1.9
-uv add energysim[results]   # adds pyarrow
-uv add energysim[hdf5]      # adds tables
-uv add energysim[all]       # everything above
-```
-<!-- extras:end -->
-
-Adapters that are not pip extras:
-
-- **PowerFactory**: requires DIgSILENT PowerFactory 2020+ with the Python API enabled. No extra pip package needed.
-- **MATLAB**: requires the MATLAB Engine for Python.
-- **Octave**: `pip install oct2py` / `uv add oct2py` + GNU Octave on PATH.
-
-## CLI Runner & Declarative YAML
-
-Run co-simulations directly from YAML without writing Python scripts:
-
-```bash
-# Validate scenario pre-flight
-energysim validate scenario.yaml
-
-# Run simulation and open interactive dashboard
-energysim run scenario.yaml --dashboard
-```
-
-## Quick Start (Zero-Setup Minimal Example)
-
-Run a complete multi-domain co-simulation in Python with zero external file dependencies:
-
-```python
-import pandapower as pp
-from energysim import world
-
-# 1. Create a minimal distribution network in memory
-net = pp.create_empty_network(name='microgrid')
-b1 = pp.create_bus(net, vn_kv=20.0, name='Bus1')
-b2 = pp.create_bus(net, vn_kv=20.0, name='Bus2')
-pp.create_ext_grid(net, b1, name='GridSlack')
-pp.create_line(net, b1, b2, length_km=2.5, std_type='NAYY 4x150 SE', name='Feeder')
-pp.create_load(net, b2, p_mw=1.2, q_mvar=0.3, name='Load1')
-
-# 2. Initialize the co-simulation coordinator (macro step = 900s)
-sim = world(start_time=0, stop_time=3600, t_macro=900, power_unit='kW')
-
-# 3. Register the grid model and a dynamic controller signal
-sim.add_powerflow('grid', net=net, inputs=['Load1.p_mw'], outputs=['Bus2.vm_pu'], step_size=900, mode='ac')
-sim.add_signal('load_controller', lambda t: [800.0 + 200.0 * (t / 3600)], units={'y': 'kW'})
-
-# 4. Connect signal to load (automatically converts 800 kW -> 0.8 MW)
-sim.add_connections({'load_controller.y': 'grid.Load1.p_mw'})
-
-# 5. Run co-simulation and view DataFrame results
-results = sim.simulate()
-
-print(results['grid.Bus2.vm_pu'])     # pandas Series indexed by time (s)
-```
-
-More workflows (each with runnable examples in the documentation):
-
-- **Events and variable macro step**: `world.schedule(t, {'set': {...}})`, `world.add_trigger(...)`,
-  `world(t_macro_min=...)` - [Events](https://energysim.readthedocs.io/en/latest/events/).
-- **Ensembles and sweeps**: `Ensemble`, samplers, `noisy_signal`, `Sweep` -
-  [Ensembles](https://energysim.readthedocs.io/en/latest/ensemble/).
-- **Untrusted scenario files**: `world.from_yaml(path, safe=True)` / `energysim run --safe` -
-  [Safe mode](https://energysim.readthedocs.io/en/latest/safe-mode/).
-- **Units**: every connection is converted into the receiver's unit; unspecified units are never scaled
-  (`unit_policy='strict'` makes them an error) - [Units](https://energysim.readthedocs.io/en/latest/units/).
-
-## Parameters
+<details>
+<summary><b>Click to expand parameter reference</b> (<code>world()</code> and <code>add_simulator()</code> signatures)</summary>
 
 <!-- params:start -->
 <!-- Generated from the signatures by scripts/generate_readme_features.py. Do not edit by hand. -->
@@ -309,28 +413,23 @@ Type-specific keyword arguments:
 - **MATLAB / Octave**: `engine` - `'auto'`, `'matlab'` or `'octave'`
 <!-- params:end -->
 
-## Results & Dashboard
+</details>
 
-`sim.simulate()` returns a `Results` object (also kept as
-`sim.last_results`). Nothing is written to disk unless you ask for it:
+---
 
-```python
-res = sim.simulate()                  # `sim` from the Quick Start above
-res['grid']                   # DataFrame of one simulator (index: time)
-res['grid.Bus2.vm_pu']        # Series of one variable
-res.to_frame(resample='15min')  # wide frame, columns 'sim.var'
-res.summary(); res.kpis()     # statistics, energy integrals (kWh), ...
-res.save('out')               # Parquet (or CSV) + meta.json; Results.load('out')
-res.dashboard('my_dashboard.html', open=True)
+## Community & Citation
+
+`energysim` is free software licensed under the **GNU General Public License v3.0** by Digvijay Gusain ([@dgusain1](https://github.com/dgusain1)).
+
+If you use `energysim` in your academic research, please cite our IEEE PowerTech paper:
+
+```bibtex
+@inproceedings{gusain2019energysim,
+  author    = {Gusain, Digvijay and Cvetkovi{\'c}, Milo{\v{s}} and Palensky, Peter},
+  title     = {Energy flexibility analysis using {FMUWorld}},
+  booktitle = {2019 IEEE Milan PowerTech},
+  year      = {2019},
+  pages     = {1--6},
+  doi       = {10.1109/PTC.2019.8810433}
+}
 ```
-
-To keep every run on disk, create the world with `world(..., out_dir='runs')`; each run is then written to
-`runs/<YYYYmmdd-HHMMSS>_<hash8>/`.
-
-## Citing
-
-Please cite the following paper if you use **energysim**:
-
-> Gusain, D., Cvetkovic, M. & Palensky, P. (2019). *Energy flexibility
-> analysis using FMUWorld.* 2019 IEEE Milan PowerTech.
-> [doi:10.1109/PTC.2019.8810433](https://doi.org/10.1109/PTC.2019.8810433)

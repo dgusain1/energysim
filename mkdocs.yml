@@ -42,64 +42,77 @@ theme:
 
 
 nav:
-  - Home: index.md
-  - Physical Components:
-      - Overview: physical-models.md
-      - Battery BESS: components/bess.md
-      - Flow Battery (VRFB): components/flow_battery.md
-      - Flywheel Storage: components/flywheel.md
-      - Photovoltaic (PV): components/pv.md
-      - Wind Turbine: components/wind.md
-      - Solar Thermal Collector: components/solar_thermal.md
-      - PEM Electrolyzer: components/pem_electrolyzer.md
-      - Alkaline Electrolyzer: components/alkaline_electrolyzer.md
-      - SOEC Electrolyzer: components/soec_electrolyzer.md
-      - H2 Compressor: components/h2_compressor.md
-      - H2 Storage Tank: components/h2_tank.md
-      - Fuel Cell (PEM & SOFC): components/fuel_cell.md
-      - Methanation Reactor: components/methanation.md
-      - Combined Cycle (CCGT): components/ccgt.md
-      - Open Cycle (OCGT): components/ocgt.md
-      - Reciprocating Genset: components/genset.md
-      - CHP Steam Turbine: components/chp.md
-      - Industrial Heat Pump: components/heat_pump.md
-      - Electric Boiler: components/electric_boiler.md
-      - Chillers (Electric & Absorption): components/chiller.md
-      - Thermal Storage Tank: components/thermal_storage.md
-      - Carbon Capture: components/carbon_capture.md
-      - Data Center Load: components/datacenter.md
-      - Industrial Process Steam: components/process_steam.md
-      - Equipment Catalog Archetypes: components/catalog.md
-      - Authoring Custom Models: custom-models.md
-  - Vectorized Fleet Containers:
-      - Overview & SIMD Architecture: containers/overview.md
-      - Storage & EV Battery Fleet: containers/storage_fleet.md
-      - Solar PV Fleet: containers/pv_fleet.md
-      - Building Thermal Fleet: containers/building_fleet.md
-      - Heat Pump Fleet: containers/heat_pump_fleet.md
-      - Building Your Own Vectorized Fleet: containers/custom_fleet.md
-  - Simulator Adapters:
-      - Supported Simulators & Adapters: add-simulator.md
+  - Getting Started:
+      - Overview & Quick Start: index.md
+      - Engine Features: features.md
+      - Migrating from 2.x to 3.0: migration-3.0.md
+
+  - Multi-Energy Modeling:
+      - Physical Components:
+          - Overview & ModelComponent: physical-models.md
+          - Storage:
+              - Battery BESS: components/bess.md
+              - Flow Battery (VRFB): components/flow_battery.md
+              - Flywheel Storage: components/flywheel.md
+          - Renewables:
+              - Photovoltaic (PV): components/pv.md
+              - Wind Turbine: components/wind.md
+              - Solar Thermal Collector: components/solar_thermal.md
+          - Hydrogen & PtX:
+              - PEM Electrolyzer: components/pem_electrolyzer.md
+              - Alkaline Electrolyzer: components/alkaline_electrolyzer.md
+              - SOEC Electrolyzer: components/soec_electrolyzer.md
+              - H2 Compressor: components/h2_compressor.md
+              - H2 Storage Tank: components/h2_tank.md
+              - Fuel Cells (PEM & SOFC): components/fuel_cell.md
+              - Methanation Reactor: components/methanation.md
+          - Thermal Generation:
+              - Combined Cycle (CCGT): components/ccgt.md
+              - Open Cycle (OCGT): components/ocgt.md
+              - Reciprocating Genset: components/genset.md
+              - CHP Steam Turbine: components/chp.md
+          - Heating, Cooling & District Energy:
+              - Industrial Heat Pump: components/heat_pump.md
+              - Electric Boiler: components/electric_boiler.md
+              - Chillers (Electric & Absorption): components/chiller.md
+              - Thermal Storage Tank: components/thermal_storage.md
+          - Loads & Carbon Capture:
+              - Carbon Capture: components/carbon_capture.md
+              - Data Center Load: components/datacenter.md
+              - Industrial Process Steam: components/process_steam.md
+          - Equipment Catalog Archetypes: components/catalog.md
+          - Authoring Custom Models: custom-models.md
+      - Vectorized Fleet Containers:
+          - Overview & SIMD Acceleration: containers/overview.md
+          - Storage & EV Battery Fleet: containers/storage_fleet.md
+          - Solar PV Fleet: containers/pv_fleet.md
+          - Building Thermal Fleet: containers/building_fleet.md
+          - Heat Pump Fleet: containers/heat_pump_fleet.md
+          - Building Custom Vectorized Fleets: containers/custom_fleet.md
+      - Energy Networks:
+          - Multi-Carrier Pipe Networks (Heat & Gas): networks.md
+
+  - Simulator & Grid Adapters:
+      - Supported Simulators & Grid Adapters: add-simulator.md
       - Custom External Simulators: external-simulators.md
-  - Interactive Notebooks:
-      - Notebook Gallery & Case Studies: notebooks-gallery.md
-      - Roadmap & Starter Guides: notebooks-roadmap.md
-  - Workflows & CLI:
+
+  - Workflows & Simulation:
       - Declarative YAML & Scenarios: yaml-cli.md
       - Events & Variable Macro Step: events.md
       - Ensembles & Sweeps: ensemble.md
-      - Safe Mode & Trust Model: safe-mode.md
-  - Core & Architecture:
-      - Orchestration Architecture: architecture.md
-      - Engine Features: features.md
-      - Migrating to 3.0: migration-3.0.md
-  - Reference:
-      - Units: units.md
-      - Results & KPIs: results.md
-      - Energy Networks (Heat & Gas): networks.md
       - Control & Optimisation: control.md
-      - Validation: validation.md
-  - FAQ: faq.md
+      - Safe Mode & Trust Model: safe-mode.md
+
+  - Tutorials & Case Studies:
+      - Learning Roadmap & Curricula: notebooks-roadmap.md
+      - Interactive Notebook Gallery: notebooks-gallery.md
+
+  - Architecture & Reference:
+      - Orchestration Architecture: architecture.md
+      - Unit System & Policy: units.md
+      - Results & KPIs: results.md
+      - Validation & Benchmarks: validation.md
+      - Frequently Asked Questions (FAQ): faq.md
 
 markdown_extensions:
   - admonition
